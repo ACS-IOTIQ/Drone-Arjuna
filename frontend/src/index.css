@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --da-bg:       #0a0e1a;
+  --da-surface:  #111827;
+  --da-card:     #1a2235;
+  --da-border:   #2a3550;
+  --da-accent:   #3b82f6;
+  --da-teal:     #20d0b4;
+  --da-success:  #22c55e;
+  --da-warning:  #f59e0b;
+  --da-danger:   #ef4444;
+  --da-muted:    #6b7280;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background:
+    radial-gradient(circle at top left,  rgba(59,130,246,0.07), transparent 26%),
+    radial-gradient(circle at top right, rgba(32,208,180,0.05), transparent 22%),
+    linear-gradient(180deg, #06101a, var(--da-bg) 44%, #09121f);
+  color: #e2e8f0;
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--da-surface); }
+::-webkit-scrollbar-thumb { background: var(--da-border); border-radius: 3px; }
+
+/* Leaflet dark override */
+.leaflet-container { background: #0d1117 !important; }
+.leaflet-control-zoom a {
+  background: var(--da-card) !important;
+  color: #e2e8f0 !important;
+  border-color: var(--da-border) !important;
+}
+.leaflet-popup-content-wrapper {
+  background: var(--da-card) !important;
+  color: #e2e8f0 !important;
+  border: 1px solid var(--da-border);
+}
+.leaflet-popup-tip { background: var(--da-card) !important; }
+
+/* Recharts tooltip */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--da-card) !important;
+  border-color: var(--da-border) !important;
+}
+
+/* ── Utility classes ── */
+
+.da-card {
+  background: var(--da-card);
+  border: 1px solid var(--da-border);
+  border-radius: 8px;
+}
+
+.da-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s, background 0.15s;
+}
+.da-btn:hover  { opacity: 0.85; }
+.da-btn:active { opacity: 0.7; }
+.da-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.da-btn-primary { background: var(--da-accent); color: white; }
+.da-btn-danger  { background: var(--da-danger);  color: white; }
+.da-btn-ghost   { background: transparent; color: #94a3b8; border: 1px solid var(--da-border); }
+.da-btn-success { background: var(--da-success); color: white; }
+.da-btn-teal    { background: var(--da-teal);    color: #06101a; font-weight: 600; }
+
+.da-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── Status chip (topbar) ── */
+.da-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--da-border);
+  background: rgba(255,255,255,0.025);
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  color: var(--da-muted);
+}
+.da-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--da-muted);
+  flex-shrink: 0;
+}
+.da-chip.ok   { color: var(--da-success); border-color: rgba(34,197,94,0.35);  background: rgba(34,197,94,0.06); }
+.da-chip.ok   .da-chip-dot { background: var(--da-success); }
+.da-chip.warn { color: var(--da-warning); border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.06); }
+.da-chip.warn .da-chip-dot { background: var(--da-warning); }
+.da-chip.danger { color: var(--da-danger); border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.06); }
+.da-chip.danger .da-chip-dot { background: var(--da-danger); }
+.da-chip.blue { color: #93c5fd; border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.06); }
+.da-chip.blue .da-chip-dot { background: #3b82f6; }
+.da-chip.teal { color: var(--da-teal); border-color: rgba(32,208,180,0.35); background: rgba(32,208,180,0.06); }
+.da-chip.teal .da-chip-dot { background: var(--da-teal); }
+
+.da-input {
+  background: var(--da-surface);
+  border: 1px solid var(--da-border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: #e2e8f0;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.da-input:focus { border-color: var(--da-accent); }
+
+/* ── Font utilities ── */
+.mono    { font-family: 'JetBrains Mono', monospace; }
+.display { font-family: 'Rajdhani', sans-serif; }

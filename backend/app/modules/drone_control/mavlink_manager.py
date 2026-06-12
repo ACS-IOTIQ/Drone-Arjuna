@@ -79,7 +79,8 @@ class MAVLinkManager:
     async def connect(self, drone_id: int, call_sign: str, transport: str,
                       host: str = "127.0.0.1", port: int = 14550,
                       serial_port: str = "/dev/ttyUSB0", baud_rate: int = 57600,
-                      hf_modem_type: str = "generic") -> bool:
+                      hf_modem_type: str = "generic",
+                      heartbeat_timeout: float | None = None) -> bool:
         if drone_id in self._connections and self._connections[drone_id].connected:
             log.warning("Drone already connected", drone_id=drone_id)
             return True
@@ -97,7 +98,7 @@ class MAVLinkManager:
             conn.hf_adapter = hf_link_adapter.get_or_create(drone_id, hf_modem_type)
             log.info("HF link adapter attached", drone_id=drone_id, modem_type=hf_modem_type)
 
-        heartbeat_timeout = _HEARTBEAT_TIMEOUT.get(transport, 10.0)
+        heartbeat_timeout = heartbeat_timeout if heartbeat_timeout is not None else _HEARTBEAT_TIMEOUT.get(transport, 10.0)
 
         try:
             # pymavlink connection — runs synchronously but we offload to executor

@@ -13,7 +13,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.mission import Mission, Waypoint
 from app.models.drone import DroneInstance
-from app.schemas.drone import ConnectRequest, CommandRequest, SimStartRequest, SimCommandRequest
+from app.schemas.drone import ConnectRequest, CommandRequest, SimStartRequest, SimCommandRequest, AutoConnectRequest
 from app.modules.drone_control.mavlink_manager import mavlink_manager
 from app.modules.drone_control.mission_simulator import mission_simulator
 
@@ -56,6 +56,94 @@ async def list_available_ports(
     ]
 
     return serial_ports + network_ports
+
+
+@router.post("/autoconnect", status_code=status.HTTP_200_OK)
+async def autoconnect_drone(
+    req: AutoConnectRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_min_role(Role.FLIGHT_CONTROLLER)),
+):
+    """
+    Tries every available serial port then common MAVLink UDP/TCP ports in order.
+    Connects on the first port that returns a heartbeat within 4 seconds.
+    Returns 200 with connection details on success, 503 if all ports fail.
+    """
+    drone_instance_id: int = req.drone_instance_id
+
+    drone = await db.get(DroneInstance, drone_instance_id)
+    if not drone:
+        raise HTTPException(status_code=404, detail=f"Drone instance #{drone_instance_id} not found")
+
+    if mavlink_manager._connections.get(drone_instance_id, None) and \
+       mavlink_manager._connections[drone_instance_id].connected:
+        raise HTTPException(status_code=409, detail="Drone is already connected")
+
+    # ── Build candidate list ──────────────────────────────────────
+    # Serial ports first (real hardware), then common SITL network ports
+    loop = asyncio.get_event_loop()
+
+    def _scan_serial():
+        return [
+            {"transport": "serial", "serial_port": p.device, "host": "127.0.0.1", "port": 14550}
+            for p in serial.tools.list_ports.comports()
+        ]
+
+    serial_candidates = await loop.run_in_executor(_port_executor, _scan_serial)
+
+    network_candidates = [
+        {"transport": "udp", "host": "0.0.0.0",   "port": 14550, "serial_port": "/dev/ttyUSB0"},
+        {"transport": "udp", "host": "0.0.0.0",   "port": 14551, "serial_port": "/dev/ttyUSB0"},
+        {"transport": "tcp", "host": "127.0.0.1", "port": 5760,  "serial_port": "/dev/ttyUSB0"},
+        {"transport": "tcp", "host": "127.0.0.1", "port": 5762,  "serial_port": "/dev/ttyUSB0"},
+    ]
+
+    candidates = serial_candidates + network_candidates
+
+    log.info("Autoconnect starting", drone_id=drone_instance_id,
+             call_sign=drone.call_sign, candidates=len(candidates))
+
+    # ── Probe each candidate ──────────────────────────────────────
+    for candidate in candidates:
+        transport   = candidate["transport"]
+        host        = candidate["host"]
+        port        = candidate["port"]
+        serial_port = candidate["serial_port"]
+
+        log.info("Autoconnect probing", drone_id=drone_instance_id,
+                 transport=transport, host=host, port=port, serial_port=serial_port)
+
+        ok = await mavlink_manager.connect(
+            drone_id=drone_instance_id,
+            call_sign=drone.call_sign,
+            transport=transport,
+            host=host,
+            port=port,
+            serial_port=serial_port,
+            baud_rate=57600,
+            heartbeat_timeout=4.0,   # short probe timeout for auto-scan
+        )
+
+        if ok:
+            log.info("Autoconnect succeeded", drone_id=drone_instance_id,
+                     transport=transport, host=host, port=port, serial_port=serial_port)
+            return {
+                "detail":    "Connected",
+                "drone_id":  drone_instance_id,
+                "call_sign": drone.call_sign,
+                "transport": transport,
+                "host":      host if transport != "serial" else None,
+                "port":      port if transport != "serial" else None,
+                "serial_port": serial_port if transport == "serial" else None,
+            }
+
+    log.warning("Autoconnect exhausted all candidates", drone_id=drone_instance_id)
+    raise HTTPException(
+        status_code=503,
+        detail=f"Autoconnect failed — no heartbeat received on any of the "
+               f"{len(candidates)} candidate port(s). "
+               f"Ensure the drone or SITL is running and reachable."
+    )
 
 
 @router.get("/status")

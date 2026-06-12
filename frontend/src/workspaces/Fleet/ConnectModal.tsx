@@ -3,7 +3,7 @@
 // Connect-to-drone modal with port scan / auto-fill
 // ═══════════════════════════════════════════════════════════════
 import { useState, useEffect } from 'react'
-import { X, Radio, ScanLine, Wifi, Usb, Cable } from 'lucide-react'
+import { X, Radio, ScanLine, Wifi, Usb, Cable, Zap } from 'lucide-react'
 import { droneControlApi, PortInfo } from '@/api/droneControl'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
@@ -35,7 +35,8 @@ export default function ConnectModal({ onClose }: Props) {
   const [serialPort, setSerialPort] = useState('/dev/ttyUSB0')
   const [baud, setBaud]             = useState(57600)
   const [modemType, setModemType]   = useState<ModemType>('generic')
-  const [loading, setLoading]       = useState(false)
+  const [loading, setLoading]         = useState(false)
+  const [autoConnecting, setAutoConnecting] = useState(false)
   const [err, setErr]               = useState('')
 
   // ── Port scan state ────────────────────────────────────────────
@@ -80,7 +81,25 @@ export default function ConnectModal({ onClose }: Props) {
     }
   }
 
-  useEffect(() => { scanPorts() }, [])
+  useEffect(() => {
+    scanPorts()
+    const interval = setInterval(scanPorts, 3000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const autoConnect = async () => {
+    setAutoConnecting(true); setErr('')
+    try {
+      await droneControlApi.autoconnect({ drone_instance_id: droneId })
+      subscribe(droneId)
+      await fetchConnections()
+      onClose()
+    } catch (e: any) {
+      setErr(e.response?.data?.detail ?? 'Auto-connect failed')
+    } finally {
+      setAutoConnecting(false)
+    }
+  }
 
   // Auto-fill form fields from a discovered port
   const applyPort = (p: PortInfo) => {
@@ -295,9 +314,24 @@ export default function ConnectModal({ onClose }: Props) {
               style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>{err}</p>
           )}
 
-          <div className="flex gap-2 mt-2">
+          {/* Auto Connect — tries all ports automatically */}
+          <button
+            className="w-full flex items-center justify-center gap-2 py-2 rounded text-sm font-medium transition-colors"
+            style={{
+              background: autoConnecting ? 'rgba(234,179,8,0.08)' : 'rgba(234,179,8,0.1)',
+              color: autoConnecting ? '#a16207' : '#eab308',
+              border: '1px solid rgba(234,179,8,0.3)',
+              opacity: loading ? 0.5 : 1,
+            }}
+            onClick={autoConnect}
+            disabled={loading || autoConnecting}>
+            <Zap size={14} className={autoConnecting ? 'animate-pulse' : ''} />
+            {autoConnecting ? 'Scanning all ports…' : 'Auto Connect'}
+          </button>
+
+          <div className="flex gap-2">
             <button className="da-btn da-btn-ghost flex-1" onClick={onClose}>Cancel</button>
-            <button className="da-btn da-btn-primary flex-1" onClick={connect} disabled={loading}>
+            <button className="da-btn da-btn-primary flex-1" onClick={connect} disabled={loading || autoConnecting}>
               {loading ? 'Connecting…' : 'Connect'}
             </button>
           </div>

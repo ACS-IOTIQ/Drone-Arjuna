@@ -111,6 +111,10 @@ class ConnectRequest(BaseModel):
     hf_modem_type: str = "generic"  # harris / codan / barrett / generic (HF transports only)
 
 
+class AutoConnectRequest(BaseModel):
+    drone_instance_id: int
+
+
 class CommandRequest(BaseModel):
     drone_id: int
     command: Literal[

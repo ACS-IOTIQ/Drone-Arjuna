@@ -2,7 +2,7 @@
 // src/workspaces/Fleet/ConnectModal.tsx
 // Connect-to-drone modal with port scan / auto-fill
 // ═══════════════════════════════════════════════════════════════
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Radio, ScanLine, Wifi, Usb, Cable } from 'lucide-react'
 import { droneControlApi, PortInfo } from '@/api/droneControl'
 import { useFleetStore } from '@/store/fleetStore'
@@ -72,13 +72,15 @@ export default function ConnectModal({ onClose }: Props) {
     setScanning(true); setScanErr(''); setPortList(null)
     try {
       const res = await droneControlApi.ports()
-      setPortList((res as any).data ?? [])
+      setPortList(res.data)
     } catch (e: any) {
       setScanErr(e.response?.data?.detail ?? 'Port scan failed')
     } finally {
       setScanning(false)
     }
   }
+
+  useEffect(() => { scanPorts() }, [])
 
   // Auto-fill form fields from a discovered port
   const applyPort = (p: PortInfo) => {

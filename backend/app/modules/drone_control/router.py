@@ -1,10 +1,12 @@
 import asyncio
 import json
 import structlog
+from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+import serial.tools.list_ports
 
 from app.core.rbac import require_min_role, Role
 from app.database import get_db
@@ -17,9 +19,44 @@ from app.modules.drone_control.mission_simulator import mission_simulator
 
 log = structlog.get_logger()
 router = APIRouter()
+_port_executor = ThreadPoolExecutor(max_workers=1)
 
 
 # ── REST endpoints ────────────────────────────────────────────────
+
+@router.get("/ports")
+async def list_available_ports(
+    _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
+):
+    """
+    Lists all serial ports and standard network endpoints
+    through which a drone can connect via MAVLink.
+    """
+    loop = asyncio.get_event_loop()
+
+    def _scan_serial():
+        results = []
+        for p in serial.tools.list_ports.comports():
+            is_usb = "USB" in (p.hwid or "").upper()
+            results.append({
+                "port": p.device,
+                "type": "usb" if is_usb else "serial",
+                "desc": p.description or p.device,
+                "baud": 57600,
+            })
+        return results
+
+    serial_ports = await loop.run_in_executor(_port_executor, _scan_serial)
+
+    network_ports = [
+        {"port": "udp:0.0.0.0:14550",   "type": "udp", "desc": "MAVLink UDP (SITL / GCS default)"},
+        {"port": "udp:0.0.0.0:14551",   "type": "udp", "desc": "MAVLink UDP (secondary GCS)"},
+        {"port": "tcp:127.0.0.1:5760",  "type": "tcp", "desc": "MAVLink TCP (SITL ArduPilot default)"},
+        {"port": "tcp:127.0.0.1:5762",  "type": "tcp", "desc": "MAVLink TCP (SITL secondary)"},
+    ]
+
+    return serial_ports + network_ports
+
 
 @router.get("/status")
 async def get_fleet_status(

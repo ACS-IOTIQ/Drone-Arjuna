@@ -76,7 +76,15 @@ class MissionCreate(BaseModel):
     drone_instance_id: Optional[int] = None
     waypoints: list[WaypointCreate] = []
     geofence: Optional[dict] = None        # GeoJSON Polygon
+    payload_weight_kg: Optional[float] = None
     notes: Optional[str] = None
+
+    @field_validator("payload_weight_kg")
+    @classmethod
+    def payload_weight_non_negative(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError("payload_weight_kg must be >= 0")
+        return v
 
     @field_validator("name")
     @classmethod
@@ -107,6 +115,7 @@ class MissionOut(BaseModel):
     completed_at: Optional[datetime]
     waypoints: list[WaypointOut] = []
     geofence: Optional[dict] = None
+    payload_weight_kg: Optional[float] = None
 
     model_config = {"from_attributes": True}
 
@@ -118,6 +127,7 @@ class MissionUpdate(BaseModel):
     drone_instance_id: Optional[int] = None
     notes: Optional[str] = None
     geofence: Optional[dict] = None
+    payload_weight_kg: Optional[float] = None
 
 
 class MissionStatusUpdate(BaseModel):

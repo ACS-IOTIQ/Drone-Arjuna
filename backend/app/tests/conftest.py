@@ -198,13 +198,8 @@ async def client():
     async def _noop_lifespan(_app):
         yield
 
-<<<<<<< HEAD
-    app.dependency_overrides[get_db] = _override_get_db
-    app.dependency_overrides[dependencies_get_db] = _override_get_db
-=======
     app.dependency_overrides[_db_get_db] = _override_get_db
     app.dependency_overrides[_deps_get_db] = _override_get_db
->>>>>>> origin/master
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 

@@ -131,6 +131,7 @@ class MissionValidator:
 
         # ── 3. Drone-specific limits ────────────────────────────────
         if drone_type:
+            self._check_payload_weight(mission, drone_type, result)
             self._check_altitude_limits(waypoints, drone_type, result)
             self._check_speed_limits(waypoints, drone_type, result)
             self._check_battery_budget(waypoints, drone_type, result, vessel=vessel)
@@ -177,6 +178,24 @@ class MissionValidator:
                     f"Waypoint {wp.sequence} ({wp.latitude:.5f}, {wp.longitude:.5f}) "
                     f"is outside the defined geofence"
                 )
+
+    # ── Payload weight ────────────────────────────────────────────
+
+    def _check_payload_weight(
+        self, mission: Mission, dt: DroneType, r: ValidationResult
+    ):
+        if not mission.payload_weight_kg:
+            return
+        if mission.payload_weight_kg > dt.max_payload_weight_kg:
+            r.add_error(
+                f"Payload weight {mission.payload_weight_kg} kg exceeds "
+                f"{dt.name}'s max payload capacity {dt.max_payload_weight_kg} kg"
+            )
+        elif mission.payload_weight_kg > dt.max_payload_weight_kg * 0.9:
+            r.add_warning(
+                f"Payload weight {mission.payload_weight_kg} kg is within 10% of "
+                f"{dt.name}'s max payload capacity {dt.max_payload_weight_kg} kg"
+            )
 
     # ── Altitude ──────────────────────────────────────────────────
 

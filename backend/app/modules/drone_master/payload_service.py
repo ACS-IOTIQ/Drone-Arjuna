@@ -12,8 +12,6 @@ from app.schemas.payload import (
 log = structlog.get_logger()
 
 
-# ── Payload Type ──────────────────────────────────────────────────────────────
-
 class PayloadTypeService:
 
     def __init__(self, db: AsyncSession):
@@ -37,7 +35,6 @@ class PayloadTypeService:
         )
         if existing.scalar_one_or_none():
             raise HTTPException(409, f"Payload type '{body.name}' already exists")
-
         pt = PayloadType(**body.model_dump())
         self.db.add(pt)
         await self.db.flush()
@@ -67,8 +64,6 @@ class PayloadTypeService:
         log.info("payload_type.deleted", id=pt_id)
 
 
-# ── Payload ───────────────────────────────────────────────────────────────────
-
 class PayloadService:
 
     def __init__(self, db: AsyncSession):
@@ -91,14 +86,12 @@ class PayloadService:
         pt = await self.db.get(PayloadType, body.payload_type_id)
         if not pt:
             raise HTTPException(404, f"Payload type #{body.payload_type_id} not found")
-
         # Unique serial number
         existing = await self.db.execute(
             select(Payload).where(Payload.serial_number == body.serial_number)
         )
         if existing.scalar_one_or_none():
             raise HTTPException(409, f"Serial number '{body.serial_number}' already registered")
-
         p = Payload(**body.model_dump())
         self.db.add(p)
         await self.db.flush()

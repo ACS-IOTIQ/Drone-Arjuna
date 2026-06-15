@@ -1,9 +1,6 @@
-# ═══════════════════════════════════════════
-# app/models/drone.py
-# ═══════════════════════════════════════════
 from datetime import datetime, timezone
 from typing import Optional
-from sqlalchemy import String, Float, Integer, Boolean, DateTime, Text
+from sqlalchemy import String, Float, Integer, Boolean, DateTime, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -50,65 +47,24 @@ class DroneInstance(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
-# ═══════════════════════════════════════════
-# app/schemas/drone.py
-# ═══════════════════════════════════════════
-from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime
+class DroneConfigTemplate(Base):
+    """
+    Reusable configuration template for a drone type.
+    Stores MAVLink parameters, geofence bounds, failsafe settings, etc.
+    as a JSON blob keyed to a specific DroneType so incompatible templates
+    cannot be applied to the wrong airframe.
+    """
+    __tablename__ = "drone_config_templates"
 
-
-class DroneTypeCreate(BaseModel):
-    name: str
-    manufacturer: str
-    model: str
-    size_class: str
-    mission_type: str
-    is_vtol: bool = True
-    max_speed_ms: float
-    cruise_speed_ms: float
-    max_altitude_m: float
-    endurance_h: float
-    range_km: float
-    max_takeoff_weight_kg: float
-    max_payload_weight_kg: float
-    autopilot_type: str
-    notes: Optional[str] = None
-
-
-class DroneTypeOut(DroneTypeCreate):
-    id: int
-    is_active: bool
-    created_at: datetime
-    model_config = {"from_attributes": True}
-
-
-class DroneInstanceCreate(BaseModel):
-    call_sign: str
-    drone_type_id: int
-    serial_number: str
-    mavlink_system_id: int = 1
-    notes: Optional[str] = None
-
-
-class DroneInstanceOut(DroneInstanceCreate):
-    id: int
-    status: str
-    last_seen: Optional[datetime]
-    total_flight_hours: float
-    model_config = {"from_attributes": True}
-
-
-class ConnectRequest(BaseModel):
-    drone_instance_id: int
-    transport: str        # "udp" | "tcp" | "serial"
-    host: Optional[str] = None
-    port: Optional[int] = None
-    serial_port: Optional[str] = None
-    baud_rate: int = 57600
-
-
-class CommandRequest(BaseModel):
-    drone_id: int
-    command: str          # "arm" | "disarm" | "set_mode" | "rtl" | "land" | "takeoff"
-    params: dict = {}
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    drone_type_id: Mapped[int] = mapped_column(Integer, index=True)
+    settings: Mapped[dict] = mapped_column(JSON, default=dict)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

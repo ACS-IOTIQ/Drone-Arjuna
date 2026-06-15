@@ -99,6 +99,42 @@ class DroneInstanceUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+# ── Config Templates ──────────────────────────────────────────────
+
+class DroneConfigTemplateCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    drone_type_id: int
+    settings: dict = {}
+
+    @field_validator("name")
+    @classmethod
+    def name_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Template name must not be blank")
+        return v.strip()
+
+
+class DroneConfigTemplateUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    drone_type_id: Optional[int] = None
+    settings: Optional[dict] = None
+
+
+class DroneConfigTemplateOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    drone_type_id: int
+    settings: dict
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
 # ── MAVLink connection / command ──────────────────────────────────
 
 class ConnectRequest(BaseModel):

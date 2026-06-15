@@ -27,6 +27,7 @@ class Mission(Base):
     geofence: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # GeoJSON polygon
     home_point_type: Mapped[str] = mapped_column(String(32), default="fixed")  # fixed | dynamic_vessel
     home_vessel_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    payload_weight_kg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 

@@ -236,9 +236,18 @@ class AnalystService:
 
             if count == 0:
                 return {
-                    "mission_id": mission_id,
-                    "frame_count": 0,
-                    "note": "No telemetry recorded for this mission",
+                    "mission_id":        mission_id,
+                    "frame_count":       0,
+                    "start_time":        None,
+                    "end_time":          None,
+                    "duration_min":      0,
+                    "avg_altitude_m":    0,
+                    "max_altitude_m":    0,
+                    "avg_speed_ms":      0,
+                    "max_speed_ms":      0,
+                    "min_battery_pct":   -1,
+                    "avg_cpu_pct":       0,
+                    "total_distance_km": 0,
                 }
 
             stats = await ts.execute(

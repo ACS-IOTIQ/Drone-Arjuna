@@ -46,6 +46,7 @@ async def create_mission(body: MissionCreate, db: DbDep, user: PilotDep):
         created_by=user.id,
         notes=body.notes,
         geofence=body.geofence,
+        payload_weight_kg=body.payload_weight_kg,
     )
     db.add(m)
     await db.flush()   # get m.id

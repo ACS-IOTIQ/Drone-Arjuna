@@ -10,6 +10,7 @@ from app.schemas.drone     import (
 )
 from app.schemas.payload   import (
     PayloadTypeCreate, PayloadTypeUpdate, PayloadTypeOut,
+    PayloadCreate, PayloadUpdate, PayloadOut,
     CompatibilityCheckRequest, CompatibilityCheckResult,
 )
 from app.schemas.mission   import (
@@ -30,6 +31,7 @@ __all__ = [
     "ConnectRequest", "CommandRequest", "ConnectionStatusOut",
     # Payload
     "PayloadTypeCreate", "PayloadTypeUpdate", "PayloadTypeOut",
+    "PayloadCreate", "PayloadUpdate", "PayloadOut",
     "CompatibilityCheckRequest", "CompatibilityCheckResult",
     # Mission
     "WaypointCreate", "WaypointUpdate", "WaypointOut",

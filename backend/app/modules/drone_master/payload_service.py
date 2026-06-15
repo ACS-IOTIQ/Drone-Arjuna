@@ -52,13 +52,13 @@ class PayloadTypeService:
 
     async def delete(self, pt_id: int) -> None:
         pt = await self.get_by_id(pt_id)
+        # Block deletion if payloads still reference this type
         result = await self.db.execute(
             select(Payload).where(Payload.payload_type_id == pt_id)
         )
         if result.scalar_one_or_none():
             raise HTTPException(
-                409,
-                f"Cannot delete payload type #{pt_id} — payloads still reference it",
+                409, f"Cannot delete payload type #{pt_id} — payloads still reference it"
             )
         await self.db.delete(pt)
         log.info("payload_type.deleted", id=pt_id)
@@ -70,7 +70,9 @@ class PayloadService:
         self.db = db
 
     async def list_all(self) -> list[Payload]:
-        result = await self.db.execute(select(Payload).order_by(Payload.name))
+        result = await self.db.execute(
+            select(Payload).order_by(Payload.name)
+        )
         return result.scalars().all()
 
     async def get_by_id(self, payload_id: int) -> Payload:
@@ -80,8 +82,11 @@ class PayloadService:
         return p
 
     async def create(self, body: PayloadCreate) -> Payload:
-        if not await self.db.get(PayloadType, body.payload_type_id):
+        # Verify payload type exists
+        pt = await self.db.get(PayloadType, body.payload_type_id)
+        if not pt:
             raise HTTPException(404, f"Payload type #{body.payload_type_id} not found")
+        # Unique serial number
         existing = await self.db.execute(
             select(Payload).where(Payload.serial_number == body.serial_number)
         )

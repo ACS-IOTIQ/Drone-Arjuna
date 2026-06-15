@@ -96,6 +96,52 @@ async def _truncate_tables():
     yield
 
 
+# ── TimescaleDB suppression ───────────────────────────────────────────────────
+
+@pytest.fixture(autouse=True)
+def _mock_ts_session():
+    """
+    Replace TSSessionLocal in the analyst service with a null async context
+    manager that returns zero rows without ever touching asyncpg.
+
+    Without this, each test gets a fresh event loop (function-scoped asyncio
+    mode), but ts_engine's asyncpg pool was created in the app's startup loop.
+    When asyncpg tries to reuse the stale connection it raises
+    "Future attached to a different loop", then the pool cleanup raises
+    "RuntimeError: Event loop is closed" — producing noisy ERROR log lines.
+
+    The null mock makes every TS query return count=0 / empty series,
+    which is correct for a test environment with no telemetry data.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    class _NullResult:
+        def scalar_one(self):
+            return 0
+        def mappings(self):
+            m = MagicMock()
+            m.all.return_value = []
+            m.one.return_value = {}
+            return m
+
+    class _NullTSSession:
+        async def __aenter__(self):
+            sess = AsyncMock()
+            sess.execute = AsyncMock(return_value=_NullResult())
+            return sess
+        async def __aexit__(self, *args):
+            pass
+
+    def _null_factory():
+        return _NullTSSession()
+
+    import app.modules.drone_analyst.service as _svc
+    original = _svc.TSSessionLocal
+    _svc.TSSessionLocal = _null_factory
+    yield
+    _svc.TSSessionLocal = original
+
+
 # ── AuditLogger suppression ───────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)

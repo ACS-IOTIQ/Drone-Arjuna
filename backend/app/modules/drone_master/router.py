@@ -8,11 +8,12 @@ from app.models.user import User
 from app.schemas.drone import (
     DroneTypeCreate, DroneTypeUpdate, DroneTypeOut,
     DroneInstanceCreate, DroneInstanceUpdate, DroneInstanceOut,
+    DroneConfigTemplateCreate, DroneConfigTemplateUpdate, DroneConfigTemplateOut,
 )
 from app.schemas.vessel import (
     NavalVesselCreate, NavalVesselUpdate, NavalVesselOut, VesselPositionUpdate,
 )
-from app.modules.drone_master.service import DroneTypeService, DroneInstanceService
+from app.modules.drone_master.service import DroneTypeService, DroneInstanceService, DroneConfigTemplateService
 from app.modules.drone_master.vessel_service import NavalVesselService
 from app.modules.drone_master.payload_service import PayloadTypeService, PayloadService
 from app.schemas.payload import (
@@ -196,3 +197,37 @@ async def update_payload(pid: int, body: PayloadUpdate, db: DbDep, _: AdminDep):
 @router.delete("/payloads/{pid}", status_code=204)
 async def delete_payload(pid: int, db: DbDep, _: AdminDep):
     await PayloadService(db).delete(pid)
+
+
+# ── Config Templates ──────────────────────────────────────────────
+
+@router.get("/config-templates", response_model=list[DroneConfigTemplateOut])
+async def list_config_templates(
+    db: DbDep, _: ViewerDep, drone_type_id: int | None = None
+):
+    return await DroneConfigTemplateService(db).list_active(drone_type_id)
+
+
+@router.get("/config-templates/{tid}", response_model=DroneConfigTemplateOut)
+async def get_config_template(tid: int, db: DbDep, _: ViewerDep):
+    return await DroneConfigTemplateService(db).get_by_id(tid)
+
+
+@router.post("/config-templates", response_model=DroneConfigTemplateOut, status_code=201)
+async def create_config_template(body: DroneConfigTemplateCreate, db: DbDep, _: AdminDep):
+    return await DroneConfigTemplateService(db).create(body)
+
+
+@router.put("/config-templates/{tid}", response_model=DroneConfigTemplateOut)
+async def update_config_template(tid: int, body: DroneConfigTemplateUpdate, db: DbDep, _: AdminDep):
+    return await DroneConfigTemplateService(db).update(tid, body)
+
+
+@router.delete("/config-templates/{tid}", status_code=204)
+async def archive_config_template(tid: int, db: DbDep, _: AdminDep):
+    await DroneConfigTemplateService(db).archive(tid)
+
+
+@router.post("/config-templates/{tid}/apply/{drone_id}")
+async def apply_config_template(tid: int, drone_id: int, db: DbDep, _: AdminDep):
+    return await DroneConfigTemplateService(db).apply(tid, drone_id)

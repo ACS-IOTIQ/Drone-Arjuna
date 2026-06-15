@@ -3,7 +3,7 @@
 # ═══════════════════════════════════════════
 from datetime import datetime, timezone
 from typing import Optional
-from sqlalchemy import String, Float, Integer, Boolean, DateTime, Text
+from sqlalchemy import String, Float, Integer, Boolean, DateTime, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -32,6 +32,22 @@ class DroneType(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+
+
+class DroneConfigTemplate(Base):
+    """Saved MAVLink parameter set for a drone type."""
+    __tablename__ = "drone_config_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    drone_type_id: Mapped[int] = mapped_column(Integer)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    settings: Mapped[dict] = mapped_column(JSON, default=dict)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class DroneInstance(Base):

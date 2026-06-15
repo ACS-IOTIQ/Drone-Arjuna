@@ -200,9 +200,13 @@ async def send_command(
     Send a flight command. Commands that affect safety (arm, disarm, rtl)
     are restricted to FLIGHT_CONTROLLER and above.
     """
-    ok = await mavlink_manager.send_command(req.drone_id, req.command, req.params)
-    if not ok:
-        raise HTTPException(status_code=503, detail="Command failed — drone not connected")
+    from app.modules.drone_control.command_controller import CommandResult
+    rec = await mavlink_manager.send_command(req.drone_id, req.command, req.params)
+    if rec.result == CommandResult.FAILED:
+        raise HTTPException(
+            status_code=503,
+            detail=rec.ack_message or "Command failed — drone not connected",
+        )
     return {"detail": f"Command '{req.command}' sent", "drone_id": req.drone_id}
 
 

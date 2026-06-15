@@ -35,17 +35,19 @@ import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import AsyncClient, ASGITransport  # noqa: E402
 from jose import jwt  # noqa: E402
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select, text  # noqa: E402
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
 # Import models so they register with Base.metadata before create_all
-from app.database import Base, get_db  # noqa: E402
+from app.database import Base, get_db as _db_get_db  # noqa: E402
+from app.dependencies import get_db as _deps_get_db  # noqa: E402
 from app.models.user import User  # noqa: E402
 import app.models.drone  # noqa: F401, E402 — registers DroneType, DroneInstance
 import app.models.mission  # noqa: F401, E402 — registers Mission, Waypoint
 import app.models.vessel  # noqa: F401, E402 — registers NavalVessel
 import app.models.telemetry  # noqa: F401, E402 — registers telemetry models
+import app.models.payload  # noqa: F401, E402 — registers PayloadType, Payload
 
 cfg = get_settings()
 
@@ -72,6 +74,26 @@ async def _create_tables():
     yield
     async with _test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _truncate_tables():
+    """
+    Hard-delete all rows from every ORM table before each test.
+
+    Because _create_tables is session-scoped the schema persists across
+    the whole test run.  Soft-deleted rows (is_active=False) still occupy
+    unique-constrained columns, so a later test that tries to create the
+    same name would hit a DB-level IntegrityError.  Truncating before each
+    test prevents that and makes every test start from a known-clean state.
+    """
+    # reversed(sorted_tables) removes children before parents
+    ordered = list(reversed(Base.metadata.sorted_tables))
+    async with _TestSession() as session:
+        for table in ordered:
+            await session.execute(text(f"DELETE FROM {table.name}"))
+        await session.commit()
+    yield
 
 
 # ── AuditLogger suppression ───────────────────────────────────────────────────
@@ -114,7 +136,8 @@ async def client():
     async def _noop_lifespan(_app):
         yield
 
-    app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[_db_get_db] = _override_get_db
+    app.dependency_overrides[_deps_get_db] = _override_get_db
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 

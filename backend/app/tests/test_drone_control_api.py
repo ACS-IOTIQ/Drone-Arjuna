@@ -18,7 +18,6 @@ Covers:
   - Stop simulation returns 404 when no simulation is running
   - RBAC: VIEWER can read, VIEWER blocked from writes
 """
-import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 
@@ -272,3 +271,130 @@ async def test_simulate_stop_viewer_403(client: AsyncClient, viewer_user, make_t
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Simulate start
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_simulate_start_viewer_403(client: AsyncClient, viewer_user, make_token):
+    """VIEWER cannot start a simulation."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.post(
+        "/api/drone-control/simulate/start",
+        json={"mission_id": 1, "drone_instance_id": 1},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_simulate_start_unauthenticated_401(client: AsyncClient):
+    """Unauthenticated simulate/start returns 401."""
+    resp = await client.post(
+        "/api/drone-control/simulate/start",
+        json={"mission_id": 1, "drone_instance_id": 1},
+    )
+    assert resp.status_code == 401
+
+
+async def test_simulate_start_mission_not_found_404(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """simulate/start with a non-existent mission_id returns 404."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp  = await client.post(
+        "/api/drone-control/simulate/start",
+        json={"mission_id": 999999, "drone_instance_id": 1},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_simulate_start_no_drone_422(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Mission with no drone assigned and no drone_instance_id override → 422."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    m_resp = await client.post(
+        "/api/flight/missions",
+        json={"name": "Sim-NoDrone", "mission_type": "ISR", "waypoints": []},
+        headers=hdrs,
+    )
+    assert m_resp.status_code == 201
+    resp = await client.post(
+        "/api/drone-control/simulate/start",
+        json={"mission_id": m_resp.json()["id"]},
+        headers=hdrs,
+    )
+    assert resp.status_code == 422
+
+
+async def test_simulate_start_drone_not_found_404(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Mission exists but the given drone_instance_id does not → 404."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    m_resp = await client.post(
+        "/api/flight/missions",
+        json={"name": "Sim-BadDrone", "mission_type": "ISR", "waypoints": []},
+        headers=hdrs,
+    )
+    assert m_resp.status_code == 201
+    resp = await client.post(
+        "/api/drone-control/simulate/start",
+        json={"mission_id": m_resp.json()["id"], "drone_instance_id": 999999},
+        headers=hdrs,
+    )
+    assert resp.status_code == 404
+
+
+async def test_simulate_start_no_waypoints_422(
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
+):
+    """Mission with drone assigned but no non-home waypoints → 422."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    m_resp = await client.post(
+        "/api/flight/missions",
+        json={
+            "name":              "Sim-NoWP",
+            "mission_type":      "ISR",
+            "drone_instance_id": drone_instance["id"],
+            "waypoints":         [],
+        },
+        headers=hdrs,
+    )
+    assert m_resp.status_code == 201
+    resp = await client.post(
+        "/api/drone-control/simulate/start",
+        json={"mission_id": m_resp.json()["id"], "drone_instance_id": drone_instance["id"]},
+        headers=hdrs,
+    )
+    assert resp.status_code == 422
+
+
+# ══════════════════════════════════════════════════════════════════════
+# WebSocket telemetry stream
+# ══════════════════════════════════════════════════════════════════════
+
+def test_ws_stream_accepts_connection():
+    """WebSocket stream accepts a connection for any drone_id (no auth required)."""
+    from contextlib import asynccontextmanager
+    from starlette.testclient import TestClient
+    from app.main import app
+
+    @asynccontextmanager
+    async def _noop_lifespan(a):
+        yield
+
+    original_lifespan = app.router.lifespan_context
+    app.router.lifespan_context = _noop_lifespan
+    try:
+        with TestClient(app, raise_server_exceptions=False) as tc:
+            with tc.websocket_connect("/api/drone-control/stream/9999") as ws:
+                # drone 9999 has no active telemetry; queue idles — connection accepted
+                pass
+    finally:
+        app.router.lifespan_context = original_lifespan

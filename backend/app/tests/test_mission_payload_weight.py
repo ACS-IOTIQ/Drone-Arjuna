@@ -294,3 +294,234 @@ async def test_payload_check_skipped_without_drone(
         assert not any("payload" in e.lower() for e in result["errors"])
     finally:
         await _cleanup(client, m["id"], hdrs)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Mission Summary
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_mission_summary_returns_estimates(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Summary endpoint returns computed flight estimates for a mission with waypoints."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    m = await _create_mission(client, hdrs)
+    try:
+        resp = await client.get(f"/api/flight/missions/{m['id']}/summary", headers=hdrs)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "total_distance_km" in body
+        assert "estimated_flight_time_min" in body
+        assert "estimated_battery_pct" in body
+        assert "waypoint_count" in body
+    finally:
+        await _cleanup(client, m["id"], hdrs)
+
+
+async def test_mission_summary_no_waypoints_400(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Summary on a mission with no waypoints must return 400."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    resp  = await client.post(
+        "/api/flight/missions",
+        json={"name": "Empty-Summary-Mission", "mission_type": "ISR", "waypoints": []},
+        headers=hdrs,
+    )
+    assert resp.status_code == 201
+    mid = resp.json()["id"]
+    try:
+        summary = await client.get(f"/api/flight/missions/{mid}/summary", headers=hdrs)
+        assert summary.status_code == 400
+    finally:
+        await client.delete(f"/api/flight/missions/{mid}", headers=hdrs)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Mission Status Patch
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_patch_mission_status(
+    client: AsyncClient, admin_user, make_token
+):
+    """Admin (>= MISSION_COMMANDER) can update mission status."""
+    token = make_token(admin_user.id, admin_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    m = await _create_mission(client, hdrs)
+    try:
+        resp = await client.patch(
+            f"/api/flight/missions/{m['id']}/status",
+            json={"status": "approved"},
+            headers=hdrs,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "approved"
+    finally:
+        await _cleanup(client, m["id"], hdrs)
+
+
+async def test_patch_mission_status_not_found_404(
+    client: AsyncClient, admin_user, make_token
+):
+    """Patching status of a non-existent mission returns 404."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp  = await client.patch(
+        "/api/flight/missions/999999/status",
+        json={"status": "approved"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_patch_mission_status_viewer_403(
+    client: AsyncClient, viewer_user, flight_controller_user, make_token
+):
+    """VIEWER cannot update mission status (requires MISSION_COMMANDER)."""
+    fc_hdrs     = {"Authorization": f"Bearer {make_token(flight_controller_user.id, flight_controller_user.role)}"}
+    viewer_hdrs = {"Authorization": f"Bearer {make_token(viewer_user.id, viewer_user.role)}"}
+    m = await _create_mission(client, fc_hdrs)
+    try:
+        resp = await client.patch(
+            f"/api/flight/missions/{m['id']}/status",
+            json={"status": "approved"},
+            headers=viewer_hdrs,
+        )
+        assert resp.status_code == 403
+    finally:
+        await _cleanup(client, m["id"], fc_hdrs)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Mission Upload
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_upload_mission_not_found_404(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Uploading a non-existent mission returns 404."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp  = await client.post(
+        "/api/flight/missions/999999/upload",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_upload_mission_no_drone_400(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Uploading a mission with no drone assigned returns 400."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    m = await _create_mission(client, hdrs)
+    try:
+        resp = await client.post(f"/api/flight/missions/{m['id']}/upload", headers=hdrs)
+        assert resp.status_code == 400
+    finally:
+        await _cleanup(client, m["id"], hdrs)
+
+
+async def test_upload_mission_viewer_403(
+    client: AsyncClient, viewer_user, flight_controller_user, make_token
+):
+    """VIEWER cannot upload a mission (requires FLIGHT_CONTROLLER)."""
+    fc_hdrs     = {"Authorization": f"Bearer {make_token(flight_controller_user.id, flight_controller_user.role)}"}
+    viewer_hdrs = {"Authorization": f"Bearer {make_token(viewer_user.id, viewer_user.role)}"}
+    m = await _create_mission(client, fc_hdrs)
+    try:
+        resp = await client.post(
+            f"/api/flight/missions/{m['id']}/upload",
+            headers=viewer_hdrs,
+        )
+        assert resp.status_code == 403
+    finally:
+        await _cleanup(client, m["id"], fc_hdrs)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Pre-flight Simulation Frames
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_simulate_mission_returns_frames(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """GET simulate returns a frame list with mission_id, frame_count, and frames."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    m = await _create_mission(client, hdrs)
+    try:
+        resp = await client.get(f"/api/flight/missions/{m['id']}/simulate", headers=hdrs)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["mission_id"] == m["id"]
+        assert "frame_count" in body
+        assert isinstance(body["frames"], list)
+        assert body["frame_count"] == len(body["frames"])
+    finally:
+        await _cleanup(client, m["id"], hdrs)
+
+
+async def test_simulate_mission_no_waypoints_400(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """GET simulate on a mission with no waypoints returns 400."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    resp  = await client.post(
+        "/api/flight/missions",
+        json={"name": "No-WP-Sim-Mission", "mission_type": "ISR", "waypoints": []},
+        headers=hdrs,
+    )
+    assert resp.status_code == 201
+    mid = resp.json()["id"]
+    try:
+        sim = await client.get(f"/api/flight/missions/{mid}/simulate", headers=hdrs)
+        assert sim.status_code == 400
+    finally:
+        await client.delete(f"/api/flight/missions/{mid}", headers=hdrs)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Survey Grid
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_survey_grid_generates_waypoints(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """POST survey-grid returns a waypoints list for a valid polygon."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp  = await client.post(
+        "/api/flight/survey-grid",
+        json={
+            "polygon": [
+                [12.97, 77.59],
+                [12.98, 77.59],
+                [12.98, 77.60],
+                [12.97, 77.60],
+                [12.97, 77.59],
+            ],
+            "altitude_m": 100.0,
+            "spacing_m":  50.0,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "waypoints" in body
+    assert "count" in body
+    assert body["count"] == len(body["waypoints"])
+
+
+async def test_survey_grid_missing_polygon_400(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """POST survey-grid without polygon key returns 400."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp  = await client.post(
+        "/api/flight/survey-grid",
+        json={"altitude_m": 100.0},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400

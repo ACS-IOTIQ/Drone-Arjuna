@@ -16,15 +16,18 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         'drone_config_templates',
-        sa.Column('id', sa.Integer(), primary_key=True, index=True),
-        sa.Column('name', sa.String(128), unique=True, index=True, nullable=False),
-        sa.Column('drone_type_id', sa.Integer(), nullable=False),
-        sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('settings', sa.JSON(), nullable=False, server_default='{}'),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False,
+        sa.Column('id',            sa.Integer(),              primary_key=True, index=True),
+        sa.Column('name',          sa.String(128), unique=True, nullable=False),
+        sa.Column('description',   sa.Text(),                 nullable=True),
+        sa.Column('drone_type_id', sa.Integer(),
+                  sa.ForeignKey('drone_types.id'), nullable=False, index=True),
+        sa.Column('settings',      sa.JSON(),                 nullable=False,
+                  server_default='{}'),
+        sa.Column('is_active',     sa.Boolean(),              nullable=False,
+                  server_default=sa.text('true')),
+        sa.Column('created_at',    sa.DateTime(timezone=True),
                   server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('updated_at',    sa.DateTime(timezone=True), nullable=True),
     )
 
 

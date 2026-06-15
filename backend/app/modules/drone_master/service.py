@@ -13,6 +13,7 @@ Responsibilities:
 """
 import structlog
 from datetime import datetime, timezone
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from fastapi import HTTPException
@@ -131,94 +132,6 @@ class DroneTypeService:
         }
 
 
-# ── Config Templates ──────────────────────────────────────────────
-
-class DroneConfigTemplateService:
-
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
-    async def list_active(self, drone_type_id: int | None = None) -> list[DroneConfigTemplate]:
-        q = select(DroneConfigTemplate).where(DroneConfigTemplate.is_active == True)
-        if drone_type_id is not None:
-            q = q.where(DroneConfigTemplate.drone_type_id == drone_type_id)
-        result = await self.db.execute(q.order_by(DroneConfigTemplate.name))
-        return result.scalars().all()
-
-    async def get_by_id(self, tid: int) -> DroneConfigTemplate:
-        ct = await self.db.get(DroneConfigTemplate, tid)
-        if not ct or not ct.is_active:
-            raise HTTPException(404, f"Config template #{tid} not found")
-        return ct
-
-    async def create(self, body: DroneConfigTemplateCreate) -> DroneConfigTemplate:
-        # Verify drone type exists
-        dt = await self.db.get(DroneType, body.drone_type_id)
-        if not dt or not dt.is_active:
-            raise HTTPException(404, f"Drone type #{body.drone_type_id} not found")
-
-        # Enforce unique name
-        clash = await self.db.execute(
-            select(DroneConfigTemplate).where(
-                DroneConfigTemplate.name == body.name,
-                DroneConfigTemplate.is_active == True,
-            )
-        )
-        if clash.scalar_one_or_none():
-            raise HTTPException(409, f"Config template '{body.name}' already exists")
-
-        ct = DroneConfigTemplate(**body.model_dump())
-        self.db.add(ct)
-        await self.db.flush()
-        await self.db.refresh(ct)
-        log.info("Config template created", name=ct.name, id=ct.id)
-        return ct
-
-    async def update(self, tid: int, body: DroneConfigTemplateUpdate) -> DroneConfigTemplate:
-        ct = await self.get_by_id(tid)
-
-        # If drone_type_id is being changed, verify new type exists
-        if body.drone_type_id is not None and body.drone_type_id != ct.drone_type_id:
-            dt = await self.db.get(DroneType, body.drone_type_id)
-            if not dt or not dt.is_active:
-                raise HTTPException(404, f"Drone type #{body.drone_type_id} not found")
-
-        for field, value in body.model_dump(exclude_unset=True).items():
-            setattr(ct, field, value)
-        ct.updated_at = datetime.now(timezone.utc)
-
-        await self.db.flush()
-        await self.db.refresh(ct)
-        log.info("Config template updated", id=tid)
-        return ct
-
-    async def archive(self, tid: int) -> None:
-        ct = await self.get_by_id(tid)
-        ct.is_active = False
-        await self.db.flush()
-        log.info("Config template archived", id=tid)
-
-    async def apply(self, tid: int, drone_id: int) -> dict:
-        ct = await self.get_by_id(tid)
-        drone = await self.db.get(DroneInstance, drone_id)
-        if not drone:
-            raise HTTPException(404, f"Drone #{drone_id} not found")
-
-        if drone.drone_type_id != ct.drone_type_id:
-            raise HTTPException(
-                422,
-                f"Template is for drone type #{ct.drone_type_id} but drone is "
-                f"type #{drone.drone_type_id}. Type must match."
-            )
-
-        log.info("Config template applied", template_id=tid, drone_id=drone_id)
-        return {
-            "template_id": tid,
-            "drone_id": drone_id,
-            "settings": ct.settings,
-        }
-
-
 # ── Drone Instances ───────────────────────────────────────────────
 
 class DroneInstanceService:
@@ -306,3 +219,114 @@ class DroneInstanceService:
         inst = await self.get_by_id(drone_id)
         type_svc = DroneTypeService(self.db)
         return await type_svc.get_by_id(inst.drone_type_id)
+
+
+# ── Config Templates ──────────────────────────────────────────────
+
+class DroneConfigTemplateService:
+    """
+    CRUD for DroneConfigTemplate.
+    Templates are soft-deleted (is_active flag) so historical references
+    from drone instances are preserved per spec section 5.7.
+    """
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def list_active(
+        self, drone_type_id: Optional[int] = None
+    ) -> list[DroneConfigTemplate]:
+        q = (
+            select(DroneConfigTemplate)
+            .where(DroneConfigTemplate.is_active == True)
+            .order_by(DroneConfigTemplate.name)
+        )
+        if drone_type_id is not None:
+            q = q.where(DroneConfigTemplate.drone_type_id == drone_type_id)
+        result = await self.db.execute(q)
+        return result.scalars().all()
+
+    async def get_by_id(self, tid: int) -> DroneConfigTemplate:
+        t = await self.db.get(DroneConfigTemplate, tid)
+        if not t or not t.is_active:
+            raise HTTPException(404, f"Config template #{tid} not found")
+        return t
+
+    async def create(self, body: DroneConfigTemplateCreate) -> DroneConfigTemplate:
+        # Verify the target drone type exists and is active
+        dt = await self.db.get(DroneType, body.drone_type_id)
+        if not dt or not dt.is_active:
+            raise HTTPException(404, f"Drone type #{body.drone_type_id} not found")
+
+        # Unique name (active templates only — allows reuse of archived names)
+        existing = await self.db.execute(
+            select(DroneConfigTemplate).where(
+                DroneConfigTemplate.name == body.name,
+                DroneConfigTemplate.is_active == True,
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(409, f"Config template '{body.name}' already exists")
+
+        t = DroneConfigTemplate(**body.model_dump())
+        self.db.add(t)
+        await self.db.flush()
+        await self.db.refresh(t)
+        log.info("config_template.created", id=t.id, name=t.name,
+                 drone_type_id=t.drone_type_id)
+        return t
+
+    async def update(
+        self, tid: int, body: DroneConfigTemplateUpdate
+    ) -> DroneConfigTemplate:
+        t = await self.get_by_id(tid)
+        update_data = body.model_dump(exclude_unset=True)
+
+        # If changing drone type, verify the new type exists
+        if "drone_type_id" in update_data:
+            dt = await self.db.get(DroneType, update_data["drone_type_id"])
+            if not dt or not dt.is_active:
+                raise HTTPException(
+                    404, f"Drone type #{update_data['drone_type_id']} not found"
+                )
+
+        for field, value in update_data.items():
+            setattr(t, field, value)
+        t.updated_at = datetime.now(timezone.utc)
+
+        await self.db.flush()
+        await self.db.refresh(t)
+        log.info("config_template.updated", id=tid)
+        return t
+
+    async def archive(self, tid: int) -> None:
+        t = await self.get_by_id(tid)
+        t.is_active = False
+        await self.db.flush()
+        log.info("config_template.archived", id=tid, name=t.name)
+
+    async def apply_to_drone(self, tid: int, drone_id: int) -> dict:
+        """
+        Validates template–drone compatibility and returns the resolved
+        settings dict. The caller (router or frontend) is responsible for
+        pushing the settings to the drone via MAVLink.
+        """
+        t = await self.get_by_id(tid)
+        drone = await self.db.get(DroneInstance, drone_id)
+        if not drone:
+            raise HTTPException(404, f"Drone instance #{drone_id} not found")
+
+        if drone.drone_type_id != t.drone_type_id:
+            raise HTTPException(
+                422,
+                f"Template '{t.name}' is for drone type #{t.drone_type_id} but "
+                f"drone '{drone.call_sign}' is type #{drone.drone_type_id}",
+            )
+
+        return {
+            "template_id":   t.id,
+            "template_name": t.name,
+            "drone_id":      drone_id,
+            "call_sign":     drone.call_sign,
+            "settings":      t.settings,
+        }

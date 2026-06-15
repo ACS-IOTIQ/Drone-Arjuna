@@ -22,6 +22,8 @@ import pytest_asyncio
 from httpx import AsyncClient
 
 
+# ── shared fixtures ───────────────────────────────────────────────────────────
+
 _DT_BODY = {
     "name": "CT-DroneType-Alpha",
     "manufacturer": "ACS Systems",
@@ -41,11 +43,18 @@ _DT_BODY = {
 
 _DT_BODY2 = {**_DT_BODY, "name": "CT-DroneType-Beta", "model": "Beta-1"}
 
+_INSTANCE_BODY = {
+    "call_sign": "CT-ALPHA-01",
+    "serial_number": "CT-SN-001",
+    "drone_type_id": None,  # filled per-fixture
+}
+
 _SETTINGS = {"RTL_ALT": 50, "FENCE_ENABLE": 1, "FS_THR_ENABLE": 1}
 
 
 @pytest_asyncio.fixture
 async def drone_type(client: AsyncClient, admin_user, make_token):
+    """Create a drone type; tear it down after the test."""
     token = make_token(admin_user.id, admin_user.role)
     hdrs = {"Authorization": f"Bearer {token}"}
     resp = await client.post("/api/master/drone-types", json=_DT_BODY, headers=hdrs)
@@ -57,6 +66,7 @@ async def drone_type(client: AsyncClient, admin_user, make_token):
 
 @pytest_asyncio.fixture
 async def drone_type2(client: AsyncClient, admin_user, make_token):
+    """A second drone type for mismatch tests."""
     token = make_token(admin_user.id, admin_user.role)
     hdrs = {"Authorization": f"Bearer {token}"}
     resp = await client.post("/api/master/drone-types", json=_DT_BODY2, headers=hdrs)
@@ -68,6 +78,7 @@ async def drone_type2(client: AsyncClient, admin_user, make_token):
 
 @pytest_asyncio.fixture
 async def config_template(client: AsyncClient, admin_user, drone_type, make_token):
+    """Create a config template against drone_type; tear it down after the test."""
     token = make_token(admin_user.id, admin_user.role)
     hdrs = {"Authorization": f"Bearer {token}"}
     resp = await client.post(
@@ -88,17 +99,11 @@ async def config_template(client: AsyncClient, admin_user, drone_type, make_toke
 
 @pytest_asyncio.fixture
 async def drone_instance(client: AsyncClient, admin_user, drone_type, make_token):
+    """Register a drone instance of drone_type."""
     token = make_token(admin_user.id, admin_user.role)
     hdrs = {"Authorization": f"Bearer {token}"}
-    resp = await client.post(
-        "/api/master/drones",
-        json={
-            "call_sign": "CT-ALPHA-01",
-            "serial_number": "CT-SN-001",
-            "drone_type_id": drone_type["id"],
-        },
-        headers=hdrs,
-    )
+    body = {**_INSTANCE_BODY, "drone_type_id": drone_type["id"]}
+    resp = await client.post("/api/master/drones", json=body, headers=hdrs)
     assert resp.status_code == 201, resp.text
     data = resp.json()
     yield data
@@ -156,7 +161,11 @@ async def test_create_config_template_blank_name_422(
     token = make_token(admin_user.id, admin_user.role)
     resp = await client.post(
         "/api/master/config-templates",
-        json={"name": "   ", "drone_type_id": drone_type["id"], "settings": {}},
+        json={
+            "name": "   ",
+            "drone_type_id": drone_type["id"],
+            "settings": {},
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 422
@@ -168,7 +177,11 @@ async def test_create_config_template_unknown_type_404(
     token = make_token(admin_user.id, admin_user.role)
     resp = await client.post(
         "/api/master/config-templates",
-        json={"name": "Orphan-Config", "drone_type_id": 999999, "settings": {}},
+        json={
+            "name": "Orphan-Config",
+            "drone_type_id": 999999,
+            "settings": {},
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 404
@@ -355,10 +368,11 @@ async def test_apply_config_template_to_drone_200(
 async def test_apply_config_template_type_mismatch_422(
     client: AsyncClient, admin_user, drone_type, drone_type2, drone_instance, make_token
 ):
-    """Template for drone_type2 applied to a drone of drone_type → 422."""
+    """Template is for drone_type2 but drone_instance is drone_type → 422."""
     token = make_token(admin_user.id, admin_user.role)
     hdrs = {"Authorization": f"Bearer {token}"}
 
+    # Create template for drone_type2
     ct = await client.post(
         "/api/master/config-templates",
         json={"name": "Beta-Config", "drone_type_id": drone_type2["id"], "settings": {}},
@@ -367,6 +381,7 @@ async def test_apply_config_template_type_mismatch_422(
     assert ct.status_code == 201
     wrong_tid = ct.json()["id"]
 
+    # Apply template meant for drone_type2 to a drone of drone_type → 422
     resp = await client.post(
         f"/api/master/config-templates/{wrong_tid}/apply/{drone_instance['id']}",
         headers=hdrs,

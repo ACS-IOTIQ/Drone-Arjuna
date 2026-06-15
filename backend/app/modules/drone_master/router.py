@@ -1,5 +1,5 @@
-from typing import Annotated
-from fastapi import APIRouter, Depends
+from typing import Annotated, Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, Pagination
@@ -13,7 +13,9 @@ from app.schemas.drone import (
 from app.schemas.vessel import (
     NavalVesselCreate, NavalVesselUpdate, NavalVesselOut, VesselPositionUpdate,
 )
-from app.modules.drone_master.service import DroneTypeService, DroneInstanceService, DroneConfigTemplateService
+from app.modules.drone_master.service import (
+    DroneTypeService, DroneInstanceService, DroneConfigTemplateService,
+)
 from app.modules.drone_master.vessel_service import NavalVesselService
 from app.modules.drone_master.payload_service import PayloadTypeService, PayloadService
 from app.schemas.payload import (
@@ -203,7 +205,9 @@ async def delete_payload(pid: int, db: DbDep, _: AdminDep):
 
 @router.get("/config-templates", response_model=list[DroneConfigTemplateOut])
 async def list_config_templates(
-    db: DbDep, _: ViewerDep, drone_type_id: int | None = None
+    db: DbDep,
+    _: ViewerDep,
+    drone_type_id: Optional[int] = Query(None, description="Filter by drone type"),
 ):
     return await DroneConfigTemplateService(db).list_active(drone_type_id)
 
@@ -214,12 +218,16 @@ async def get_config_template(tid: int, db: DbDep, _: ViewerDep):
 
 
 @router.post("/config-templates", response_model=DroneConfigTemplateOut, status_code=201)
-async def create_config_template(body: DroneConfigTemplateCreate, db: DbDep, _: AdminDep):
+async def create_config_template(
+    body: DroneConfigTemplateCreate, db: DbDep, _: AdminDep
+):
     return await DroneConfigTemplateService(db).create(body)
 
 
 @router.put("/config-templates/{tid}", response_model=DroneConfigTemplateOut)
-async def update_config_template(tid: int, body: DroneConfigTemplateUpdate, db: DbDep, _: AdminDep):
+async def update_config_template(
+    tid: int, body: DroneConfigTemplateUpdate, db: DbDep, _: AdminDep
+):
     return await DroneConfigTemplateService(db).update(tid, body)
 
 
@@ -229,5 +237,11 @@ async def archive_config_template(tid: int, db: DbDep, _: AdminDep):
 
 
 @router.post("/config-templates/{tid}/apply/{drone_id}")
-async def apply_config_template(tid: int, drone_id: int, db: DbDep, _: AdminDep):
-    return await DroneConfigTemplateService(db).apply(tid, drone_id)
+async def apply_config_template(
+    tid: int,
+    drone_id: int,
+    db: DbDep,
+    _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
+):
+    """Validates template–drone compatibility and returns resolved settings."""
+    return await DroneConfigTemplateService(db).apply_to_drone(tid, drone_id)

@@ -103,34 +103,34 @@ class DroneInstanceUpdate(BaseModel):
 
 class DroneConfigTemplateCreate(BaseModel):
     name: str
-    drone_type_id: int
     description: Optional[str] = None
+    drone_type_id: int
     settings: dict = {}
 
     @field_validator("name")
     @classmethod
     def name_not_blank(cls, v: str) -> str:
         if not v.strip():
-            raise ValueError("name must not be blank or whitespace-only")
+            raise ValueError("Template name must not be blank")
         return v.strip()
 
 
 class DroneConfigTemplateUpdate(BaseModel):
     name: Optional[str] = None
-    drone_type_id: Optional[int] = None
     description: Optional[str] = None
+    drone_type_id: Optional[int] = None
     settings: Optional[dict] = None
 
 
 class DroneConfigTemplateOut(BaseModel):
     id: int
     name: str
+    description: Optional[str] = None
     drone_type_id: int
-    description: Optional[str]
     settings: dict
     is_active: bool
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 

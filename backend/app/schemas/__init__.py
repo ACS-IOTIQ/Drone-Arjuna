@@ -7,6 +7,7 @@ from app.schemas.drone     import (
     DroneTypeCreate, DroneTypeUpdate, DroneTypeOut,
     DroneInstanceCreate, DroneInstanceUpdate, DroneInstanceOut,
     ConnectRequest, CommandRequest, ConnectionStatusOut,
+    DroneConfigTemplateCreate, DroneConfigTemplateUpdate, DroneConfigTemplateOut,
 )
 from app.schemas.payload   import (
     PayloadTypeCreate, PayloadTypeUpdate, PayloadTypeOut,
@@ -29,6 +30,7 @@ __all__ = [
     "DroneTypeCreate", "DroneTypeUpdate", "DroneTypeOut",
     "DroneInstanceCreate", "DroneInstanceUpdate", "DroneInstanceOut",
     "ConnectRequest", "CommandRequest", "ConnectionStatusOut",
+    "DroneConfigTemplateCreate", "DroneConfigTemplateUpdate", "DroneConfigTemplateOut",
     # Payload
     "PayloadTypeCreate", "PayloadTypeUpdate", "PayloadTypeOut",
     "PayloadCreate", "PayloadUpdate", "PayloadOut",

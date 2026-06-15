@@ -13,19 +13,34 @@ Design notes
   globally so we do not need that table in the test schema.
 """
 import os
+import enum
+import asyncio
+import sys
+import types
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
+if not hasattr(enum, "StrEnum"):
+    class StrEnum(str, enum.Enum):
+        pass
+
+    enum.StrEnum = StrEnum
+
+if "uvloop" not in sys.modules:
+    uvloop_stub = types.ModuleType("uvloop")
+    uvloop_stub.EventLoopPolicy = asyncio.DefaultEventLoopPolicy
+    sys.modules["uvloop"] = uvloop_stub
+
 # ── MUST come first: set test env before any app module is imported ───────────
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://da:da@localhost/da_test")
-os.environ.setdefault("TIMESCALE_URL", "postgresql+asyncpg://da:da@localhost/da_ts_test")
-os.environ.setdefault(
-    "SECRET_KEY",
-    "da_test_secret_key_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",  # 64 chars
+os.environ["DEBUG"] = "false"
+os.environ["DATABASE_URL"] = "postgresql+asyncpg://da:da@localhost/da_test"
+os.environ["TIMESCALE_URL"] = "postgresql+asyncpg://da:da@localhost/da_ts_test"
+os.environ["SECRET_KEY"] = (
+    "da_test_secret_key_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 )
-os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
-os.environ.setdefault("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+os.environ["REDIS_URL"] = "redis://localhost:6379"
+os.environ["RABBITMQ_URL"] = "amqp://guest:guest@localhost:5672/"
 
 # Clear any cached Settings so our env vars are read fresh
 from app.config import get_settings  # noqa: E402 — must be after os.environ setup
@@ -100,6 +115,7 @@ async def client():
       - lifespan replaced with a no-op (no real DB / Rabbit connections)
     """
     from app.main import app
+    from app.dependencies import get_db as dependencies_get_db
 
     async def _override_get_db():
         async with _TestSession() as session:
@@ -115,6 +131,7 @@ async def client():
         yield
 
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[dependencies_get_db] = _override_get_db
     original_lifespan = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
 

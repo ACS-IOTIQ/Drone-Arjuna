@@ -179,6 +179,51 @@ async def test_autoconnect_viewer_403(
     assert resp.status_code == 403
 
 
+async def test_autoconnect_success_200(
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
+):
+    """Autoconnect returns 200 with connection details when a heartbeat is received (SITL mocked)."""
+    from unittest.mock import AsyncMock, patch
+
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    with patch(
+        "app.modules.drone_control.router.mavlink_manager.connect",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        resp = await client.post(
+            "/api/drone-control/autoconnect",
+            json={"drone_instance_id": drone_instance["id"]},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["drone_id"] == drone_instance["id"]
+    assert "transport" in body
+    assert "detail" in body
+
+
+async def test_autoconnect_already_connected_409(
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
+):
+    """Autoconnect returns 409 when the drone is already connected."""
+    from unittest.mock import MagicMock, patch
+
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    mock_conn = MagicMock()
+    mock_conn.connected = True
+    with patch.dict(
+        "app.modules.drone_control.router.mavlink_manager._connections",
+        {drone_instance["id"]: mock_conn},
+    ):
+        resp = await client.post(
+            "/api/drone-control/autoconnect",
+            json={"drone_instance_id": drone_instance["id"]},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert resp.status_code == 409
+
+
 # ══════════════════════════════════════════════════════════════════════
 # Command
 # ══════════════════════════════════════════════════════════════════════
@@ -228,6 +273,63 @@ async def test_connect_viewer_403(client: AsyncClient, viewer_user, make_token):
     assert resp.status_code == 403
 
 
+async def test_connect_unauthenticated_401(client: AsyncClient):
+    """Unauthenticated /connect must return 401."""
+    resp = await client.post(
+        "/api/drone-control/connect",
+        json={"drone_instance_id": 1, "transport": "udp"},
+    )
+    assert resp.status_code == 401
+
+
+async def test_connect_invalid_transport_422(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Invalid transport value must be rejected by Pydantic with 422."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp  = await client.post(
+        "/api/drone-control/connect",
+        json={"drone_instance_id": 1, "transport": "smoke_signal"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_connect_no_sitl_503(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Connect with no SITL running must return 503."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp  = await client.post(
+        "/api/drone-control/connect",
+        json={"drone_instance_id": 1, "transport": "udp"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 503
+
+
+async def test_connect_success_201(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Connect returns 201 with detail when MAVLink heartbeat succeeds (mocked)."""
+    from unittest.mock import AsyncMock, patch
+
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    with patch(
+        "app.modules.drone_control.router.mavlink_manager.connect",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        resp = await client.post(
+            "/api/drone-control/connect",
+            json={"drone_instance_id": 1, "transport": "udp"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert resp.status_code == 201
+    assert resp.json()["detail"] == "Connected"
+    assert resp.json()["drone_id"] == 1
+
+
 async def test_disconnect_viewer_403(client: AsyncClient, viewer_user, make_token):
     token = make_token(viewer_user.id, viewer_user.role)
     resp  = await client.post(
@@ -235,6 +337,25 @@ async def test_disconnect_viewer_403(client: AsyncClient, viewer_user, make_toke
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
+
+
+async def test_disconnect_unauthenticated_401(client: AsyncClient):
+    """Unauthenticated /disconnect must return 401."""
+    resp = await client.post("/api/drone-control/disconnect/1")
+    assert resp.status_code == 401
+
+
+async def test_disconnect_success_200(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Disconnect always returns 200 — endpoint has no error path."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp  = await client.post(
+        "/api/drone-control/disconnect/9999",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["detail"] == "Disconnected"
 
 
 # ══════════════════════════════════════════════════════════════════════

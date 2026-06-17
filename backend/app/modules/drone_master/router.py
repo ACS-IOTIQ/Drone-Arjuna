@@ -92,6 +92,11 @@ async def set_drone_status(
     return {"detail": "Status updated", "status": inst.status}
 
 
+@router.delete("/drones/{did}", status_code=204)
+async def deregister_drone(did: int, db: DbDep, _: AdminDep):
+    await DroneInstanceService(db).deregister(did)
+
+
 @router.get("/drones/{did}/type-spec", response_model=DroneTypeOut)
 async def get_drone_type_spec(did: int, db: DbDep, _: ViewerDep):
     """Returns the full DroneType spec for a given drone instance.

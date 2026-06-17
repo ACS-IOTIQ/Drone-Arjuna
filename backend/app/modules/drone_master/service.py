@@ -210,6 +210,20 @@ class DroneInstanceService:
         await self.db.flush()
         return inst
 
+    async def deregister(self, drone_id: int) -> None:
+        """Hard-delete a drone instance. Blocked if the drone is currently
+        online or on a mission — cannot remove an active airframe."""
+        inst = await self.get_by_id(drone_id)
+        if inst.status in {"online", "mission"}:
+            raise HTTPException(
+                409,
+                f"Cannot deregister drone '{inst.call_sign}': status is '{inst.status}'. "
+                f"Set status to 'offline' or 'maintenance' first."
+            )
+        await self.db.delete(inst)
+        await self.db.flush()
+        log.info("Drone deregistered", call_sign=inst.call_sign, id=drone_id)
+
     async def get_type_spec(self, drone_id: int) -> DroneType:
         """
         Returns the DroneType spec for a given instance.

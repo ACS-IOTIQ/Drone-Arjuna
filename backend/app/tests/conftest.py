@@ -64,6 +64,8 @@ import app.models.vessel  # noqa: F401, E402 — registers NavalVessel
 import app.models.telemetry  # noqa: F401, E402 — registers telemetry models
 import app.models.payload  # noqa: F401, E402 — registers PayloadType, Payload
 
+pytest_plugins = ("app.tests.testcase_word_report",)
+
 cfg = get_settings()
 
 # ── In-memory SQLite test engine ──────────────────────────────────────────────

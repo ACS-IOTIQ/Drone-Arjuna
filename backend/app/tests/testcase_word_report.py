@@ -89,10 +89,14 @@ def pytest_runtest_logreport(report: Any) -> None:
 
 
 def pytest_sessionfinish(session: Any, exitstatus: int) -> None:
+    terminal = session.config.pluginmanager.get_plugin("terminalreporter")
+    if REPORT_PATH.exists():
+        if terminal:
+            terminal.write_line(f"Test case Word document already exists, skipping: {REPORT_PATH}")
+        return
     docs: dict[str, TestCaseDoc] = getattr(session.config, "_da_testcase_docs", {})
     started_at = getattr(session.config, "_da_report_started_at", None)
     _write_docx(REPORT_PATH, list(docs.values()), started_at, exitstatus)
-    terminal = session.config.pluginmanager.get_plugin("terminalreporter")
     if terminal:
         terminal.write_line(f"Test case Word document generated: {REPORT_PATH}")
 

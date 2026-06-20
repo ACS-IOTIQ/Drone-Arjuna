@@ -1,0 +1,18 @@
+{
+  "name": "dronearjuna",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DroneArjuna full-stack ground control system workspace",
+  "scripts": {
+    "postinstall": "npm --prefix frontend install",
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview",
+    "frontend:install": "npm --prefix frontend install",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "docker:up": "docker compose up -d --build",
+    "docker:migrate": "docker compose exec backend alembic upgrade head",
+    "docker:down": "docker compose down"
+  }
+}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Download } from 'lucide-react'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore, TelemetryFrame } from '@/store/telemetryStore'
 import GaugeDashboard from './GaugeDashboard'
@@ -73,10 +74,37 @@ export default function MonitorWorkspace() {
 
 function RawTelemetry({ droneId }: { droneId: number }) {
   const frame = useTelemetryStore(s => s.frames[droneId])
+  const history = useTelemetryStore(s => s.history[droneId] ?? [])
+
+  const exportCsv = () => {
+    const rows = history.length ? history : frame ? [frame] : []
+    if (rows.length === 0) return
+    const keys = Array.from(new Set(rows.flatMap(row => Object.keys(row)))).sort()
+    const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const csv = [
+      keys.join(','),
+      ...rows.map(row => keys.map(key => escape((row as any)[key])).join(',')),
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `drone-${droneId}-telemetry.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="da-card p-4">
-      <h3 className="text-sm font-semibold mb-3">Raw Telemetry</h3>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold">Raw Telemetry</h3>
+          <p className="text-[11px]" style={{ color: '#64748b' }}>{history.length} buffered frames</p>
+        </div>
+        <button className="da-btn da-btn-ghost text-xs" onClick={exportCsv} disabled={!frame && history.length === 0}>
+          <Download size={13} /> CSV
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 text-xs mono overflow-auto"
         style={{ maxHeight: 280 }}>
         {frame

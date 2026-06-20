@@ -88,6 +88,94 @@ RabbitMQ UI: http://localhost:15672
 MinIO UI: http://localhost:9001
 ```
 
+7. Sign in to the frontend:
+
+```text
+Username: admin
+Password: Admin@1234
+```
+
+Explanation: On first backend startup, the API creates this default admin account if the users table is empty.
+
+Use when: Logging in to a fresh local database for the first time.
+
+## Running The Full Application
+
+Recommended full-stack run:
+
+Start Docker Desktop first, then run:
+
+```powershell
+docker compose up -d --build
+docker compose exec backend alembic upgrade head
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+Login with:
+
+```text
+admin / Admin@1234
+```
+
+Local frontend-only development run:
+
+```powershell
+npm install
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+The frontend-only command starts the UI. Login and live API features still require the backend to be running at `http://localhost:8000`. The Vite dev proxy targets `http://localhost:8000` by default for local frontend runs and automatically targets `http://backend:8000` inside Docker, so the frontend container talks to the backend container correctly.
+
+If login fails:
+
+- Confirm the backend is running: `http://localhost:8000/api/health`
+- Confirm migrations ran: `docker compose exec backend alembic upgrade head`
+- Use the default first-run credentials only when the database has no existing users.
+- If you changed users previously, login with the account already stored in the database.
+
+If Docker shows an error like `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`, Docker Desktop is not running. Open Docker Desktop, wait until it says the engine is running, then run the Docker commands again.
+
+## Simple Local UI Commands
+
+You can now run common frontend commands from the project root.
+
+```powershell
+npm install
+```
+
+Explanation: Installs the root helper package and automatically installs frontend dependencies.
+
+```powershell
+npm run build
+```
+
+Explanation: Runs the frontend TypeScript and Vite production build from the root folder.
+
+```powershell
+npm run dev
+```
+
+Explanation: Starts the frontend dev server from the root folder.
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+If port `3000` is already occupied, Vite may use the next available port and print it in the terminal. Close the older terminal/server or open the URL Vite prints.
+
 ## Daily Docker Commands
 
 ### Whole Stack
@@ -215,6 +303,111 @@ docker compose exec frontend npm run build
 Explanation: Runs the production frontend build inside the `frontend` container.
 
 Use when: Checking TypeScript/build errors before handing off or deploying changes.
+
+## Frontend Operator Workflow
+
+The UI is organized around normal drone operations:
+
+| Workspace | Use It For |
+| --- | --- |
+| Fleet | Connect drones, review live fleet readiness, assign payloads to aircraft, and check vessel basing. |
+| Plan | Build missions on the Leaflet map, draw geofence safety zones, review waypoints, and submit/approve/reject missions. |
+| Fly | Execute live flight commands, monitor instruments, and run mission simulations. |
+| Monitor | Watch telemetry charts, gauges, and system logs. |
+| Settings | Maintain drone types, drone instances, payload types, vessels, and users. |
+
+### Payload Types
+
+Open `Settings -> Payloads` to manage the payload catalog.
+
+Available actions:
+
+- `Add Payload`: create sensor, combat, comms, or other payload records.
+- `Edit`: update payload weight, power, sensor details, gimbal support, and notes.
+- `Delete`: remove a payload type from the UI catalog.
+
+The frontend calls the P2-02 payload contract at `/api/master/payload-types`. If that API is not available in the currently running backend, the screen falls back to a local browser cache so operators can still build and review the UI flow without backend changes.
+
+### Login And Access Requests
+
+The login screen has two modes:
+
+- `Sign In`: existing operators enter their username and password.
+- `Request Access`: new operators submit name, requested username, email, mobile number, role, and reason.
+
+Access requests are stored in the frontend request queue and appear in `Settings -> Users` under `Access Requests`.
+
+Admin review actions:
+
+- `Allow`: calls the existing `/api/auth/register` endpoint with a generated temporary password and marks the request approved.
+- `Reject`: marks the request rejected.
+- `Email`: opens a prepared email to the requester.
+- `SMS`: opens a prepared SMS to the requester when a mobile number was provided.
+
+Actual automatic email/SMS delivery requires backend or third-party notification service support. Since this pass is frontend-only, the UI provides reliable ready-to-send email/SMS actions and in-app notifications without modifying backend code.
+
+### Fleet Payload Assignment
+
+Open `Fleet` and use the `Payload Assignment` panel above the drone cards.
+
+Each registered drone has a dropdown:
+
+- `No payload mounted`: clears the UI assignment.
+- Any saved payload: assigns that payload to the selected drone.
+
+The frontend calls `/api/master/drones/{drone_id}/payload` for backend persistence. If that endpoint is not available, the assignment is saved locally in the browser and the Fleet screen shows a warning.
+
+### Connection Presets
+
+Open `Fleet -> Connect Drone`.
+
+Use `Saved Config Preset` before connecting to apply a complete connection profile. Built-in presets include:
+
+- SITL UDP 14550
+- SITL TCP 5760
+- USB Serial 57600
+- HF Harris Serial
+
+The dialog still supports manual UDP, TCP, serial, HF serial, and HF TCP configuration. Custom presets can be supplied through browser local storage key `da_connection_presets` as an array of connection preset objects.
+
+### Mission Planning And Geofence
+
+Open `Plan`.
+
+Mission setup lives on the left, the Leaflet map is in the center, and live operations telemetry remains visible on the right.
+
+Map actions:
+
+- Click the map normally to add waypoints.
+- Click `Draw Geofence`, then click at least three map points to create a polygon safety zone.
+- Drag numbered geofence vertices to move the zone.
+- Click `Finish` to complete drawing.
+- Click `Delete` to remove the geofence zone.
+- Waypoints outside the geofence are highlighted red with an alert marker.
+
+When `Save Mission` is clicked, the current geofence is saved with the mission as a GeoJSON polygon in mission state and sent through the mission creation payload.
+
+### Mission Submit, Approve, Reject
+
+In `Plan`, save or load a mission first. The action bar over the map then enables:
+
+- `Submit`: sends the mission through the existing mission status endpoint as `planning`.
+- `Approve`: updates the mission status to `approved`.
+- `Reject`: maps the operator rejection action to backend status `aborted`, because the current backend status schema accepts `planning`, `approved`, `executing`, `completed`, and `aborted`.
+
+### Telemetry Readout And Export
+
+Open `Monitor` after connecting a drone or starting a simulation.
+
+The Monitor workspace shows:
+
+- Live gauge dashboard.
+- Parameter chart for altitude, speed, battery, climb rate, airspeed, and RSSI.
+- Raw telemetry key/value data.
+- System log/status text.
+- `CSV` export from the Raw Telemetry panel.
+
+The CSV export downloads the current in-browser telemetry buffer for the selected drone. This is useful for quick inspection, debugging, and sharing a short telemetry capture without touching the backend.
 
 ### Databases
 

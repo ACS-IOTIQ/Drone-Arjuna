@@ -3,7 +3,7 @@
 // DroneCard.tsx
 // ═══════════════════════════════════════════
 import { useTelemetryStore } from '@/store/telemetryStore'
-import { Battery, Wifi, Satellite, Gauge, Navigation, Anchor, Radio } from 'lucide-react'
+import { Battery, Wifi, Satellite, Gauge, Navigation, Anchor, Radio, Package } from 'lucide-react'
 import type { DroneInstance } from '@/store/fleetStore'
 import type { NavalVessel } from '@/store/vesselStore'
 
@@ -22,9 +22,10 @@ interface Props {
   connected: boolean
   homeVessel?: NavalVessel
   connectionInfo?: ConnectionInfo
+  payloadName?: string
 }
 
-export function DroneCard({ drone, connected, homeVessel, connectionInfo }: Props) {
+export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloadName }: Props) {
   const frame = useTelemetryStore(s => s.frames[drone.id])
 
   const battColor = !frame ? '#6b7280'
@@ -102,7 +103,15 @@ export function DroneCard({ drone, connected, homeVessel, connectionInfo }: Prop
       )}
 
       {/* Vessel assignment */}
-      {homeVessel && (
+      {(homeVessel || payloadName) && (
+        <div className="flex flex-col gap-1 pt-1 border-t border-slate-200">
+          {payloadName && (
+            <div className="flex items-center gap-1.5">
+              <Package size={11} style={{ color: '#0f766e' }} />
+              <span className="text-[11px]" style={{ color: '#0f766e' }}>{payloadName}</span>
+            </div>
+          )}
+          {homeVessel && (
         <div className="flex items-center gap-1.5 pt-1 border-t border-white/5">
           <Anchor size={11} style={{ color: '#06b6d4' }} />
           <span className="text-[11px]" style={{ color: '#06b6d4' }}>
@@ -114,6 +123,8 @@ export function DroneCard({ drone, connected, homeVessel, connectionInfo }: Prop
             </span>
           ) : (
             <span className="text-[11px] ml-auto" style={{ color: '#f59e0b' }}>no vessel pos</span>
+          )}
+        </div>
           )}
         </div>
       )}

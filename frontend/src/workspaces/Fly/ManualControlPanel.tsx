@@ -112,7 +112,7 @@ export default function ManualControlPanel({ droneId }: Props) {
   return (
     <div
       className="da-card flex flex-col gap-3 p-3"
-      style={{ background: 'rgba(17,24,39,0.94)', backdropFilter: 'blur(10px)', minWidth: 188 }}>
+      style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(10px)', minWidth: 188 }}>
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -130,12 +130,12 @@ export default function ManualControlPanel({ droneId }: Props) {
           <span
             className="mono text-[9px] font-semibold tracking-widest"
             style={{ color: kbEnabled ? '#3b82f6' : '#374151' }}>
-            WASD
+            KEYS
           </span>
         </label>
       </div>
 
-      {/* ── 3×3 direction pad ── */}
+      {/* 3x3 direction pad */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
@@ -144,29 +144,29 @@ export default function ManualControlPanel({ droneId }: Props) {
       }}>
         {/* Row 1 */}
         <div />
-        <Btn label="↑" hint="Forward (W / ↑)"
+        <Btn label="↑" hint="Forward (W / Up)"
           active={isActive('w', 'arrowup')}
           onPress={() => nudge(3, 0, 0)} />
-        <Btn label="⬆" hint="Ascend (R)" color="#22c55e"
+        <Btn label="UP" hint="Ascend (R)" color="#22c55e"
           active={isActive('r')}
           onPress={() => nudge(0, 0, -2)} />
 
         {/* Row 2 */}
-        <Btn label="←" hint="Strafe left (A / ←)"
+        <Btn label="←" hint="Strafe left (A / Left)"
           active={isActive('a', 'arrowleft')}
           onPress={() => nudge(0, -3, 0)} />
         <Btn label="■" hint="Stop (Space)" color="#f59e0b" active={false}
           onPress={() => { stopLoop(); sendVel(0, 0, 0) }} />
-        <Btn label="→" hint="Strafe right (D / →)"
+        <Btn label="→" hint="Strafe right (D / Right)"
           active={isActive('d', 'arrowright')}
           onPress={() => nudge(0, 3, 0)} />
 
         {/* Row 3 */}
         <div />
-        <Btn label="↓" hint="Back (S / ↓)"
+        <Btn label="↓" hint="Back (S / Down)"
           active={isActive('s', 'arrowdown')}
           onPress={() => nudge(-3, 0, 0)} />
-        <Btn label="⬇" hint="Descend (F)" color="#ef4444"
+        <Btn label="DN" hint="Descend (F)" color="#ef4444"
           active={isActive('f')}
           onPress={() => nudge(0, 0, 2)} />
       </div>
@@ -174,7 +174,7 @@ export default function ManualControlPanel({ droneId }: Props) {
       {/* Keyboard hint */}
       {kbEnabled ? (
         <p className="mono text-[9px] text-center" style={{ color: '#374151', letterSpacing: '0.05em' }}>
-          W A S D · R/F alt · SPACE stop
+          W A S D / arrows - R/F altitude - SPACE stop
         </p>
       ) : (
         <p className="text-[9px] text-center" style={{ color: '#1f2937' }}>
@@ -200,7 +200,7 @@ function Btn({ label, hint, active, color = '#94a3b8', onPress }: {
       className="flex items-center justify-center rounded font-bold select-none"
       style={{
         fontSize: 14,
-        background: active ? `${color}1e` : 'rgba(255,255,255,0.03)',
+        background: active ? `${color}1e` : '#f8fafc',
         border: `1px solid ${active ? color : 'var(--da-border)'}`,
         color: active ? color : '#4b5563',
         transform: active ? 'scale(0.93)' : 'scale(1)',

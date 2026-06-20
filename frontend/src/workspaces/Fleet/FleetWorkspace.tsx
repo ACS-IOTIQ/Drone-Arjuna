@@ -2,12 +2,32 @@
 // FleetWorkspace.tsx
 // ═══════════════════════════════════════════
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Anchor } from 'lucide-react'
+import { Plus, RefreshCw, Anchor, Package } from 'lucide-react'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import { useVesselStore } from '@/store/vesselStore'
+import { payloadApi, type PayloadType } from '@/api/payload'
 import DroneCard from './DroneCard'
 import ConnectModal from './ConnectModal'
+
+const PAYLOAD_CACHE_KEY = 'da_payload_types_fallback'
+const PAYLOAD_ASSIGNMENT_KEY = 'da_payload_assignments'
+
+function readCachedPayloads(): PayloadType[] {
+  try {
+    return JSON.parse(localStorage.getItem(PAYLOAD_CACHE_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+function readAssignments(): Record<number, number | null> {
+  try {
+    return JSON.parse(localStorage.getItem(PAYLOAD_ASSIGNMENT_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
 
 export default function FleetWorkspace() {
   const { instances, connections, fetchInstances, fetchConnections } = useFleetStore()
@@ -15,14 +35,31 @@ export default function FleetWorkspace() {
   const { vessels, fetchVessels } = useVesselStore()
   const [showConnect, setShowConnect] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [payloads, setPayloads] = useState<PayloadType[]>([])
+  const [payloadAssignments, setPayloadAssignments] = useState<Record<number, number | null>>({})
+  const [payloadErr, setPayloadErr] = useState('')
 
   const refresh = async () => {
     setRefreshing(true)
-    await Promise.all([fetchInstances(), fetchConnections(), fetchVessels()])
+    await Promise.all([fetchInstances(), fetchConnections(), fetchVessels(), fetchPayloads()])
     setRefreshing(false)
   }
 
-  useEffect(() => { refresh() }, [])
+  const fetchPayloads = async () => {
+    setPayloadErr('')
+    try {
+      const { data } = await payloadApi.listTypes()
+      setPayloads(data)
+    } catch {
+      setPayloads(readCachedPayloads())
+      setPayloadErr('Payload API unavailable; showing cached payloads.')
+    }
+  }
+
+  useEffect(() => {
+    setPayloadAssignments(readAssignments())
+    refresh()
+  }, [])
 
   // Subscribe to telemetry for connected drones
   useEffect(() => {
@@ -33,6 +70,23 @@ export default function FleetWorkspace() {
 
   // Build vessel lookup by id for card rendering
   const vesselById = Object.fromEntries(vessels.map(v => [v.id, v]))
+
+  const payloadById = Object.fromEntries(payloads.filter(p => p.id != null).map(p => [p.id!, p]))
+
+  const assignPayload = async (droneId: number, payloadId: number | null) => {
+    const previous = payloadAssignments
+    const next = { ...payloadAssignments, [droneId]: payloadId }
+    setPayloadAssignments(next)
+    localStorage.setItem(PAYLOAD_ASSIGNMENT_KEY, JSON.stringify(next))
+    setPayloadErr('')
+
+    try {
+      await payloadApi.assignToDrone(droneId, payloadId)
+    } catch (e: any) {
+      setPayloadErr(e.response?.data?.detail ?? 'Payload assignment saved locally; backend route is not reachable.')
+      setPayloadAssignments(next || previous)
+    }
+  }
 
   return (
     <div className="h-full flex flex-col p-5 overflow-auto">
@@ -111,6 +165,47 @@ export default function FleetWorkspace() {
         </div>
       )}
 
+      {/* Payload assignment */}
+      <div className="mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+            Payload Assignment
+          </h3>
+          {payloadErr && <span className="text-[11px]" style={{ color: '#d97706' }}>{payloadErr}</span>}
+        </div>
+        <div className="da-card overflow-hidden">
+          {instances.length === 0 ? (
+            <p className="text-xs px-4 py-3" style={{ color: '#64748b' }}>Register drones before assigning payloads.</p>
+          ) : (
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+              {instances.map(d => {
+                const assigned = payloadAssignments[d.id]
+                const payload = assigned ? payloadById[assigned] : null
+                return (
+                  <div key={d.id} className="flex items-center gap-3 p-3" style={{ borderRight: '1px solid var(--da-border)', borderBottom: '1px solid var(--da-border)' }}>
+                    <Package size={15} style={{ color: payload ? '#0f766e' : '#64748b', flexShrink: 0 }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold">{d.call_sign}</div>
+                      <select
+                        className="da-input mt-1"
+                        value={assigned ?? ''}
+                        onChange={e => assignPayload(d.id, e.target.value ? Number(e.target.value) : null)}>
+                        <option value="">No payload mounted</option>
+                        {payloads.map(p => (
+                          <option key={p.id ?? p.name} value={p.id}>
+                            {p.name} - {p.category} ({p.weight_kg} kg)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Drone grid */}
       {instances.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-3"
@@ -127,6 +222,11 @@ export default function FleetWorkspace() {
               connected={!!connections[d.id]?.connected}
               homeVessel={d.home_vessel_id != null ? vesselById[d.home_vessel_id] : undefined}
               connectionInfo={connections[d.id]}
+              payloadName={
+                payloadAssignments[d.id] && payloadById[payloadAssignments[d.id]!]
+                  ? payloadById[payloadAssignments[d.id]!]!.name
+                  : undefined
+              }
             />
           ))}
         </div>

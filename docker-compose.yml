@@ -44,7 +44,7 @@ services:
     container_name: da_pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@dronearjuna.local}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@dronearjuna.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-changeme}
     volumes:
       - pgadmin_data:/var/lib/pgadmin
@@ -134,7 +134,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app   # Hot reload in dev
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   # ── React Frontend ────────────────────────────────────────────────
   frontend:
@@ -153,6 +153,7 @@ services:
     environment:
       VITE_API_URL: http://localhost:8000
       VITE_WS_URL: ws://localhost:8000
+      VITE_API_PROXY_TARGET: http://backend:8000
 
 volumes:
   postgres_data:

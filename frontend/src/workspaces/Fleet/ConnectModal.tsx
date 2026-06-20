@@ -14,6 +14,34 @@ type ModemType = 'generic' | 'harris' | 'codan' | 'barrett'
 interface Props { onClose: () => void }
 
 const HF_TRANSPORTS: Transport[] = ['hf_serial', 'hf_tcp']
+const PRESET_KEY = 'da_connection_presets'
+
+interface ConnectionPreset {
+  id: string
+  name: string
+  transport: Transport
+  host?: string
+  port?: number
+  serial_port?: string
+  baud_rate?: number
+  hf_modem_type?: ModemType
+}
+
+const BUILT_IN_PRESETS: ConnectionPreset[] = [
+  { id: 'udp-sitl-14550', name: 'SITL UDP 14550', transport: 'udp', host: '0.0.0.0', port: 14550 },
+  { id: 'tcp-sitl-5760', name: 'SITL TCP 5760', transport: 'tcp', host: 'host.docker.internal', port: 5760 },
+  { id: 'serial-usb-57600', name: 'USB Serial 57600', transport: 'serial', serial_port: '/dev/ttyUSB0', baud_rate: 57600 },
+  { id: 'hf-harris-serial', name: 'HF Harris Serial', transport: 'hf_serial', serial_port: '/dev/ttyUSB0', baud_rate: 9600, hf_modem_type: 'harris' },
+]
+
+function loadSavedPresets(): ConnectionPreset[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PRESET_KEY) || '[]')
+    return Array.isArray(saved) ? saved : []
+  } catch {
+    return []
+  }
+}
 
 // Group icon per port type
 function PortTypeIcon({ type }: { type: PortInfo['type'] }) {
@@ -38,6 +66,11 @@ export default function ConnectModal({ onClose }: Props) {
   const [loading, setLoading]         = useState(false)
   const [autoConnecting, setAutoConnecting] = useState(false)
   const [err, setErr]               = useState('')
+  const [presetId, setPresetId]     = useState('')
+  const [presets]                   = useState<ConnectionPreset[]>(() => [
+    ...BUILT_IN_PRESETS,
+    ...loadSavedPresets(),
+  ])
 
   // ── Port scan state ────────────────────────────────────────────
   const [scanning,  setScanning]  = useState(false)
@@ -46,6 +79,18 @@ export default function ConnectModal({ onClose }: Props) {
 
   const isHF     = HF_TRANSPORTS.includes(transport)
   const isSerial = transport === 'serial' || transport === 'hf_serial'
+
+  const applyPreset = (id: string) => {
+    setPresetId(id)
+    const preset = presets.find(p => p.id === id)
+    if (!preset) return
+    setTransport(preset.transport)
+    if (preset.host) setHost(preset.host)
+    if (preset.port) setPort(preset.port)
+    if (preset.serial_port) setSerialPort(preset.serial_port)
+    if (preset.baud_rate) setBaud(preset.baud_rate)
+    if (preset.hf_modem_type) setModemType(preset.hf_modem_type)
+  }
 
   const connect = async () => {
     setLoading(true); setErr('')
@@ -142,6 +187,18 @@ export default function ConnectModal({ onClose }: Props) {
           <h3 className="font-semibold">Connect Drone</h3>
           <button onClick={onClose}><X size={16} style={{ color: '#6b7280' }} /></button>
         </div>
+
+        {/* Saved connection configuration */}
+        <label className="flex flex-col gap-1 mb-4">
+          <span className="text-xs" style={{ color: '#64748b' }}>SAVED CONFIG PRESET</span>
+          <select className="da-input" value={presetId}
+            onChange={e => applyPreset(e.target.value)}>
+            <option value="">Manual connection</option>
+            {presets.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </label>
 
         {/* SITL quick-connect presets */}
         <div className="flex gap-2 mb-4 flex-wrap">

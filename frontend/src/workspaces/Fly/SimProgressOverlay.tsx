@@ -61,7 +61,7 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
     <div className="absolute bottom-4 left-1/2 z-[999]"
       style={{ transform: 'translateX(-50%)', minWidth: 360, maxWidth: 420 }}>
       <div className="da-card px-4 py-3 flex flex-col gap-2.5"
-        style={{ background: 'rgba(10,14,26,0.96)', backdropFilter: 'blur(10px)' }}>
+        style={{ background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(10px)' }}>
 
         {/* Phase badge + drone name */}
         <div className="flex items-center justify-between">
@@ -71,7 +71,7 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
               {PHASE_LABEL[phase] ?? phase.toUpperCase()}
             </span>
             <span className="text-xs font-medium" style={{ color: '#94a3b8' }}>
-              SIM · {frame.call_sign}
+              SIM - {frame.call_sign}
             </span>
           </div>
           <span className="text-[10px] mono" style={{ color: '#374151' }}>
@@ -91,7 +91,7 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
               </span>
             </div>
             <div className="h-1 rounded-full overflow-hidden"
-              style={{ background: 'rgba(255,255,255,0.07)' }}>
+              style={{ background: '#e2e8f0' }}>
               <div className="h-full rounded-full transition-all duration-500"
                 style={{ width: `${progress * 100}%`, background: color }} />
             </div>
@@ -152,7 +152,7 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
             style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444',
               border: '1px solid rgba(239,68,68,0.2)' }}>
             <Square size={11} />
-            {stopping ? '…' : 'Stop'}
+            {stopping ? '...' : 'Stop'}
           </button>
         </div>
 

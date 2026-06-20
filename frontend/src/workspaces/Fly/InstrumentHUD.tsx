@@ -21,7 +21,7 @@ export function InstrumentHUD({ droneId }: { droneId: number }) {
     <div className="flex flex-col gap-2" style={{ minWidth: 220 }}>
       {/* Attitude indicator */}
       <div className="da-card p-3"
-        style={{ background: 'rgba(17,24,39,0.92)', backdropFilter: 'blur(8px)' }}>
+        style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}>
         <ArtificialHorizon roll={frame.roll_deg} pitch={frame.pitch_deg} />
         {isSimulated && (
           <div className="mt-1.5 text-center text-[9px] font-bold tracking-widest"
@@ -33,7 +33,7 @@ export function InstrumentHUD({ droneId }: { droneId: number }) {
 
       {/* Core stats */}
       <div className="da-card px-3 py-2 flex flex-col gap-1.5"
-        style={{ background: 'rgba(17,24,39,0.92)', backdropFilter: 'blur(8px)' }}>
+        style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}>
 
         <HUDRow label="ALT AGL"  val={`${frame.alt_agl.toFixed(1)} m`}  />
         <HUDRow label="ALT MSL"  val={`${frame.alt_msl.toFixed(1)} m`} secondary />

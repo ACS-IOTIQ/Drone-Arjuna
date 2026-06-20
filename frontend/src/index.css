@@ -3,46 +3,44 @@
 @tailwind utilities;
 
 :root {
-  --da-bg:       #0a0e1a;
-  --da-surface:  #111827;
-  --da-card:     #1a2235;
-  --da-border:   #2a3550;
-  --da-accent:   #3b82f6;
-  --da-teal:     #20d0b4;
-  --da-success:  #22c55e;
-  --da-warning:  #f59e0b;
-  --da-danger:   #ef4444;
-  --da-muted:    #6b7280;
+  --da-bg:       #f4f7fb;
+  --da-surface:  #ffffff;
+  --da-card:     #ffffff;
+  --da-border:   #cbd5e1;
+  --da-accent:   #2563eb;
+  --da-teal:     #0f766e;
+  --da-success:  #16a34a;
+  --da-warning:  #d97706;
+  --da-danger:   #dc2626;
+  --da-muted:    #64748b;
+  --da-text:     #0f172a;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: 'Inter', sans-serif;
-  background:
-    radial-gradient(circle at top left,  rgba(59,130,246,0.07), transparent 26%),
-    radial-gradient(circle at top right, rgba(32,208,180,0.05), transparent 22%),
-    linear-gradient(180deg, #06101a, var(--da-bg) 44%, #09121f);
-  color: #e2e8f0;
+  background: var(--da-bg);
+  color: var(--da-text);
   overflow: hidden;
   height: 100vh;
 }
 
 /* Scrollbars */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: var(--da-surface); }
-::-webkit-scrollbar-thumb { background: var(--da-border); border-radius: 3px; }
+::-webkit-scrollbar-track { background: #e2e8f0; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
 
-/* Leaflet dark override */
-.leaflet-container { background: #0d1117 !important; }
+/* Leaflet interface polish */
+.leaflet-container { background: #dbeafe !important; color: #0f172a; }
 .leaflet-control-zoom a {
   background: var(--da-card) !important;
-  color: #e2e8f0 !important;
+  color: #0f172a !important;
   border-color: var(--da-border) !important;
 }
 .leaflet-popup-content-wrapper {
   background: var(--da-card) !important;
-  color: #e2e8f0 !important;
+  color: #0f172a !important;
   border: 1px solid var(--da-border);
 }
 .leaflet-popup-tip { background: var(--da-card) !important; }
@@ -59,6 +57,7 @@ body {
   background: var(--da-card);
   border: 1px solid var(--da-border);
   border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.06);
 }
 
 .da-btn {
@@ -79,9 +78,9 @@ body {
 
 .da-btn-primary { background: var(--da-accent); color: white; }
 .da-btn-danger  { background: var(--da-danger);  color: white; }
-.da-btn-ghost   { background: transparent; color: #94a3b8; border: 1px solid var(--da-border); }
+.da-btn-ghost   { background: #ffffff; color: #334155; border: 1px solid var(--da-border); }
 .da-btn-success { background: var(--da-success); color: white; }
-.da-btn-teal    { background: var(--da-teal);    color: #06101a; font-weight: 600; }
+.da-btn-teal    { background: var(--da-teal);    color: white; font-weight: 600; }
 
 .da-badge {
   display: inline-flex;
@@ -102,7 +101,7 @@ body {
   padding: 4px 9px;
   border-radius: 999px;
   border: 1px solid var(--da-border);
-  background: rgba(255,255,255,0.025);
+  background: #ffffff;
   font-size: 10px;
   font-family: 'JetBrains Mono', monospace;
   letter-spacing: 0.05em;
@@ -133,7 +132,7 @@ body {
   border-radius: 6px;
   padding: 7px 10px;
   font-size: 13px;
-  color: #e2e8f0;
+  color: #0f172a;
   width: 100%;
   outline: none;
   transition: border-color 0.15s;

@@ -25,17 +25,23 @@ EXCHANGE_NAME = "dronearjuna.events"
 
 async def init_rabbitmq():
     global _connection, _channel, _exchange
-    try:
-        _connection = await aio_pika.connect_robust(cfg.rabbitmq_url)
-        _channel = await _connection.channel()
-        await _channel.set_qos(prefetch_count=100)
-        _exchange = await _channel.declare_exchange(
-            EXCHANGE_NAME, ExchangeType.TOPIC, durable=True
-        )
-        log.info("RabbitMQ connected", exchange=EXCHANGE_NAME)
-    except Exception as e:
-        log.warning("RabbitMQ unavailable — event publishing disabled", error=str(e))
-        _exchange = None
+    for attempt in range(1, 11):
+        try:
+            _connection = await aio_pika.connect_robust(cfg.rabbitmq_url)
+            _channel = await _connection.channel()
+            await _channel.set_qos(prefetch_count=100)
+            _exchange = await _channel.declare_exchange(
+                EXCHANGE_NAME, ExchangeType.TOPIC, durable=True
+            )
+            log.info("RabbitMQ connected", exchange=EXCHANGE_NAME)
+            return
+        except Exception as e:
+            if attempt == 10:
+                log.warning("RabbitMQ unavailable - event publishing disabled", error=str(e))
+                _exchange = None
+                return
+            log.info("RabbitMQ not ready - retrying", attempt=attempt, error=str(e))
+            await asyncio.sleep(3)
 
 
 async def close_rabbitmq():

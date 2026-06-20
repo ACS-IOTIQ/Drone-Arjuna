@@ -6,7 +6,7 @@ import { useVesselStore } from '@/store/vesselStore'
 import { droneFlightApi } from '@/api/droneFlight'
 
 export default function MissionEditor() {
-  const { draftWaypoints, missions, saveMission, removeWaypoint, loadMission } = useMissionStore()
+  const { draftWaypoints, geofence, missions, saveMission, removeWaypoint, loadMission } = useMissionStore()
   const { instances } = useFleetStore()
   const { vessels } = useVesselStore()
 
@@ -72,7 +72,7 @@ export default function MissionEditor() {
       <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--da-border)' }}>
         <h3 className="text-sm font-semibold">Mission Editor</h3>
         <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
-          {loading ? 'Loading mission…' : `${draftWaypoints.length} waypoints placed`}
+          {loading ? 'Loading mission...' : `${draftWaypoints.length} waypoints - ${geofence.length} geofence vertices`}
         </p>
       </div>
 
@@ -191,7 +191,7 @@ export default function MissionEditor() {
         <button className="da-btn da-btn-primary justify-center"
           onClick={save} disabled={saving || !name || draftWaypoints.length === 0}>
           <Save size={14} />
-          {saving ? 'Saving…' : 'Save Mission'}
+          {saving ? 'Saving...' : 'Save Mission'}
         </button>
       </div>
 

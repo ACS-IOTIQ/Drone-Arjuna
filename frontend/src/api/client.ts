@@ -19,7 +19,9 @@ api.interceptors.request.use(cfg => {
 api.interceptors.response.use(
   r => r,
   err => {
-    if (err.response?.status === 401) {
+    const requestUrl = String(err.config?.url ?? '')
+    const isLoginRequest = requestUrl.includes('/api/auth/token')
+    if (err.response?.status === 401 && !isLoginRequest) {
       localStorage.removeItem('da_token')
       window.location.reload()
     }

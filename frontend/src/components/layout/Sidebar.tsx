@@ -1,17 +1,17 @@
 // ═══════════════════════════════════════════
 // Sidebar.tsx
 // ═══════════════════════════════════════════
-import { Layers, Map, Play, BarChart2, Settings, LogOut, Video } from 'lucide-react'
+import { Activity, LogOut, MapPinned, Plane, Radar, Settings, Video } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import type { Workspace } from './AppShell'
 
 interface NavItem { id: Workspace; icon: React.ReactNode; label: string }
 
 const NAV: NavItem[] = [
-  { id: 'fleet',    icon: <Layers size={20} />,   label: 'Fleet'    },
-  { id: 'plan',     icon: <Map size={20} />,       label: 'Plan'     },
-  { id: 'fly',      icon: <Play size={20} />,      label: 'Fly'      },
-  { id: 'monitor',  icon: <BarChart2 size={20} />, label: 'Monitor'  },
+  { id: 'fleet',    icon: <Radar size={20} />,     label: 'Fleet'    },
+  { id: 'plan',     icon: <MapPinned size={20} />, label: 'Plan'     },
+  { id: 'fly',      icon: <Plane size={20} />,     label: 'Fly'      },
+  { id: 'monitor',  icon: <Activity size={20} />,  label: 'Monitor'  },
   { id: 'settings', icon: <Settings size={20} />,  label: 'Settings' },
 ]
 
@@ -32,7 +32,7 @@ export default function Sidebar({ active, onSelect, cameraOpen, onCameraToggle }
       {/* Logo dot */}
       <div className="w-8 h-8 rounded-lg mb-3 flex items-center justify-center"
         style={{ background: '#3b82f6' }}>
-        <span className="text-xs font-bold">DA</span>
+        <span className="text-xs font-bold text-white">DA</span>
       </div>
 
       {NAV.map(item => (

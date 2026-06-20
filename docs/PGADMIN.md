@@ -34,7 +34,7 @@ Password: PGADMIN_DEFAULT_PASSWORD
 The default example values from `.env.example` are:
 
 ```text
-Email: admin@dronearjuna.local
+Email: admin@dronearjuna.com
 Password: changeme
 ```
 

@@ -10,11 +10,11 @@ import { droneControlApi } from '@/api/droneControl'
 import type { Workspace } from './AppShell'
 
 const LABELS: Record<Workspace, string> = {
-  fleet:    'Fleet Overview',
-  plan:     'Mission Planning',
-  fly:      'Live Operations',
-  monitor:  'Telemetry Monitor',
-  settings: 'Settings & Master Data',
+  fleet:    'Fleet Ops',
+  plan:     'Mission Plan',
+  fly:      'Flight Control',
+  monitor:  'Telemetry',
+  settings: 'Master Data',
 }
 
 interface Props {
@@ -90,14 +90,13 @@ export function TopBar({ workspace, onNotifClick }: Props) {
       className="flex items-center gap-3 px-4 shrink-0 overflow-x-auto"
       style={{
         height: 44,
-        background: 'rgba(8,16,28,0.92)',
+        background: '#ffffff',
         borderBottom: '1px solid var(--da-border)',
-        backdropFilter: 'blur(12px)',
       }}>
 
       {/* Workspace label — display font */}
-      <span className="display font-semibold text-sm shrink-0" style={{ color: '#94a3b8', minWidth: 160 }}>
-        {LABELS[workspace]}
+      <span className="display font-semibold text-sm shrink-0" style={{ color: '#0f172a', minWidth: 180 }}>
+        DRONEARJUNA / {LABELS[workspace]}
       </span>
 
       {/* ── Status chip strip ── */}
@@ -130,7 +129,7 @@ export function TopBar({ workspace, onNotifClick }: Props) {
       </div>
 
       {/* UTC clock */}
-      <span className="mono text-xs shrink-0" style={{ color: '#4b5563' }}>{utc} UTC</span>
+      <span className="mono text-xs shrink-0" style={{ color: '#475569' }}>{utc} UTC</span>
 
       {/* Notification bell */}
       <button
@@ -152,10 +151,10 @@ export function TopBar({ workspace, onNotifClick }: Props) {
       </button>
 
       {/* User info */}
-      <div className="text-xs shrink-0" style={{ color: '#6b7280' }}>
-        <span style={{ color: '#94a3b8' }}>{(user as any)?.username ?? 'operator'}</span>
+      <div className="text-xs shrink-0" style={{ color: '#64748b' }}>
+        <span style={{ color: '#0f172a' }}>{(user as any)?.username ?? 'operator'}</span>
         <span className="ml-2 mono text-[10px] px-1.5 py-0.5 rounded"
-          style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>
+          style={{ background: '#dbeafe', color: '#2563eb' }}>
           {(user as any)?.role ?? 'viewer'}
         </span>
       </div>

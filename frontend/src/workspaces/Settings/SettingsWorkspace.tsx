@@ -1,15 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import DroneTypeManager     from './DroneTypeManager'
 import DroneInstanceManager from './DroneInstanceManager'
+import PayloadManager       from './PayloadManager'
 import VesselManager        from './VesselManager'
 import UserManager          from './UserManager'
-import { Database, Cpu, Users, Info, Anchor } from 'lucide-react'
+import { Database, Cpu, Users, Info, Anchor, Package } from 'lucide-react'
+import { pendingAccessRequestCount } from '@/store/accessRequestStore'
 
-type Tab = 'types' | 'instances' | 'vessels' | 'users' | 'about'
+type Tab = 'types' | 'instances' | 'payloads' | 'vessels' | 'users' | 'about'
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode; group?: string }[] = [
   { id: 'types',     label: 'Drone Types',     icon: <Database size={15} />, group: 'MASTER DATA' },
   { id: 'instances', label: 'Drones',          icon: <Cpu size={15} />,      group: 'MASTER DATA' },
+  { id: 'payloads',  label: 'Payloads',        icon: <Package size={15} />,  group: 'MASTER DATA' },
   { id: 'vessels',   label: 'Naval Vessels',   icon: <Anchor size={15} />,   group: 'NAVAL OPS'   },
   { id: 'users',     label: 'Users',           icon: <Users size={15} />,    group: 'SYSTEM'      },
   { id: 'about',     label: 'About',           icon: <Info size={15} />,     group: 'SYSTEM'      },
@@ -17,6 +20,13 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode; group?: string }[] 
 
 export default function SettingsWorkspace() {
   const [tab, setTab] = useState<Tab>('types')
+  const [pendingRequests, setPendingRequests] = useState(pendingAccessRequestCount())
+
+  useEffect(() => {
+    const refresh = () => setPendingRequests(pendingAccessRequestCount())
+    window.addEventListener('da_access_requests_changed', refresh)
+    return () => window.removeEventListener('da_access_requests_changed', refresh)
+  }, [])
 
   const groups = [...new Set(TABS.map(t => t.group!))]
 
@@ -38,6 +48,11 @@ export default function SettingsWorkspace() {
                 }}>
                 {t.icon}
                 {t.label}
+                {t.id === 'users' && pendingRequests > 0 && (
+                  <span className="ml-auto rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                    {pendingRequests}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -48,6 +63,7 @@ export default function SettingsWorkspace() {
       <div className="flex-1 overflow-auto p-6">
         {tab === 'types'     && <DroneTypeManager />}
         {tab === 'instances' && <DroneInstanceManager />}
+        {tab === 'payloads'  && <PayloadManager />}
         {tab === 'vessels'   && <VesselManager />}
         {tab === 'users'     && <UserManager />}
         {tab === 'about'     && <AboutPanel />}

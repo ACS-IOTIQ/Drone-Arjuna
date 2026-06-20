@@ -113,9 +113,9 @@ export default function FlyWorkspace() {
             style={{
               background: manualOpen
                 ? 'rgba(32,208,180,0.18)'
-                : 'rgba(17,24,39,0.88)',
+                : 'rgba(255,255,255,0.94)',
               border: `1px solid ${manualOpen ? 'rgba(32,208,180,0.45)' : 'var(--da-border)'}`,
-              color: manualOpen ? 'var(--da-teal)' : '#6b7280',
+              color: manualOpen ? 'var(--da-teal)' : '#334155',
               backdropFilter: 'blur(8px)',
             }}>
             <Gamepad2 size={13} />

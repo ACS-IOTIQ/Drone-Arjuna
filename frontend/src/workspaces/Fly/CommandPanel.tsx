@@ -30,9 +30,9 @@ export function CommandPanel({ droneId }: { droneId: number }) {
 
   return (
     <div className="da-card flex flex-col gap-2 p-3"
-      style={{ background: 'rgba(17,24,39,0.92)', backdropFilter: 'blur(8px)' }}>
+      style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}>
 
-      <p className="text-[10px] font-semibold" style={{ color: '#4b5563' }}>FLIGHT COMMANDS</p>
+      <p className="text-[10px] font-semibold" style={{ color: '#475569' }}>FLIGHT COMMANDS</p>
 
       {/* Arm / Disarm */}
       <div className="grid grid-cols-2 gap-1.5">
@@ -50,13 +50,13 @@ export function CommandPanel({ droneId }: { droneId: number }) {
         </button>
       </div>
 
-      {/* Takeoff — visible when armed and on the ground */}
+      {/* Takeoff, visible when armed and on the ground */}
       {frame?.is_armed && (frame?.alt_agl ?? 0) < 2 && (
         <button
           disabled={busy}
           onClick={() => send('takeoff', { altitude: 30 })}
           className="da-btn da-btn-primary justify-center text-xs py-2 font-semibold">
-          ▲ Takeoff
+          Takeoff
         </button>
       )}
 
@@ -94,7 +94,7 @@ export function CommandPanel({ droneId }: { droneId: number }) {
       {/* Emergency stop */}
       <button disabled={busy} onClick={() => setConfirm('emergency_stop')}
         className="da-btn da-btn-danger justify-center text-xs py-2.5 font-bold tracking-wide mt-1">
-        ⚠ EMERGENCY STOP
+        EMERGENCY STOP
       </button>
 
       {/* Confirm dialog */}

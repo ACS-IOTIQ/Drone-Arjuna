@@ -65,13 +65,15 @@ export default function LoginScreen() {
     type = 'text',
     required = false,
   ) => (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-semibold uppercase text-slate-600">{label}{required ? ' *' : ''}</span>
+    <label className="flex flex-col gap-2">
+      <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>
+        {label}{required ? ' *' : ''}
+      </span>
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">{icon}</span>
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 flex items-center">{icon}</span>
         <input
           type={type}
-          className="da-input pl-9"
+          className="da-input pl-9 py-2.5"
           value={request[key]}
           onChange={e => setRequest(prev => ({ ...prev, [key]: e.target.value }))}
         />
@@ -80,15 +82,28 @@ export default function LoginScreen() {
   )
 
   return (
-    <main className="min-h-screen w-screen overflow-y-auto bg-slate-100 px-4 py-8 text-slate-950">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md items-center">
-        <section className="da-card w-full p-5 sm:p-6">
-          <div className="mb-5 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white">
-              <ShieldCheck size={24} />
+    <main className="min-h-screen w-screen overflow-y-auto px-4 py-8 text-slate-950"
+      style={{
+        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%)',
+        position: 'relative'
+      }}>
+      {/* Animated background grid */}
+      <div className="pointer-events-none absolute inset-0 opacity-10"
+        style={{
+          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.5) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }} />
+      
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md items-center relative z-10">
+        <section className="da-card w-full p-5 sm:p-6" style={{
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
+        }}>
+          <div className="mb-6 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-white">
+              <ShieldCheck size={28} />
             </div>
-            <h1 className="text-2xl font-bold leading-tight">DroneArjuna</h1>
-            <p className="mt-1 text-sm text-slate-600">Ground Control System</p>
+            <h1 className="text-3xl font-bold leading-tight mb-1">DroneArjuna</h1>
+            <p className="mt-2 text-sm text-slate-600 leading-relaxed">Ground Control System</p>
           </div>
 
           <div className="mb-5 grid grid-cols-2 rounded-md border border-slate-200 bg-slate-50 p-1">
@@ -109,13 +124,13 @@ export default function LoginScreen() {
           </div>
 
           {mode === 'signin' ? (
-            <form onSubmit={submitLogin} className="flex flex-col gap-4">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-semibold uppercase text-slate-600">Username</span>
+            <form onSubmit={submitLogin} className="flex flex-col gap-5">
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>Username</span>
                 <div className="relative">
-                  <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 flex items-center" />
                   <input
-                    className="da-input pl-9"
+                    className="da-input pl-9 py-2.5"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
                     autoComplete="username"
@@ -124,13 +139,13 @@ export default function LoginScreen() {
                 </div>
               </label>
 
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-semibold uppercase text-slate-600">Password</span>
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>Password</span>
                 <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 flex items-center" />
                   <input
                     type="password"
-                    className="da-input pl-9"
+                    className="da-input pl-9 py-2.5"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     autoComplete="current-password"
@@ -152,7 +167,7 @@ export default function LoginScreen() {
               </button>
             </form>
           ) : (
-            <form onSubmit={submitRequest} className="flex flex-col gap-3">
+            <form onSubmit={submitRequest} className="flex flex-col gap-3 max-h-[calc(100vh-20rem)] overflow-y-auto">
               {submitted ? (
                 <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
                   <div className="mb-2 flex items-center gap-2 font-semibold">
@@ -177,21 +192,21 @@ export default function LoginScreen() {
                   {field('full_name', 'Full Name', <User size={15} />, 'text', true)}
                   {field('username', 'Requested Username', <UserPlus size={15} />, 'text', true)}
                   {field('email', 'Email', <Mail size={15} />, 'email', true)}
-                  {field('mobile', 'Mobile', <Phone size={15} />)}
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-semibold uppercase text-slate-600">Requested Role</span>
+                  {field('mobile', 'Mobile (Optional)', <Phone size={15} />)}
+                  <label className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>Requested Role *</span>
                     <select
-                      className="da-input"
+                      className="da-input py-2.5"
                       value={request.requested_role}
                       onChange={e => setRequest(prev => ({ ...prev, requested_role: e.target.value }))}>
                       {REQUEST_ROLES.map(role => <option key={role} value={role}>{role}</option>)}
                     </select>
                   </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-semibold uppercase text-slate-600">Reason</span>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>Reason (Optional)</span>
                     <textarea
-                      className="da-input"
-                      rows={2}
+                      className="da-input py-2.5"
+                      rows={3}
                       value={request.reason}
                       onChange={e => setRequest(prev => ({ ...prev, reason: e.target.value }))}
                     />

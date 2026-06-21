@@ -24,12 +24,16 @@ body {
   color: var(--da-text);
   overflow: hidden;
   height: 100vh;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Scrollbars */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: #e2e8f0; }
-::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
 /* Leaflet interface polish */
 .leaflet-container { background: #dbeafe !important; color: #0f172a; }
@@ -60,6 +64,11 @@ body {
   box-shadow: 0 1px 2px rgba(15,23,42,0.06);
 }
 
+.da-card:hover {
+  box-shadow: 0 4px 12px rgba(15,23,42,0.1);
+  transition: box-shadow 0.2s ease;
+}
+
 .da-btn {
   display: inline-flex;
   align-items: center;
@@ -70,17 +79,43 @@ body {
   font-weight: 500;
   cursor: pointer;
   border: none;
-  transition: opacity 0.15s, background 0.15s;
+  transition: opacity 0.15s, background 0.15s, transform 0.1s;
 }
-.da-btn:hover  { opacity: 0.85; }
-.da-btn:active { opacity: 0.7; }
-.da-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.da-btn:hover  { opacity: 0.85; transform: translateY(-1px); }
+.da-btn:active { opacity: 0.7; transform: translateY(0); }
+.da-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
-.da-btn-primary { background: var(--da-accent); color: white; }
-.da-btn-danger  { background: var(--da-danger);  color: white; }
+.da-btn-primary { 
+  background: linear-gradient(135deg, var(--da-accent), #1d4ed8);
+  color: white;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+.da-btn-primary:hover { box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); }
+
+.da-btn-danger  { 
+  background: linear-gradient(135deg, var(--da-danger), #b91c1c);
+  color: white;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+}
+.da-btn-danger:hover { box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4); }
+
 .da-btn-ghost   { background: #ffffff; color: #334155; border: 1px solid var(--da-border); }
-.da-btn-success { background: var(--da-success); color: white; }
-.da-btn-teal    { background: var(--da-teal);    color: white; font-weight: 600; }
+.da-btn-ghost:hover { background: #f8fafc; }
+
+.da-btn-success { 
+  background: linear-gradient(135deg, var(--da-success), #15803d);
+  color: white;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+}
+.da-btn-success:hover { box-shadow: 0 4px 12px rgba(22, 163, 74, 0.4); }
+
+.da-btn-teal    { 
+  background: linear-gradient(135deg, var(--da-teal), #0d544a);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.3);
+}
+.da-btn-teal:hover { box-shadow: 0 4px 12px rgba(15, 118, 110, 0.4); }
 
 .da-badge {
   display: inline-flex;
@@ -128,16 +163,45 @@ body {
 
 .da-input {
   background: var(--da-surface);
-  border: 1px solid var(--da-border);
+  border: 1.5px solid var(--da-border);
   border-radius: 6px;
-  padding: 7px 10px;
+  padding: 10px 12px;
   font-size: 13px;
+  line-height: 1.5;
   color: #0f172a;
   width: 100%;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-height: 40px;
 }
-.da-input:focus { border-color: var(--da-accent); }
+.da-input:focus { 
+  border-color: var(--da-accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.da-input:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+.da-input::placeholder {
+  color: #cbd5e1;
+}
+textarea.da-input {
+  font-family: 'Inter', sans-serif;
+  resize: vertical;
+  min-height: 100px;
+  padding: 12px;
+  line-height: 1.6;
+}
+
+select.da-input {
+  padding-right: 32px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px 16px;
+  padding-right: 36px;
+}
 
 /* ── Font utilities ── */
 .mono    { font-family: 'JetBrains Mono', monospace; }

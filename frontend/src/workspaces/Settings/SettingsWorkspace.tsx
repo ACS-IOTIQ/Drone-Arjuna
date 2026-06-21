@@ -4,10 +4,11 @@ import DroneInstanceManager from './DroneInstanceManager'
 import PayloadManager       from './PayloadManager'
 import VesselManager        from './VesselManager'
 import UserManager          from './UserManager'
-import { Database, Cpu, Users, Info, Anchor, Package } from 'lucide-react'
+import SystemLogViewer      from '@/components/common/SystemLogViewer'
+import { Database, Cpu, Users, Info, Anchor, Package, BookOpen } from 'lucide-react'
 import { pendingAccessRequestCount } from '@/store/accessRequestStore'
 
-type Tab = 'types' | 'instances' | 'payloads' | 'vessels' | 'users' | 'about'
+type Tab = 'types' | 'instances' | 'payloads' | 'vessels' | 'users' | 'logs' | 'about'
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode; group?: string }[] = [
   { id: 'types',     label: 'Drone Types',     icon: <Database size={15} />, group: 'MASTER DATA' },
@@ -15,6 +16,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode; group?: string }[] 
   { id: 'payloads',  label: 'Payloads',        icon: <Package size={15} />,  group: 'MASTER DATA' },
   { id: 'vessels',   label: 'Naval Vessels',   icon: <Anchor size={15} />,   group: 'NAVAL OPS'   },
   { id: 'users',     label: 'Users',           icon: <Users size={15} />,    group: 'SYSTEM'      },
+  { id: 'logs',      label: 'Event Logs',      icon: <BookOpen size={15} />, group: 'SYSTEM'      },
   { id: 'about',     label: 'About',           icon: <Info size={15} />,     group: 'SYSTEM'      },
 ]
 
@@ -66,6 +68,7 @@ export default function SettingsWorkspace() {
         {tab === 'payloads'  && <PayloadManager />}
         {tab === 'vessels'   && <VesselManager />}
         {tab === 'users'     && <UserManager />}
+        {tab === 'logs'      && <SystemLogViewer />}
         {tab === 'about'     && <AboutPanel />}
       </div>
     </div>

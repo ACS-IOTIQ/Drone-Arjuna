@@ -7,6 +7,7 @@
  *   - Mission status changes
  */
 import { create } from 'zustand'
+import { eventLog } from './eventLogStore'
 
 export type NotifLevel = 'info' | 'success' | 'warning' | 'danger'
 
@@ -41,6 +42,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       timestamp: new Date(),
       read:      false,
     }
+    
+    // Also log to event store for audit trail
+    const eventLevel = n.level === 'danger' ? 'error' : n.level === 'warning' ? 'warning' : n.level === 'success' ? 'success' : 'info'
+    eventLog.system(n.title, n.message, eventLevel)
+    
     set(s => ({
       notifications: [entry, ...s.notifications].slice(0, 200),
       unreadCount:   s.unreadCount + 1,

@@ -3,11 +3,8 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.models.payload import PayloadType, Payload
-from app.schemas.payload import (
-    PayloadTypeCreate, PayloadTypeUpdate,
-    PayloadCreate, PayloadUpdate,
-)
+from app.models.payload import PayloadType
+from app.schemas.payload import PayloadTypeCreate, PayloadTypeUpdate
 
 log = structlog.get_logger()
 
@@ -64,50 +61,3 @@ class PayloadTypeService:
         log.info("payload_type.deleted", id=pt_id)
 
 
-class PayloadService:
-
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
-    async def list_all(self) -> list[Payload]:
-        result = await self.db.execute(
-            select(Payload).order_by(Payload.name)
-        )
-        return result.scalars().all()
-
-    async def get_by_id(self, payload_id: int) -> Payload:
-        p = await self.db.get(Payload, payload_id)
-        if not p:
-            raise HTTPException(404, f"Payload #{payload_id} not found")
-        return p
-
-    async def create(self, body: PayloadCreate) -> Payload:
-        # Verify payload type exists
-        pt = await self.db.get(PayloadType, body.payload_type_id)
-        if not pt:
-            raise HTTPException(404, f"Payload type #{body.payload_type_id} not found")
-        # Unique serial number
-        existing = await self.db.execute(
-            select(Payload).where(Payload.serial_number == body.serial_number)
-        )
-        if existing.scalar_one_or_none():
-            raise HTTPException(409, f"Serial number '{body.serial_number}' already registered")
-        p = Payload(**body.model_dump())
-        self.db.add(p)
-        await self.db.flush()
-        await self.db.refresh(p)
-        log.info("payload.created", id=p.id, serial=p.serial_number)
-        return p
-
-    async def update(self, payload_id: int, body: PayloadUpdate) -> Payload:
-        p = await self.get_by_id(payload_id)
-        for field, value in body.model_dump(exclude_unset=True).items():
-            setattr(p, field, value)
-        await self.db.flush()
-        await self.db.refresh(p)
-        return p
-
-    async def delete(self, payload_id: int) -> None:
-        p = await self.get_by_id(payload_id)
-        await self.db.delete(p)
-        log.info("payload.deleted", id=payload_id)

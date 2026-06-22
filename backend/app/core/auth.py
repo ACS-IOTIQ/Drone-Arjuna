@@ -10,12 +10,17 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
+import secrets
+import string
 from sqlalchemy import select
 
 from app.config import get_settings
 from app.database import get_db
-from app.models.user import User
-from app.schemas.user import TokenOut, UserOut, UserCreate
+from app.models.user import User, AccessRequest
+from app.schemas.user import (
+    TokenOut, UserOut, UserCreate,
+    AccessRequestCreate, AccessRequestOut, AcceptBody, RejectBody,
+)
 from app.core.security import PasswordPolicy, AuditLogger
 
 cfg = get_settings()
@@ -129,6 +134,124 @@ async def list_users(
         raise HTTPException(status_code=403, detail="Admin role required")
     result = await db.execute(select(User).order_by(User.id))
     return result.scalars().all()
+
+
+# ── Access Requests ───────────────────────────────────────────────
+
+def _make_temp_password() -> str:
+    """Generate a password that satisfies PasswordPolicy (≥10 chars, upper+lower+digit+special)."""
+    upper = ''.join(secrets.choice(string.ascii_uppercase) for _ in range(2))
+    lower = ''.join(secrets.choice(string.ascii_lowercase) for _ in range(5))
+    digits = ''.join(secrets.choice(string.digits) for _ in range(3))
+    return upper + lower + '@' + digits   # e.g. "ABabcde@123" = 11 chars
+
+
+@router.post("/request-access", status_code=201)
+async def request_access(
+    body: AccessRequestCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Public endpoint — submit an account creation request."""
+    existing = await db.execute(
+        select(AccessRequest).where(
+            (AccessRequest.username == body.username) &
+            (AccessRequest.status == "pending")
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="A pending request for this username already exists")
+
+    req = AccessRequest(**body.model_dump())
+    db.add(req)
+    await db.flush()
+    await db.refresh(req)
+    return {"message": "Request submitted successfully", "id": req.id}
+
+
+@router.get("/access-requests", response_model=list[AccessRequestOut])
+async def list_access_requests(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[User, Depends(get_current_user)],
+):
+    """Admin only — list all access requests ordered by creation date."""
+    if current.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+    result = await db.execute(
+        select(AccessRequest).order_by(AccessRequest.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.post("/access-requests/{req_id}/accept", response_model=AccessRequestOut)
+async def accept_access_request(
+    req_id: int,
+    body: AcceptBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[User, Depends(get_current_user)],
+):
+    """Admin only — create user account and mark request approved."""
+    if current.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    req = await db.get(AccessRequest, req_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Access request not found")
+    if req.status != "pending":
+        raise HTTPException(status_code=409, detail=f"Request is already {req.status}")
+
+    # Check the username isn't already taken
+    taken = await db.execute(select(User).where(User.username == req.username))
+    if taken.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"Username '{req.username}' is already registered")
+
+    role = body.role_override or req.requested_role
+    temp_pwd = _make_temp_password()
+
+    user = User(
+        username=req.username,
+        email=req.email,
+        hashed_password=hash_password(temp_pwd),
+        full_name=req.full_name,
+        role=role,
+        is_active=True,
+    )
+    db.add(user)
+    await db.flush()
+
+    req.status = "approved"
+    req.reviewed_at = datetime.now(timezone.utc)
+    req.admin_note = body.admin_note or "Account created by administrator."
+    req.temp_password = temp_pwd   # stored so admin can relay to the user
+
+    await db.flush()
+    await db.refresh(req)
+    await AuditLogger(db).user_created(current.id, user.id, role)
+    return req
+
+
+@router.post("/access-requests/{req_id}/reject", response_model=AccessRequestOut)
+async def reject_access_request(
+    req_id: int,
+    body: RejectBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[User, Depends(get_current_user)],
+):
+    """Admin only — reject a pending access request."""
+    if current.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    req = await db.get(AccessRequest, req_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Access request not found")
+    if req.status != "pending":
+        raise HTTPException(status_code=409, detail=f"Request is already {req.status}")
+
+    req.status = "rejected"
+    req.reviewed_at = datetime.now(timezone.utc)
+    req.admin_note = body.admin_note or "Request rejected by administrator."
+    await db.flush()
+    await db.refresh(req)
+    return req
 
 
 # ── Bootstrap: create default admin if no users exist ─────────────

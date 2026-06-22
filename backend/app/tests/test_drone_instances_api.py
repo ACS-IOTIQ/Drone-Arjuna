@@ -274,3 +274,37 @@ async def test_viewer_blocked_from_register_drone_403(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
+
+
+# ══════════════════════════════════════════════════════════════════════
+# DB Persistence — verify all fields round-trip through POST → GET
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_drone_instance_all_fields_persisted(
+    client: AsyncClient, admin_user, drone_type, make_token
+):
+    """Every field submitted on POST must be retrievable unchanged via GET."""
+    token = make_token(admin_user.id, admin_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    body  = {
+        "call_sign":          "persist-test-01",   # validator uppercases this
+        "drone_type_id":      drone_type["id"],
+        "serial_number":      "PT-SN-2026-001",
+        "mavlink_system_id":  5,
+        "notes":              "db persistence check",
+    }
+    create = await client.post("/api/master/drones", json=body, headers=hdrs)
+    assert create.status_code == 201
+    did = create.json()["id"]
+    try:
+        get    = await client.get(f"/api/master/drones/{did}", headers=hdrs)
+        assert get.status_code == 200
+        stored = get.json()
+        assert stored["call_sign"]         == "PERSIST-TEST-01"   # uppercased by validator
+        assert stored["drone_type_id"]     == body["drone_type_id"]
+        assert stored["serial_number"]     == body["serial_number"]
+        assert stored["mavlink_system_id"] == body["mavlink_system_id"]
+        assert stored["notes"]             == body["notes"]
+        assert stored["status"]            == "available"          # default on creation
+    finally:
+        await client.delete(f"/api/master/drones/{did}", headers=hdrs)

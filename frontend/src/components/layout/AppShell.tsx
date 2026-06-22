@@ -6,6 +6,7 @@ import Sidebar              from './Sidebar'
 import TopBar               from './TopBar'
 import NotificationDrawer   from '@/components/common/NotificationDrawer'
 import CameraWindow         from '@/components/common/CameraWindow'
+import ErrorBoundary        from '@/components/common/ErrorBoundary'
 import FleetWorkspace       from '@/workspaces/Fleet/FleetWorkspace'
 import PlanWorkspace        from '@/workspaces/Plan/PlanWorkspace'
 import FlyWorkspace         from '@/workspaces/Fly/FlyWorkspace'
@@ -39,7 +40,9 @@ export default function AppShell() {
           onCameraToggle={() => setCameraOpen(v => !v)}
         />
         <main className="flex-1 overflow-hidden relative">
-          {WORKSPACES[active]}
+          <ErrorBoundary key={active}>
+            {WORKSPACES[active]}
+          </ErrorBoundary>
         </main>
       </div>
       <NotificationDrawer open={notifOpen} onClose={() => setNotif(false)} />

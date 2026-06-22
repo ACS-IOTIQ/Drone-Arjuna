@@ -1,0 +1,900 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/workspaces/Fleet/ConnectModal.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=f3682b40"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+var _s = $RefreshSig$();
+import __vite__cjsImport3_react from "/node_modules/.vite/deps/react.js?v=f3682b40"; const useState = __vite__cjsImport3_react["useState"]; const useEffect = __vite__cjsImport3_react["useEffect"];
+import { X, Radio, ScanLine, Wifi, Usb, Cable, Zap } from "/node_modules/.vite/deps/lucide-react.js?v=f3682b40";
+import { droneControlApi } from "/src/api/droneControl.ts?t=1782056534296";
+import { useFleetStore } from "/src/store/fleetStore.ts?t=1782056534296";
+import { useTelemetryStore } from "/src/store/telemetryStore.ts?t=1782056534296";
+const HF_TRANSPORTS = ["hf_serial", "hf_tcp"];
+const PRESET_KEY = "da_connection_presets";
+const BUILT_IN_PRESETS = [
+  { id: "udp-sitl-14550", name: "SITL UDP 14550", transport: "udp", host: "0.0.0.0", port: 14550 },
+  { id: "tcp-sitl-5760", name: "SITL TCP 5760", transport: "tcp", host: "host.docker.internal", port: 5760 },
+  { id: "serial-usb-57600", name: "USB Serial 57600", transport: "serial", serial_port: "/dev/ttyUSB0", baud_rate: 57600 },
+  { id: "hf-harris-serial", name: "HF Harris Serial", transport: "hf_serial", serial_port: "/dev/ttyUSB0", baud_rate: 9600, hf_modem_type: "harris" }
+];
+function loadSavedPresets() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PRESET_KEY) || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+function PortTypeIcon({ type }) {
+  const props = { size: 11, style: { flexShrink: 0 } };
+  if (type === "serial" || type === "usb") return /* @__PURE__ */ jsxDEV(Usb, { ...props }, void 0, false, {
+    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+    lineNumber: 68,
+    columnNumber: 51
+  }, this);
+  if (type === "udp") return /* @__PURE__ */ jsxDEV(Wifi, { ...props }, void 0, false, {
+    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+    lineNumber: 69,
+    columnNumber: 30
+  }, this);
+  return /* @__PURE__ */ jsxDEV(Cable, { ...props }, void 0, false, {
+    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+    lineNumber: 70,
+    columnNumber: 10
+  }, this);
+}
+_c = PortTypeIcon;
+export default function ConnectModal({ onClose }) {
+  _s();
+  const { instances } = useFleetStore();
+  const subscribe = useTelemetryStore((s) => s.subscribe);
+  const fetchConnections = useFleetStore((s) => s.fetchConnections);
+  const [droneId, setDroneId] = useState(instances[0]?.id ?? 0);
+  const [transport, setTransport] = useState("udp");
+  const [host, setHost] = useState("127.0.0.1");
+  const [port, setPort] = useState(14550);
+  const [serialPort, setSerialPort] = useState("/dev/ttyUSB0");
+  const [baud, setBaud] = useState(57600);
+  const [modemType, setModemType] = useState("generic");
+  const [loading, setLoading] = useState(false);
+  const [autoConnecting, setAutoConnecting] = useState(false);
+  const [err, setErr] = useState("");
+  const [presetId, setPresetId] = useState("");
+  const [presets] = useState(
+    () => [
+      ...BUILT_IN_PRESETS,
+      ...loadSavedPresets()
+    ]
+  );
+  const [scanning, setScanning] = useState(false);
+  const [portList, setPortList] = useState(null);
+  const [scanErr, setScanErr] = useState("");
+  const isHF = HF_TRANSPORTS.includes(transport);
+  const isSerial = transport === "serial" || transport === "hf_serial";
+  const applyPreset = (id) => {
+    setPresetId(id);
+    const preset = presets.find((p) => p.id === id);
+    if (!preset) return;
+    setTransport(preset.transport);
+    if (preset.host) setHost(preset.host);
+    if (preset.port) setPort(preset.port);
+    if (preset.serial_port) setSerialPort(preset.serial_port);
+    if (preset.baud_rate) setBaud(preset.baud_rate);
+    if (preset.hf_modem_type) setModemType(preset.hf_modem_type);
+  };
+  const connect = async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      await droneControlApi.connect({
+        drone_instance_id: droneId,
+        transport,
+        host,
+        port,
+        serial_port: serialPort,
+        baud_rate: baud,
+        hf_modem_type: isHF ? modemType : "generic"
+      });
+      subscribe(droneId);
+      await fetchConnections();
+      onClose();
+    } catch (e) {
+      setErr(e.response?.data?.detail ?? "Connection failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const scanPorts = async () => {
+    setScanning(true);
+    setScanErr("");
+    setPortList(null);
+    try {
+      const res = await droneControlApi.ports();
+      setPortList(res.data);
+    } catch (e) {
+      setScanErr(e.response?.data?.detail ?? "Port scan failed");
+    } finally {
+      setScanning(false);
+    }
+  };
+  useEffect(() => {
+    scanPorts();
+    const interval = setInterval(scanPorts, 3e3);
+    return () => clearInterval(interval);
+  }, []);
+  const autoConnect = async () => {
+    setAutoConnecting(true);
+    setErr("");
+    try {
+      await droneControlApi.autoconnect({ drone_instance_id: droneId });
+      subscribe(droneId);
+      await fetchConnections();
+      onClose();
+    } catch (e) {
+      setErr(e.response?.data?.detail ?? "Auto-connect failed");
+    } finally {
+      setAutoConnecting(false);
+    }
+  };
+  const applyPort = (p) => {
+    if (p.type === "serial" || p.type === "usb") {
+      setTransport("serial");
+      setSerialPort(p.port);
+      if (p.baud) setBaud(p.baud);
+    } else if (p.type === "udp") {
+      setTransport("udp");
+      const parts = p.port.split(":");
+      if (parts.length === 3) {
+        setHost(parts[1] || "0.0.0.0");
+        setPort(Number(parts[2]));
+      }
+    } else {
+      setTransport("tcp");
+      const parts = p.port.split(":");
+      if (parts.length === 3) {
+        setHost(parts[1]);
+        setPort(Number(parts[2]));
+      }
+    }
+  };
+  const grouped = portList ? portList.reduce((acc, p) => {
+    ;
+    (acc[p.type] ??= []).push(p);
+    return acc;
+  }, {}) : null;
+  const TYPE_LABELS = {
+    serial: "Serial",
+    usb: "USB-Serial",
+    udp: "UDP",
+    tcp: "TCP"
+  };
+  return /* @__PURE__ */ jsxDEV(
+    "div",
+    {
+      className: "fixed inset-0 z-50 flex items-center justify-center",
+      style: { background: "rgba(0,0,0,0.7)" },
+      onClick: onClose,
+      children: /* @__PURE__ */ jsxDEV(
+        "div",
+        {
+          className: "da-card w-full max-w-md p-6",
+          onClick: (e) => e.stopPropagation(),
+          style: { maxHeight: "90vh", overflowY: "auto" },
+          children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between mb-5", children: [
+              /* @__PURE__ */ jsxDEV("h3", { className: "font-semibold", children: "Connect Drone" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                lineNumber: 206,
+                columnNumber: 11
+              }, this),
+              /* @__PURE__ */ jsxDEV("button", { onClick: onClose, children: /* @__PURE__ */ jsxDEV(X, { size: 16, style: { color: "#6b7280" } }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                lineNumber: 207,
+                columnNumber: 37
+              }, this) }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                lineNumber: 207,
+                columnNumber: 11
+              }, this)
+            ] }, void 0, true, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+              lineNumber: 205,
+              columnNumber: 9
+            }, this),
+            /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1 mb-4", children: [
+              /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#64748b" }, children: "SAVED CONFIG PRESET" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                lineNumber: 212,
+                columnNumber: 11
+              }, this),
+              /* @__PURE__ */ jsxDEV(
+                "select",
+                {
+                  className: "da-input",
+                  value: presetId,
+                  onChange: (e) => applyPreset(e.target.value),
+                  children: [
+                    /* @__PURE__ */ jsxDEV("option", { value: "", children: "Manual connection" }, void 0, false, {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                      lineNumber: 215,
+                      columnNumber: 13
+                    }, this),
+                    presets.map(
+                      (p) => /* @__PURE__ */ jsxDEV("option", { value: p.id, children: p.name }, p.id, false, {
+                        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                        lineNumber: 217,
+                        columnNumber: 13
+                      }, this)
+                    )
+                  ]
+                },
+                void 0,
+                true,
+                {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 213,
+                  columnNumber: 11
+                },
+                this
+              )
+            ] }, void 0, true, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+              lineNumber: 211,
+              columnNumber: 9
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "flex gap-2 mb-4 flex-wrap", children: [
+              /* @__PURE__ */ jsxDEV("span", { className: "text-[10px] self-center shrink-0", style: { color: "#4b5563" }, children: "SITL PRESET:" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                lineNumber: 224,
+                columnNumber: 11
+              }, this),
+              /* @__PURE__ */ jsxDEV(
+                "button",
+                {
+                  className: "text-[10px] px-2 py-1 rounded",
+                  style: { background: "rgba(34,197,94,0.1)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.25)" },
+                  onClick: () => {
+                    setTransport("udp");
+                    setHost("0.0.0.0");
+                    setPort(14550);
+                  },
+                  children: "UDP 14550"
+                },
+                void 0,
+                false,
+                {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 225,
+                  columnNumber: 11
+                },
+                this
+              ),
+              /* @__PURE__ */ jsxDEV(
+                "button",
+                {
+                  className: "text-[10px] px-2 py-1 rounded",
+                  style: { background: "rgba(59,130,246,0.1)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.25)" },
+                  onClick: () => {
+                    setTransport("tcp");
+                    setHost("host.docker.internal");
+                    setPort(5760);
+                  },
+                  children: "TCP 5760"
+                },
+                void 0,
+                false,
+                {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 231,
+                  columnNumber: 11
+                },
+                this
+              )
+            ] }, void 0, true, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+              lineNumber: 223,
+              columnNumber: 9
+            }, this),
+            /* @__PURE__ */ jsxDEV(
+              "div",
+              {
+                className: "mb-4 rounded",
+                style: { border: "1px solid var(--da-border)", background: "rgba(255,255,255,0.02)" },
+                children: [
+                  /* @__PURE__ */ jsxDEV(
+                    "div",
+                    {
+                      className: "flex items-center justify-between px-3 py-2",
+                      style: { borderBottom: portList || scanErr ? "1px solid var(--da-border)" : "none" },
+                      children: [
+                        /* @__PURE__ */ jsxDEV("span", { className: "text-xs font-medium", style: { color: "#64748b" }, children: "Discovered Ports" }, void 0, false, {
+                          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                          lineNumber: 244,
+                          columnNumber: 13
+                        }, this),
+                        /* @__PURE__ */ jsxDEV(
+                          "button",
+                          {
+                            onClick: scanPorts,
+                            disabled: scanning,
+                            className: "da-btn text-[10px] px-2 py-1 flex items-center gap-1.5",
+                            style: {
+                              background: "rgba(32,208,180,0.08)",
+                              color: scanning ? "#4b5563" : "var(--da-teal)",
+                              border: "1px solid rgba(32,208,180,0.25)"
+                            },
+                            children: [
+                              /* @__PURE__ */ jsxDEV(ScanLine, { size: 11, className: scanning ? "animate-pulse" : "" }, void 0, false, {
+                                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                                lineNumber: 256,
+                                columnNumber: 15
+                              }, this),
+                              scanning ? "Scanning…" : "Scan Ports"
+                            ]
+                          },
+                          void 0,
+                          true,
+                          {
+                            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                            lineNumber: 247,
+                            columnNumber: 13
+                          },
+                          this
+                        )
+                      ]
+                    },
+                    void 0,
+                    true,
+                    {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                      lineNumber: 242,
+                      columnNumber: 11
+                    },
+                    this
+                  ),
+                  scanErr && /* @__PURE__ */ jsxDEV("p", { className: "text-[11px] px-3 py-2", style: { color: "#f87171" }, children: scanErr }, void 0, false, {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                    lineNumber: 262,
+                    columnNumber: 11
+                  }, this),
+                  portList && portList.length === 0 && /* @__PURE__ */ jsxDEV("p", { className: "text-[11px] px-3 py-2", style: { color: "#4b5563" }, children: "No ports found. Connect hardware and retry." }, void 0, false, {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                    lineNumber: 266,
+                    columnNumber: 11
+                  }, this),
+                  grouped && Object.keys(grouped).map(
+                    (type) => /* @__PURE__ */ jsxDEV("div", { children: [
+                      /* @__PURE__ */ jsxDEV(
+                        "div",
+                        {
+                          className: "px-3 py-1",
+                          style: { background: "rgba(255,255,255,0.02)", borderBottom: "1px solid var(--da-border)" },
+                          children: /* @__PURE__ */ jsxDEV(
+                            "span",
+                            {
+                              className: "text-[9px] font-semibold tracking-widest mono",
+                              style: { color: "#374151" },
+                              children: TYPE_LABELS[type] ?? type.toUpperCase()
+                            },
+                            void 0,
+                            false,
+                            {
+                              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                              lineNumber: 275,
+                              columnNumber: 17
+                            },
+                            this
+                          )
+                        },
+                        void 0,
+                        false,
+                        {
+                          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                          lineNumber: 273,
+                          columnNumber: 15
+                        },
+                        this
+                      ),
+                      (grouped[type] ?? []).map(
+                        (p, i) => /* @__PURE__ */ jsxDEV(
+                          "button",
+                          {
+                            onClick: () => applyPort(p),
+                            className: "w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5",
+                            style: { borderBottom: "1px solid var(--da-border)" },
+                            children: [
+                              /* @__PURE__ */ jsxDEV(PortTypeIcon, { type: p.type }, void 0, false, {
+                                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                                lineNumber: 285,
+                                columnNumber: 19
+                              }, this),
+                              /* @__PURE__ */ jsxDEV("div", { className: "flex-1 min-w-0", children: [
+                                /* @__PURE__ */ jsxDEV("div", { className: "mono text-[11px] truncate", style: { color: "#94a3b8" }, children: p.port }, void 0, false, {
+                                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                                  lineNumber: 287,
+                                  columnNumber: 21
+                                }, this),
+                                /* @__PURE__ */ jsxDEV("div", { className: "text-[10px] truncate", style: { color: "#4b5563" }, children: [
+                                  p.desc,
+                                  p.baud ? ` · ${p.baud} baud` : ""
+                                ] }, void 0, true, {
+                                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                                  lineNumber: 290,
+                                  columnNumber: 21
+                                }, this)
+                              ] }, void 0, true, {
+                                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                                lineNumber: 286,
+                                columnNumber: 19
+                              }, this),
+                              /* @__PURE__ */ jsxDEV("span", { className: "text-[9px] shrink-0", style: { color: "var(--da-teal)" }, children: "Use →" }, void 0, false, {
+                                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                                lineNumber: 295,
+                                columnNumber: 19
+                              }, this)
+                            ]
+                          },
+                          i,
+                          true,
+                          {
+                            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                            lineNumber: 281,
+                            columnNumber: 13
+                          },
+                          this
+                        )
+                      )
+                    ] }, type, true, {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                      lineNumber: 272,
+                      columnNumber: 11
+                    }, this)
+                  )
+                ]
+              },
+              void 0,
+              true,
+              {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                lineNumber: 240,
+                columnNumber: 9
+              },
+              this
+            ),
+            /* @__PURE__ */ jsxDEV("div", { className: "flex flex-col gap-3", children: [
+              /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1", children: [
+                /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#94a3b8" }, children: "DRONE" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 308,
+                  columnNumber: 13
+                }, this),
+                /* @__PURE__ */ jsxDEV(
+                  "select",
+                  {
+                    className: "da-input",
+                    value: droneId,
+                    onChange: (e) => setDroneId(Number(e.target.value)),
+                    children: instances.map(
+                      (d) => /* @__PURE__ */ jsxDEV("option", { value: d.id, children: [
+                        d.call_sign,
+                        " (#",
+                        d.id,
+                        ")"
+                      ] }, d.id, true, {
+                        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                        lineNumber: 312,
+                        columnNumber: 15
+                      }, this)
+                    )
+                  },
+                  void 0,
+                  false,
+                  {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                    lineNumber: 309,
+                    columnNumber: 13
+                  },
+                  this
+                )
+              ] }, void 0, true, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                lineNumber: 307,
+                columnNumber: 11
+              }, this),
+              /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1", children: [
+                /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#94a3b8" }, children: "TRANSPORT" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 319,
+                  columnNumber: 13
+                }, this),
+                /* @__PURE__ */ jsxDEV(
+                  "select",
+                  {
+                    className: "da-input",
+                    value: transport,
+                    onChange: (e) => setTransport(e.target.value),
+                    children: [
+                      /* @__PURE__ */ jsxDEV("optgroup", { label: "Standard", children: [
+                        /* @__PURE__ */ jsxDEV("option", { value: "udp", children: "UDP" }, void 0, false, {
+                          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                          lineNumber: 323,
+                          columnNumber: 17
+                        }, this),
+                        /* @__PURE__ */ jsxDEV("option", { value: "tcp", children: "TCP" }, void 0, false, {
+                          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                          lineNumber: 324,
+                          columnNumber: 17
+                        }, this),
+                        /* @__PURE__ */ jsxDEV("option", { value: "serial", children: "Serial" }, void 0, false, {
+                          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                          lineNumber: 325,
+                          columnNumber: 17
+                        }, this)
+                      ] }, void 0, true, {
+                        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                        lineNumber: 322,
+                        columnNumber: 15
+                      }, this),
+                      /* @__PURE__ */ jsxDEV("optgroup", { label: "HF Radio (Naval)", children: [
+                        /* @__PURE__ */ jsxDEV("option", { value: "hf_serial", children: "HF Serial (modem as serial port)" }, void 0, false, {
+                          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                          lineNumber: 328,
+                          columnNumber: 17
+                        }, this),
+                        /* @__PURE__ */ jsxDEV("option", { value: "hf_tcp", children: "HF TCP (modem ALE interface)" }, void 0, false, {
+                          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                          lineNumber: 329,
+                          columnNumber: 17
+                        }, this)
+                      ] }, void 0, true, {
+                        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                        lineNumber: 327,
+                        columnNumber: 15
+                      }, this)
+                    ]
+                  },
+                  void 0,
+                  true,
+                  {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                    lineNumber: 320,
+                    columnNumber: 13
+                  },
+                  this
+                )
+              ] }, void 0, true, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                lineNumber: 318,
+                columnNumber: 11
+              }, this),
+              isHF && /* @__PURE__ */ jsxDEV(
+                "div",
+                {
+                  className: "flex flex-col gap-2 p-3 rounded",
+                  style: { background: "rgba(6,182,212,0.07)", border: "1px solid rgba(6,182,212,0.2)" },
+                  children: [
+                    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2 mb-1", children: [
+                      /* @__PURE__ */ jsxDEV(Radio, { size: 13, style: { color: "#06b6d4" } }, void 0, false, {
+                        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                        lineNumber: 339,
+                        columnNumber: 17
+                      }, this),
+                      /* @__PURE__ */ jsxDEV("span", { className: "text-xs font-medium", style: { color: "#06b6d4" }, children: "HF Link Configuration" }, void 0, false, {
+                        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                        lineNumber: 340,
+                        columnNumber: 17
+                      }, this)
+                    ] }, void 0, true, {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                      lineNumber: 338,
+                      columnNumber: 15
+                    }, this),
+                    /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1", children: [
+                      /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#94a3b8" }, children: "MODEM TYPE" }, void 0, false, {
+                        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                        lineNumber: 343,
+                        columnNumber: 17
+                      }, this),
+                      /* @__PURE__ */ jsxDEV(
+                        "select",
+                        {
+                          className: "da-input",
+                          value: modemType,
+                          onChange: (e) => setModemType(e.target.value),
+                          children: [
+                            /* @__PURE__ */ jsxDEV("option", { value: "generic", children: "Generic" }, void 0, false, {
+                              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                              lineNumber: 346,
+                              columnNumber: 19
+                            }, this),
+                            /* @__PURE__ */ jsxDEV("option", { value: "harris", children: "Harris (AN/PRC series)" }, void 0, false, {
+                              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                              lineNumber: 347,
+                              columnNumber: 19
+                            }, this),
+                            /* @__PURE__ */ jsxDEV("option", { value: "codan", children: "Codan" }, void 0, false, {
+                              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                              lineNumber: 348,
+                              columnNumber: 19
+                            }, this),
+                            /* @__PURE__ */ jsxDEV("option", { value: "barrett", children: "Barrett" }, void 0, false, {
+                              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                              lineNumber: 349,
+                              columnNumber: 19
+                            }, this)
+                          ]
+                        },
+                        void 0,
+                        true,
+                        {
+                          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                          lineNumber: 344,
+                          columnNumber: 17
+                        },
+                        this
+                      )
+                    ] }, void 0, true, {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                      lineNumber: 342,
+                      columnNumber: 15
+                    }, this),
+                    /* @__PURE__ */ jsxDEV("p", { className: "text-[11px]", style: { color: "#4b5563" }, children: "HF uses extended timeouts (45 s heartbeat, 8 s ACK) and rate-limits telemetry to 1–2 Hz to stay within link bandwidth." }, void 0, false, {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                      lineNumber: 352,
+                      columnNumber: 15
+                    }, this)
+                  ]
+                },
+                void 0,
+                true,
+                {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 336,
+                  columnNumber: 11
+                },
+                this
+              ),
+              isSerial ? /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-2 gap-3", children: [
+                /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1", children: [
+                  /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#94a3b8" }, children: "SERIAL PORT" }, void 0, false, {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                    lineNumber: 363,
+                    columnNumber: 17
+                  }, this),
+                  /* @__PURE__ */ jsxDEV(
+                    "input",
+                    {
+                      className: "da-input mono",
+                      value: serialPort,
+                      onChange: (e) => setSerialPort(e.target.value)
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                      lineNumber: 364,
+                      columnNumber: 17
+                    },
+                    this
+                  )
+                ] }, void 0, true, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 362,
+                  columnNumber: 15
+                }, this),
+                /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1", children: [
+                  /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#94a3b8" }, children: "BAUD RATE" }, void 0, false, {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                    lineNumber: 368,
+                    columnNumber: 17
+                  }, this),
+                  /* @__PURE__ */ jsxDEV(
+                    "input",
+                    {
+                      type: "number",
+                      className: "da-input mono",
+                      value: baud,
+                      onChange: (e) => setBaud(Number(e.target.value))
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                      lineNumber: 369,
+                      columnNumber: 17
+                    },
+                    this
+                  )
+                ] }, void 0, true, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 367,
+                  columnNumber: 15
+                }, this)
+              ] }, void 0, true, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                lineNumber: 361,
+                columnNumber: 11
+              }, this) : /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-2 gap-3", children: [
+                /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1", children: [
+                  /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#94a3b8" }, children: "HOST" }, void 0, false, {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                    lineNumber: 376,
+                    columnNumber: 17
+                  }, this),
+                  /* @__PURE__ */ jsxDEV(
+                    "input",
+                    {
+                      className: "da-input mono",
+                      value: host,
+                      onChange: (e) => setHost(e.target.value)
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                      lineNumber: 377,
+                      columnNumber: 17
+                    },
+                    this
+                  )
+                ] }, void 0, true, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 375,
+                  columnNumber: 15
+                }, this),
+                /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1", children: [
+                  /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#94a3b8" }, children: "PORT" }, void 0, false, {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                    lineNumber: 381,
+                    columnNumber: 17
+                  }, this),
+                  /* @__PURE__ */ jsxDEV(
+                    "input",
+                    {
+                      type: "number",
+                      className: "da-input mono",
+                      value: port,
+                      onChange: (e) => setPort(Number(e.target.value))
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                      lineNumber: 382,
+                      columnNumber: 17
+                    },
+                    this
+                  )
+                ] }, void 0, true, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 380,
+                  columnNumber: 15
+                }, this)
+              ] }, void 0, true, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                lineNumber: 374,
+                columnNumber: 11
+              }, this),
+              err && /* @__PURE__ */ jsxDEV(
+                "p",
+                {
+                  className: "text-xs px-3 py-2 rounded",
+                  style: { background: "rgba(239,68,68,0.1)", color: "#ef4444" },
+                  children: err
+                },
+                void 0,
+                false,
+                {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 389,
+                  columnNumber: 11
+                },
+                this
+              ),
+              /* @__PURE__ */ jsxDEV(
+                "button",
+                {
+                  className: "w-full flex items-center justify-center gap-2 py-2 rounded text-sm font-medium transition-colors",
+                  style: {
+                    background: autoConnecting ? "rgba(234,179,8,0.08)" : "rgba(234,179,8,0.1)",
+                    color: autoConnecting ? "#a16207" : "#eab308",
+                    border: "1px solid rgba(234,179,8,0.3)",
+                    opacity: loading ? 0.5 : 1
+                  },
+                  onClick: autoConnect,
+                  disabled: loading || autoConnecting,
+                  children: [
+                    /* @__PURE__ */ jsxDEV(Zap, { size: 14, className: autoConnecting ? "animate-pulse" : "" }, void 0, false, {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                      lineNumber: 404,
+                      columnNumber: 13
+                    }, this),
+                    autoConnecting ? "Scanning all ports…" : "Auto Connect"
+                  ]
+                },
+                void 0,
+                true,
+                {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 394,
+                  columnNumber: 11
+                },
+                this
+              ),
+              /* @__PURE__ */ jsxDEV("div", { className: "flex gap-2", children: [
+                /* @__PURE__ */ jsxDEV("button", { className: "da-btn da-btn-ghost flex-1", onClick: onClose, children: "Cancel" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 409,
+                  columnNumber: 13
+                }, this),
+                /* @__PURE__ */ jsxDEV("button", { className: "da-btn da-btn-primary flex-1", onClick: connect, disabled: loading || autoConnecting, children: loading ? "Connecting…" : "Connect" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                  lineNumber: 410,
+                  columnNumber: 13
+                }, this)
+              ] }, void 0, true, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+                lineNumber: 408,
+                columnNumber: 11
+              }, this)
+            ] }, void 0, true, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+              lineNumber: 305,
+              columnNumber: 9
+            }, this)
+          ]
+        },
+        void 0,
+        true,
+        {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+          lineNumber: 202,
+          columnNumber: 7
+        },
+        this
+      )
+    },
+    void 0,
+    false,
+    {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx",
+      lineNumber: 200,
+      columnNumber: 5
+    },
+    this
+  );
+}
+_s(ConnectModal, "Nv01gB2FW6AX4Bqy/jGA9U5YL/8=", false, function() {
+  return [useFleetStore, useTelemetryStore, useFleetStore];
+});
+_c2 = ConnectModal;
+var _c, _c2;
+$RefreshReg$(_c, "PortTypeIcon");
+$RefreshReg$(_c2, "ConnectModal");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fleet/ConnectModal.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,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RixjQUFZO0FBQUEsVUFDWjVCLGVBQ0VDLG1CQUNDRCxhQUFhO0FBQUE7QUFBQSxNQUhoQjRCO0FBQVksSUFBQUQsSUFBQXVGO0FBQUEsYUFBQXZGLElBQUE7QUFBQSxhQUFBdUYsS0FBQSIsIm5hbWVzIjpbInVzZVN0YXRlIiwidXNlRWZmZWN0IiwiWCIsIlJhZGlvIiwiU2NhbkxpbmUiLCJXaWZpIiwiVXNiIiwiQ2FibGUiLCJaYXAiLCJkcm9uZUNvbnRyb2xBcGkiLCJ1c2VGbGVldFN0b3JlIiwidXNlVGVsZW1ldHJ5U3RvcmUiLCJIRl9UUkFOU1BPUlRTIiwiUFJFU0VUX0tFWSIsIkJVSUxUX0lOX1BSRVNFVFMiLCJpZCIsIm5hbWUiLCJ0cmFuc3BvcnQiLCJob3N0IiwicG9ydCIsInNlcmlhbF9wb3J0IiwiYmF1ZF9yYXRlIiwiaGZfbW9kZW1fdHlwZSIsImxvYWRTYXZlZFByZXNldHMiLCJzYXZlZCIsIkpTT04iLCJwYXJzZSIsImxvY2FsU3RvcmFnZSIsImdldEl0ZW0iLCJBcnJheSIsImlzQXJyYXkiLCJQb3J0VHlwZUljb24iLCJ0eXBlIiwicHJvcHMiLCJzaXplIiwic3R5bGUiLCJmbGV4U2hyaW5rIiwiX2MiLCJDb25uZWN0TW9kYWwiLCJvbkNsb3NlIiwiX3MiLCJpbnN0YW5jZXMiLCJzdWJzY3JpYmUiLCJzIiwiZmV0Y2hDb25uZWN0aW9ucyIsImRyb25lSWQiLCJzZXREcm9uZUlkIiwic2V0VHJhbnNwb3J0Iiwic2V0SG9zdCIsInNldFBvcnQiLCJzZXJpYWxQb3J0Iiwic2V0U2VyaWFsUG9ydCIsImJhdWQiLCJzZXRCYXVkIiwibW9kZW1UeXBlIiwic2V0TW9kZW1UeXBlIiwibG9hZGluZyIsInNldExvYWRpbmciLCJhdXRvQ29ubmVjdGluZyIsInNldEF1dG9Db25uZWN0aW5nIiwiZXJyIiwic2V0RXJyIiwicHJlc2V0SWQiLCJzZXRQcmVzZXRJZCIsInByZXNldHMiLCJzY2FubmluZyIsInNldFNjYW5uaW5nIiwicG9ydExpc3QiLCJzZXRQb3J0TGlzdCIsInNjYW5FcnIiLCJzZXRTY2FuRXJyIiwiaXNIRiIsImluY2x1ZGVzIiwiaXNTZXJpYWwiLCJhcHBseVByZXNldCIsInByZXNldCIsImZpbmQiLCJwIiwiY29ubmVjdCIsImRyb25lX2luc3RhbmNlX2lkIiwiZSIsInJlc3BvbnNlIiwiZGF0YSIsImRldGFpbCIsInNjYW5Qb3J0cyIsInJlcyIsInBvcnRzIiwiaW50ZXJ2YWwiLCJzZXRJbnRlcnZhbCIsImNsZWFySW50ZXJ2YWwiLCJhdXRvQ29ubmVjdCIsImF1dG9jb25uZWN0IiwiYXBwbHlQb3J0IiwicGFydHMiLCJzcGxpdCIsImxlbmd0aCIsIk51bWJlciIsImdyb3VwZWQiLCJyZWR1Y2UiLCJhY2MiLCJwdXNoIiwiVFlQRV9MQUJFTFMiLCJzZXJpYWwiLCJ1c2IiLCJ1ZHAiLCJ0Y3AiLCJiYWNrZ3JvdW5kIiwic3RvcFByb3BhZ2F0aW9uIiwibWF4SGVpZ2h0Iiwib3ZlcmZsb3dZIiwiY29sb3IiLCJ0YXJnZXQiLCJ2YWx1ZSIsIm1hcCIsImJvcmRlciIsImJvcmRlckJvdHRvbSIsIk9iamVjdCIsImtleXMiLCJ0b1VwcGVyQ2FzZSIsImkiLCJkZXNjIiwiZCIsImNhbGxfc2lnbiIsIm9wYWNpdHkiLCJfYzIiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiQ29ubmVjdE1vZGFsLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyIvLyDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZBcclxuLy8gc3JjL3dvcmtzcGFjZXMvRmxlZXQvQ29ubmVjdE1vZGFsLnRzeFxyXG4vLyBDb25uZWN0LXRvLWRyb25lIG1vZGFsIHdpdGggcG9ydCBzY2FuIC8gYXV0by1maWxsXHJcbi8vIOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkOKVkFxyXG5pbXBvcnQgeyB1c2VTdGF0ZSwgdXNlRWZmZWN0IH0gZnJvbSAncmVhY3QnXHJcbmltcG9ydCB7IFgsIFJhZGlvLCBTY2FuTGluZSwgV2lmaSwgVXNiLCBDYWJsZSwgWmFwIH0gZnJvbSAnbHVjaWRlLXJlYWN0J1xyXG5pbXBvcnQgeyBkcm9uZUNvbnRyb2xBcGksIFBvcnRJbmZvIH0gZnJvbSAnQC9hcGkvZHJvbmVDb250cm9sJ1xyXG5pbXBvcnQgeyB1c2VGbGVldFN0b3JlIH0gZnJvbSAnQC9zdG9yZS9mbGVldFN0b3JlJ1xyXG5pbXBvcnQgeyB1c2VUZWxlbWV0cnlTdG9yZSB9IGZyb20gJ0Avc3RvcmUvdGVsZW1ldHJ5U3RvcmUnXHJcblxyXG50eXBlIFRyYW5zcG9ydCA9ICd1ZHAnIHwgJ3RjcCcgfCAnc2VyaWFsJyB8ICdoZl9zZXJpYWwnIHwgJ2hmX3RjcCdcclxudHlwZSBNb2RlbVR5cGUgPSAnZ2VuZXJpYycgfCAnaGFycmlzJyB8ICdjb2RhbicgfCAnYmFycmV0dCdcclxuXHJcbmludGVyZmFjZSBQcm9wcyB7IG9uQ2xvc2U6ICgpID0+IHZvaWQgfVxyXG5cclxuY29uc3QgSEZfVFJBTlNQT1JUUzogVHJhbnNwb3J0W10gPSBbJ2hmX3NlcmlhbCcsICdoZl90Y3AnXVxyXG5jb25zdCBQUkVTRVRfS0VZID0gJ2RhX2Nvbm5lY3Rpb25fcHJlc2V0cydcclxuXHJcbmludGVyZmFjZSBDb25uZWN0aW9uUHJlc2V0IHtcclxuICBpZDogc3RyaW5nXHJcbiAgbmFtZTogc3RyaW5nXHJcbiAgdHJhbnNwb3J0OiBUcmFuc3BvcnRcclxuICBob3N0Pzogc3RyaW5nXHJcbiAgcG9ydD86IG51bWJlclxyXG4gIHNlcmlhbF9wb3J0Pzogc3RyaW5nXHJcbiAgYmF1ZF9yYXRlPzogbnVtYmVyXHJcbiAgaGZfbW9kZW1fdHlwZT86IE1vZGVtVHlwZVxyXG59XHJcblxyXG5jb25zdCBCVUlMVF9JTl9QUkVTRVRTOiBDb25uZWN0aW9uUHJlc2V0W10gPSBbXHJcbiAgeyBpZDogJ3VkcC1zaXRsLTE0NTUwJywgbmFtZTogJ1NJVEwgVURQIDE0NTUwJywgdHJhbnNwb3J0OiAndWRwJywgaG9zdDogJzAuMC4wLjAnLCBwb3J0OiAxNDU1MCB9LFxyXG4gIHsgaWQ6ICd0Y3Atc2l0bC01NzYwJywgbmFtZTogJ1NJVEwgVENQIDU3NjAnLCB0cmFuc3BvcnQ6ICd0Y3AnLCBob3N0OiAnaG9zdC5kb2NrZXIuaW50ZXJuYWwnLCBwb3J0OiA1NzYwIH0sXHJcbiAgeyBpZDogJ3NlcmlhbC11c2ItNTc2MDAnLCBuYW1lOiAnVVNCIFNlcmlhbCA1NzYwMCcsIHRyYW5zcG9ydDogJ3NlcmlhbCcsIHNlcmlhbF9wb3J0OiAnL2Rldi90dHlVU0IwJywgYmF1ZF9yYXRlOiA1NzYwMCB9LFxyXG4gIHsgaWQ6ICdoZi1oYXJyaXMtc2VyaWFsJywgbmFtZTogJ0hGIEhhcnJpcyBTZXJpYWwnLCB0cmFuc3BvcnQ6ICdoZl9zZXJpYWwnLCBzZXJpYWxfcG9ydDogJy9kZXYvdHR5VVNCMCcsIGJhdWRfcmF0ZTogOTYwMCwgaGZfbW9kZW1fdHlwZTogJ2hhcnJpcycgfSxcclxuXVxyXG5cclxuZnVuY3Rpb24gbG9hZFNhdmVkUHJlc2V0cygpOiBDb25uZWN0aW9uUHJlc2V0W10ge1xyXG4gIHRyeSB7XHJcbiAgICBjb25zdCBzYXZlZCA9IEpTT04ucGFyc2UobG9jYWxTdG9yYWdlLmdldEl0ZW0oUFJFU0VUX0tFWSkgfHwgJ1tdJylcclxuICAgIHJldHVybiBBcnJheS5pc0FycmF5KHNhdmVkKSA/IHNhdmVkIDogW11cclxuICB9IGNhdGNoIHtcclxuICAgIHJldHVybiBbXVxyXG4gIH1cclxufVxyXG5cclxuLy8gR3JvdXAgaWNvbiBwZXIgcG9ydCB0eXBlXHJcbmZ1bmN0aW9uIFBvcnRUeXBlSWNvbih7IHR5cGUgfTogeyB0eXBlOiBQb3J0SW5mb1sndHlwZSddIH0pIHtcclxuICBjb25zdCBwcm9wcyA9IHsgc2l6ZTogMTEsIHN0eWxlOiB7IGZsZXhTaHJpbms6IDAgfSBhcyBSZWFjdC5DU1NQcm9wZXJ0aWVzIH1cclxuICBpZiAodHlwZSA9PT0gJ3NlcmlhbCcgfHwgdHlwZSA9PT0gJ3VzYicpIHJldHVybiA8VXNiICAgIHsuLi5wcm9wc30gLz5cclxuICBpZiAodHlwZSA9PT0gJ3VkcCcpICAgICAgICAgICAgICAgICAgICAgIHJldHVybiA8V2lmaSAgIHsuLi5wcm9wc30gLz5cclxuICByZXR1cm4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8Q2FibGUgIHsuLi5wcm9wc30gLz5cclxufVxyXG5cclxuZXhwb3J0IGRlZmF1bHQgZnVuY3Rpb24gQ29ubmVjdE1vZGFsKHsgb25DbG9zZSB9OiBQcm9wcykge1xyXG4gIGNvbnN0IHsgaW5zdGFuY2VzIH0gPSB1c2VGbGVldFN0b3JlKClcclxuICBjb25zdCBzdWJzY3JpYmUgICAgICAgPSB1c2VUZWxlbWV0cnlTdG9yZShzID0+IHMuc3Vic2NyaWJlKVxyXG4gIGNvbnN0IGZldGNoQ29ubmVjdGlvbnMgPSB1c2VGbGVldFN0b3JlKHMgPT4gcy5mZXRjaENvbm5lY3Rpb25zKVxyXG5cclxuICBjb25zdCBbZHJvbmVJZCwgc2V0RHJvbmVJZF0gICAgICAgPSB1c2VTdGF0ZShpbnN0YW5jZXNbMF0/LmlkID8/IDApXHJcbiAgY29uc3QgW3RyYW5zcG9ydCwgc2V0VHJhbnNwb3J0XSAgID0gdXNlU3RhdGU8VHJhbnNwb3J0PigndWRwJylcclxuICBjb25zdCBbaG9zdCwgc2V0SG9zdF0gICAgICAgICAgICAgPSB1c2VTdGF0ZSgnMTI3LjAuMC4xJylcclxuICBjb25zdCBbcG9ydCwgc2V0UG9ydF0gICAgICAgICAgICAgPSB1c2VTdGF0ZSgxNDU1MClcclxuICBjb25zdCBbc2VyaWFsUG9ydCwgc2V0U2VyaWFsUG9ydF0gPSB1c2VTdGF0ZSgnL2Rldi90dHlVU0IwJylcclxuICBjb25zdCBbYmF1ZCwgc2V0QmF1ZF0gICAgICAgICAgICAgPSB1c2VTdGF0ZSg1NzYwMClcclxuICBjb25zdCBbbW9kZW1UeXBlLCBzZXRNb2RlbVR5cGVdICAgPSB1c2VTdGF0ZTxNb2RlbVR5cGU+KCdnZW5lcmljJylcclxuICBjb25zdCBbbG9hZGluZywgc2V0TG9hZGluZ10gICAgICAgICA9IHVzZVN0YXRlKGZhbHNlKVxyXG4gIGNvbnN0IFthdXRvQ29ubmVjdGluZywgc2V0QXV0b0Nvbm5lY3RpbmddID0gdXNlU3RhdGUoZmFsc2UpXHJcbiAgY29uc3QgW2Vyciwgc2V0RXJyXSAgICAgICAgICAgICAgID0gdXNlU3RhdGUoJycpXHJcbiAgY29uc3QgW3ByZXNldElkLCBzZXRQcmVzZXRJZF0gICAgID0gdXNlU3RhdGUoJycpXHJcbiAgY29uc3QgW3ByZXNldHNdICAgICAgICAgICAgICAgICAgID0gdXNlU3RhdGU8Q29ubmVjdGlvblByZXNldFtdPigoKSA9PiBbXHJcbiAgICAuLi5CVUlMVF9JTl9QUkVTRVRTLFxyXG4gICAgLi4ubG9hZFNhdmVkUHJlc2V0cygpLFxyXG4gIF0pXHJcblxyXG4gIC8vIOKUgOKUgCBQb3J0IHNjYW4gc3RhdGUg4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSAXHJcbiAgY29uc3QgW3NjYW5uaW5nLCAgc2V0U2Nhbm5pbmddICA9IHVzZVN0YXRlKGZhbHNlKVxyXG4gIGNvbnN0IFtwb3J0TGlzdCwgIHNldFBvcnRMaXN0XSAgPSB1c2VTdGF0ZTxQb3J0SW5mb1tdIHwgbnVsbD4obnVsbClcclxuICBjb25zdCBbc2NhbkVyciwgICBzZXRTY2FuRXJyXSAgID0gdXNlU3RhdGUoJycpXHJcblxyXG4gIGNvbnN0IGlzSEYgICAgID0gSEZfVFJBTlNQT1JUUy5pbmNsdWRlcyh0cmFuc3BvcnQpXHJcbiAgY29uc3QgaXNTZXJpYWwgPSB0cmFuc3BvcnQgPT09ICdzZXJpYWwnIHx8IHRyYW5zcG9ydCA9PT0gJ2hmX3NlcmlhbCdcclxuXHJcbiAgY29uc3QgYXBwbHlQcmVzZXQgPSAoaWQ6IHN0cmluZykgPT4ge1xyXG4gICAgc2V0UHJlc2V0SWQoaWQpXHJcbiAgICBjb25zdCBwcmVzZXQgPSBwcmVzZXRzLmZpbmQocCA9PiBwLmlkID09PSBpZClcclxuICAgIGlmICghcHJlc2V0KSByZXR1cm5cclxuICAgIHNldFRyYW5zcG9ydChwcmVzZXQudHJhbnNwb3J0KVxyXG4gICAgaWYgKHByZXNldC5ob3N0KSBzZXRIb3N0KHByZXNldC5ob3N0KVxyXG4gICAgaWYgKHByZXNldC5wb3J0KSBzZXRQb3J0KHByZXNldC5wb3J0KVxyXG4gICAgaWYgKHByZXNldC5zZXJpYWxfcG9ydCkgc2V0U2VyaWFsUG9ydChwcmVzZXQuc2VyaWFsX3BvcnQpXHJcbiAgICBpZiAocHJlc2V0LmJhdWRfcmF0ZSkgc2V0QmF1ZChwcmVzZXQuYmF1ZF9yYXRlKVxyXG4gICAgaWYgKHByZXNldC5oZl9tb2RlbV90eXBlKSBzZXRNb2RlbVR5cGUocHJlc2V0LmhmX21vZGVtX3R5cGUpXHJcbiAgfVxyXG5cclxuICBjb25zdCBjb25uZWN0ID0gYXN5bmMgKCkgPT4ge1xyXG4gICAgc2V0TG9hZGluZyh0cnVlKTsgc2V0RXJyKCcnKVxyXG4gICAgdHJ5IHtcclxuICAgICAgYXdhaXQgZHJvbmVDb250cm9sQXBpLmNvbm5lY3Qoe1xyXG4gICAgICAgIGRyb25lX2luc3RhbmNlX2lkOiBkcm9uZUlkLFxyXG4gICAgICAgIHRyYW5zcG9ydCxcclxuICAgICAgICBob3N0LFxyXG4gICAgICAgIHBvcnQsXHJcbiAgICAgICAgc2VyaWFsX3BvcnQ6IHNlcmlhbFBvcnQsXHJcbiAgICAgICAgYmF1ZF9yYXRlOiBiYXVkLFxyXG4gICAgICAgIGhmX21vZGVtX3R5cGU6IGlzSEYgPyBtb2RlbVR5cGUgOiAnZ2VuZXJpYycsXHJcbiAgICAgIH0pXHJcbiAgICAgIHN1YnNjcmliZShkcm9uZUlkKVxyXG4gICAgICBhd2FpdCBmZXRjaENvbm5lY3Rpb25zKClcclxuICAgICAgb25DbG9zZSgpXHJcbiAgICB9IGNhdGNoIChlOiBhbnkpIHtcclxuICAgICAgc2V0RXJyKGUucmVzcG9uc2U/LmRhdGE/LmRldGFpbCA/PyAnQ29ubmVjdGlvbiBmYWlsZWQnKVxyXG4gICAgfSBmaW5hbGx5IHtcclxuICAgICAgc2V0TG9hZGluZyhmYWxzZSlcclxuICAgIH1cclxuICB9XHJcblxyXG4gIGNvbnN0IHNjYW5Qb3J0cyA9IGFzeW5jICgpID0+IHtcclxuICAgIHNldFNjYW5uaW5nKHRydWUpOyBzZXRTY2FuRXJyKCcnKTsgc2V0UG9ydExpc3QobnVsbClcclxuICAgIHRyeSB7XHJcbiAgICAgIGNvbnN0IHJlcyA9IGF3YWl0IGRyb25lQ29udHJvbEFwaS5wb3J0cygpXHJcbiAgICAgIHNldFBvcnRMaXN0KHJlcy5kYXRhKVxyXG4gICAgfSBjYXRjaCAoZTogYW55KSB7XHJcbiAgICAgIHNldFNjYW5FcnIoZS5yZXNwb25zZT8uZGF0YT8uZGV0YWlsID8/ICdQb3J0IHNjYW4gZmFpbGVkJylcclxuICAgIH0gZmluYWxseSB7XHJcbiAgICAgIHNldFNjYW5uaW5nKGZhbHNlKVxyXG4gICAgfVxyXG4gIH1cclxuXHJcbiAgdXNlRWZmZWN0KCgpID0+IHtcclxuICAgIHNjYW5Qb3J0cygpXHJcbiAgICBjb25zdCBpbnRlcnZhbCA9IHNldEludGVydmFsKHNjYW5Qb3J0cywgMzAwMClcclxuICAgIHJldHVybiAoKSA9PiBjbGVhckludGVydmFsKGludGVydmFsKVxyXG4gIH0sIFtdKVxyXG5cclxuICBjb25zdCBhdXRvQ29ubmVjdCA9IGFzeW5jICgpID0+IHtcclxuICAgIHNldEF1dG9Db25uZWN0aW5nKHRydWUpOyBzZXRFcnIoJycpXHJcbiAgICB0cnkge1xyXG4gICAgICBhd2FpdCBkcm9uZUNvbnRyb2xBcGkuYXV0b2Nvbm5lY3QoeyBkcm9uZV9pbnN0YW5jZV9pZDogZHJvbmVJZCB9KVxyXG4gICAgICBzdWJzY3JpYmUoZHJvbmVJZClcclxuICAgICAgYXdhaXQgZmV0Y2hDb25uZWN0aW9ucygpXHJcbiAgICAgIG9uQ2xvc2UoKVxyXG4gICAgfSBjYXRjaCAoZTogYW55KSB7XHJcbiAgICAgIHNldEVycihlLnJlc3BvbnNlPy5kYXRhPy5kZXRhaWwgPz8gJ0F1dG8tY29ubmVjdCBmYWlsZWQnKVxyXG4gICAgfSBmaW5hbGx5IHtcclxuICAgICAgc2V0QXV0b0Nvbm5lY3RpbmcoZmFsc2UpXHJcbiAgICB9XHJcbiAgfVxyXG5cclxuICAvLyBBdXRvLWZpbGwgZm9ybSBmaWVsZHMgZnJvbSBhIGRpc2NvdmVyZWQgcG9ydFxyXG4gIGNvbnN0IGFwcGx5UG9ydCA9IChwOiBQb3J0SW5mbykgPT4ge1xyXG4gICAgaWYgKHAudHlwZSA9PT0gJ3NlcmlhbCcgfHwgcC50eXBlID09PSAndXNiJykge1xyXG4gICAgICBzZXRUcmFuc3BvcnQoJ3NlcmlhbCcpXHJcbiAgICAgIHNldFNlcmlhbFBvcnQocC5wb3J0KVxyXG4gICAgICBpZiAocC5iYXVkKSBzZXRCYXVkKHAuYmF1ZClcclxuICAgIH0gZWxzZSBpZiAocC50eXBlID09PSAndWRwJykge1xyXG4gICAgICBzZXRUcmFuc3BvcnQoJ3VkcCcpXHJcbiAgICAgIC8vIHBvcnQgc3RyaW5nIGlzIGxpa2UgXCJ1ZHA6MC4wLjAuMDoxNDU1MFwiXHJcbiAgICAgIGNvbnN0IHBhcnRzID0gcC5wb3J0LnNwbGl0KCc6JylcclxuICAgICAgaWYgKHBhcnRzLmxlbmd0aCA9PT0gMykgeyBzZXRIb3N0KHBhcnRzWzFdIHx8ICcwLjAuMC4wJyk7IHNldFBvcnQoTnVtYmVyKHBhcnRzWzJdKSkgfVxyXG4gICAgfSBlbHNlIHtcclxuICAgICAgLy8gdGNwXHJcbiAgICAgIHNldFRyYW5zcG9ydCgndGNwJylcclxuICAgICAgY29uc3QgcGFydHMgPSBwLnBvcnQuc3BsaXQoJzonKVxyXG4gICAgICBpZiAocGFydHMubGVuZ3RoID09PSAzKSB7IHNldEhvc3QocGFydHNbMV0pOyBzZXRQb3J0KE51bWJlcihwYXJ0c1syXSkpIH1cclxuICAgIH1cclxuICB9XHJcblxyXG4gIC8vIEdyb3VwIHBvcnQgbGlzdCBieSB0eXBlIChtYW51YWwgZ3JvdXBCeSDigJQgT2JqZWN0Lmdyb3VwQnkgaXMgRVMyMDI0KVxyXG4gIGNvbnN0IGdyb3VwZWQ6IFJlY29yZDxzdHJpbmcsIFBvcnRJbmZvW10+IHwgbnVsbCA9IHBvcnRMaXN0XHJcbiAgICA/IHBvcnRMaXN0LnJlZHVjZTxSZWNvcmQ8c3RyaW5nLCBQb3J0SW5mb1tdPj4oKGFjYywgcCkgPT4ge1xyXG4gICAgICAgIDsoYWNjW3AudHlwZV0gPz89IFtdKS5wdXNoKHApXHJcbiAgICAgICAgcmV0dXJuIGFjY1xyXG4gICAgICB9LCB7fSlcclxuICAgIDogbnVsbFxyXG5cclxuICBjb25zdCBUWVBFX0xBQkVMUzogUmVjb3JkPHN0cmluZywgc3RyaW5nPiA9IHtcclxuICAgIHNlcmlhbDogJ1NlcmlhbCcsIHVzYjogJ1VTQi1TZXJpYWwnLCB1ZHA6ICdVRFAnLCB0Y3A6ICdUQ1AnLFxyXG4gIH1cclxuXHJcbiAgcmV0dXJuIChcclxuICAgIDxkaXYgY2xhc3NOYW1lPVwiZml4ZWQgaW5zZXQtMCB6LTUwIGZsZXggaXRlbXMtY2VudGVyIGp1c3RpZnktY2VudGVyXCJcclxuICAgICAgc3R5bGU9e3sgYmFja2dyb3VuZDogJ3JnYmEoMCwwLDAsMC43KScgfX0gb25DbGljaz17b25DbG9zZX0+XHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZGEtY2FyZCB3LWZ1bGwgbWF4LXctbWQgcC02XCIgb25DbGljaz17ZSA9PiBlLnN0b3BQcm9wYWdhdGlvbigpfVxyXG4gICAgICAgIHN0eWxlPXt7IG1heEhlaWdodDogJzkwdmgnLCBvdmVyZmxvd1k6ICdhdXRvJyB9fT5cclxuXHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWJldHdlZW4gbWItNVwiPlxyXG4gICAgICAgICAgPGgzIGNsYXNzTmFtZT1cImZvbnQtc2VtaWJvbGRcIj5Db25uZWN0IERyb25lPC9oMz5cclxuICAgICAgICAgIDxidXR0b24gb25DbGljaz17b25DbG9zZX0+PFggc2l6ZT17MTZ9IHN0eWxlPXt7IGNvbG9yOiAnIzZiNzI4MCcgfX0gLz48L2J1dHRvbj5cclxuICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgey8qIFNhdmVkIGNvbm5lY3Rpb24gY29uZmlndXJhdGlvbiAqL31cclxuICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwiZmxleCBmbGV4LWNvbCBnYXAtMSBtYi00XCI+XHJcbiAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzXCIgc3R5bGU9e3sgY29sb3I6ICcjNjQ3NDhiJyB9fT5TQVZFRCBDT05GSUcgUFJFU0VUPC9zcGFuPlxyXG4gICAgICAgICAgPHNlbGVjdCBjbGFzc05hbWU9XCJkYS1pbnB1dFwiIHZhbHVlPXtwcmVzZXRJZH1cclxuICAgICAgICAgICAgb25DaGFuZ2U9e2UgPT4gYXBwbHlQcmVzZXQoZS50YXJnZXQudmFsdWUpfT5cclxuICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT1cIlwiPk1hbnVhbCBjb25uZWN0aW9uPC9vcHRpb24+XHJcbiAgICAgICAgICAgIHtwcmVzZXRzLm1hcChwID0+IChcclxuICAgICAgICAgICAgICA8b3B0aW9uIGtleT17cC5pZH0gdmFsdWU9e3AuaWR9PntwLm5hbWV9PC9vcHRpb24+XHJcbiAgICAgICAgICAgICkpfVxyXG4gICAgICAgICAgPC9zZWxlY3Q+XHJcbiAgICAgICAgPC9sYWJlbD5cclxuXHJcbiAgICAgICAgey8qIFNJVEwgcXVpY2stY29ubmVjdCBwcmVzZXRzICovfVxyXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBnYXAtMiBtYi00IGZsZXgtd3JhcFwiPlxyXG4gICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC1bMTBweF0gc2VsZi1jZW50ZXIgc2hyaW5rLTBcIiBzdHlsZT17eyBjb2xvcjogJyM0YjU1NjMnIH19PlNJVEwgUFJFU0VUOjwvc3Bhbj5cclxuICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgY2xhc3NOYW1lPVwidGV4dC1bMTBweF0gcHgtMiBweS0xIHJvdW5kZWRcIlxyXG4gICAgICAgICAgICBzdHlsZT17eyBiYWNrZ3JvdW5kOiAncmdiYSgzNCwxOTcsOTQsMC4xKScsIGNvbG9yOiAnIzIyYzU1ZScsIGJvcmRlcjogJzFweCBzb2xpZCByZ2JhKDM0LDE5Nyw5NCwwLjI1KScgfX1cclxuICAgICAgICAgICAgb25DbGljaz17KCkgPT4geyBzZXRUcmFuc3BvcnQoJ3VkcCcpOyBzZXRIb3N0KCcwLjAuMC4wJyk7IHNldFBvcnQoMTQ1NTApIH19PlxyXG4gICAgICAgICAgICBVRFAgMTQ1NTBcclxuICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICBjbGFzc05hbWU9XCJ0ZXh0LVsxMHB4XSBweC0yIHB5LTEgcm91bmRlZFwiXHJcbiAgICAgICAgICAgIHN0eWxlPXt7IGJhY2tncm91bmQ6ICdyZ2JhKDU5LDEzMCwyNDYsMC4xKScsIGNvbG9yOiAnIzNiODJmNicsIGJvcmRlcjogJzFweCBzb2xpZCByZ2JhKDU5LDEzMCwyNDYsMC4yNSknIH19XHJcbiAgICAgICAgICAgIG9uQ2xpY2s9eygpID0+IHsgc2V0VHJhbnNwb3J0KCd0Y3AnKTsgc2V0SG9zdCgnaG9zdC5kb2NrZXIuaW50ZXJuYWwnKTsgc2V0UG9ydCg1NzYwKSB9fT5cclxuICAgICAgICAgICAgVENQIDU3NjBcclxuICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICB7Lyog4pSA4pSAIFBvcnQgc2Nhbm5lciDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIAgKi99XHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtYi00IHJvdW5kZWRcIlxyXG4gICAgICAgICAgc3R5bGU9e3sgYm9yZGVyOiAnMXB4IHNvbGlkIHZhcigtLWRhLWJvcmRlciknLCBiYWNrZ3JvdW5kOiAncmdiYSgyNTUsMjU1LDI1NSwwLjAyKScgfX0+XHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGp1c3RpZnktYmV0d2VlbiBweC0zIHB5LTJcIlxyXG4gICAgICAgICAgICBzdHlsZT17eyBib3JkZXJCb3R0b206IHBvcnRMaXN0IHx8IHNjYW5FcnIgPyAnMXB4IHNvbGlkIHZhcigtLWRhLWJvcmRlciknIDogJ25vbmUnIH19PlxyXG4gICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzIGZvbnQtbWVkaXVtXCIgc3R5bGU9e3sgY29sb3I6ICcjNjQ3NDhiJyB9fT5cclxuICAgICAgICAgICAgICBEaXNjb3ZlcmVkIFBvcnRzXHJcbiAgICAgICAgICAgIDwvc3Bhbj5cclxuICAgICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICAgIG9uQ2xpY2s9e3NjYW5Qb3J0c31cclxuICAgICAgICAgICAgICBkaXNhYmxlZD17c2Nhbm5pbmd9XHJcbiAgICAgICAgICAgICAgY2xhc3NOYW1lPVwiZGEtYnRuIHRleHQtWzEwcHhdIHB4LTIgcHktMSBmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMS41XCJcclxuICAgICAgICAgICAgICBzdHlsZT17e1xyXG4gICAgICAgICAgICAgICAgYmFja2dyb3VuZDogJ3JnYmEoMzIsMjA4LDE4MCwwLjA4KScsXHJcbiAgICAgICAgICAgICAgICBjb2xvcjogc2Nhbm5pbmcgPyAnIzRiNTU2MycgOiAndmFyKC0tZGEtdGVhbCknLFxyXG4gICAgICAgICAgICAgICAgYm9yZGVyOiAnMXB4IHNvbGlkIHJnYmEoMzIsMjA4LDE4MCwwLjI1KScsXHJcbiAgICAgICAgICAgICAgfX0+XHJcbiAgICAgICAgICAgICAgPFNjYW5MaW5lIHNpemU9ezExfSBjbGFzc05hbWU9e3NjYW5uaW5nID8gJ2FuaW1hdGUtcHVsc2UnIDogJyd9IC8+XHJcbiAgICAgICAgICAgICAge3NjYW5uaW5nID8gJ1NjYW5uaW5n4oCmJyA6ICdTY2FuIFBvcnRzJ31cclxuICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgICB7c2NhbkVyciAmJiAoXHJcbiAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtWzExcHhdIHB4LTMgcHktMlwiIHN0eWxlPXt7IGNvbG9yOiAnI2Y4NzE3MScgfX0+e3NjYW5FcnJ9PC9wPlxyXG4gICAgICAgICAgKX1cclxuXHJcbiAgICAgICAgICB7cG9ydExpc3QgJiYgcG9ydExpc3QubGVuZ3RoID09PSAwICYmIChcclxuICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1bMTFweF0gcHgtMyBweS0yXCIgc3R5bGU9e3sgY29sb3I6ICcjNGI1NTYzJyB9fT5cclxuICAgICAgICAgICAgICBObyBwb3J0cyBmb3VuZC4gQ29ubmVjdCBoYXJkd2FyZSBhbmQgcmV0cnkuXHJcbiAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgICl9XHJcblxyXG4gICAgICAgICAge2dyb3VwZWQgJiYgT2JqZWN0LmtleXMoZ3JvdXBlZCkubWFwKHR5cGUgPT4gKFxyXG4gICAgICAgICAgICA8ZGl2IGtleT17dHlwZX0+XHJcbiAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJweC0zIHB5LTFcIlxyXG4gICAgICAgICAgICAgICAgc3R5bGU9e3sgYmFja2dyb3VuZDogJ3JnYmEoMjU1LDI1NSwyNTUsMC4wMiknLCBib3JkZXJCb3R0b206ICcxcHggc29saWQgdmFyKC0tZGEtYm9yZGVyKScgfX0+XHJcbiAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LVs5cHhdIGZvbnQtc2VtaWJvbGQgdHJhY2tpbmctd2lkZXN0IG1vbm9cIlxyXG4gICAgICAgICAgICAgICAgICBzdHlsZT17eyBjb2xvcjogJyMzNzQxNTEnIH19PlxyXG4gICAgICAgICAgICAgICAgICB7VFlQRV9MQUJFTFNbdHlwZV0gPz8gdHlwZS50b1VwcGVyQ2FzZSgpfVxyXG4gICAgICAgICAgICAgICAgPC9zcGFuPlxyXG4gICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgIHsoZ3JvdXBlZFt0eXBlXSA/PyBbXSkubWFwKChwLCBpKSA9PiAoXHJcbiAgICAgICAgICAgICAgICA8YnV0dG9uIGtleT17aX1cclxuICAgICAgICAgICAgICAgICAgb25DbGljaz17KCkgPT4gYXBwbHlQb3J0KHApfVxyXG4gICAgICAgICAgICAgICAgICBjbGFzc05hbWU9XCJ3LWZ1bGwgZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTIgcHgtMyBweS0yIHRleHQtbGVmdCB0cmFuc2l0aW9uLWNvbG9ycyBob3ZlcjpiZy13aGl0ZS81XCJcclxuICAgICAgICAgICAgICAgICAgc3R5bGU9e3sgYm9yZGVyQm90dG9tOiAnMXB4IHNvbGlkIHZhcigtLWRhLWJvcmRlciknIH19PlxyXG4gICAgICAgICAgICAgICAgICA8UG9ydFR5cGVJY29uIHR5cGU9e3AudHlwZX0gLz5cclxuICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4LTEgbWluLXctMFwiPlxyXG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibW9ubyB0ZXh0LVsxMXB4XSB0cnVuY2F0ZVwiIHN0eWxlPXt7IGNvbG9yOiAnIzk0YTNiOCcgfX0+XHJcbiAgICAgICAgICAgICAgICAgICAgICB7cC5wb3J0fVxyXG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwidGV4dC1bMTBweF0gdHJ1bmNhdGVcIiBzdHlsZT17eyBjb2xvcjogJyM0YjU1NjMnIH19PlxyXG4gICAgICAgICAgICAgICAgICAgICAge3AuZGVzY31cclxuICAgICAgICAgICAgICAgICAgICAgIHtwLmJhdWQgPyBgIMK3ICR7cC5iYXVkfSBiYXVkYCA6ICcnfVxyXG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC1bOXB4XSBzaHJpbmstMFwiIHN0eWxlPXt7IGNvbG9yOiAndmFyKC0tZGEtdGVhbCknIH19PlxyXG4gICAgICAgICAgICAgICAgICAgIFVzZSDihpJcclxuICAgICAgICAgICAgICAgICAgPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICAgICAgKSl9XHJcbiAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgKSl9XHJcbiAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgIHsvKiDilIDilIAgTWFudWFsIGNvbm5lY3Rpb24gZmllbGRzIOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgCAqL31cclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggZmxleC1jb2wgZ2FwLTNcIj5cclxuICAgICAgICAgIHsvKiBEcm9uZSBwaWNrZXIgKi99XHJcbiAgICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwiZmxleCBmbGV4LWNvbCBnYXAtMVwiPlxyXG4gICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzXCIgc3R5bGU9e3sgY29sb3I6ICcjOTRhM2I4JyB9fT5EUk9ORTwvc3Bhbj5cclxuICAgICAgICAgICAgPHNlbGVjdCBjbGFzc05hbWU9XCJkYS1pbnB1dFwiIHZhbHVlPXtkcm9uZUlkfVxyXG4gICAgICAgICAgICAgIG9uQ2hhbmdlPXtlID0+IHNldERyb25lSWQoTnVtYmVyKGUudGFyZ2V0LnZhbHVlKSl9PlxyXG4gICAgICAgICAgICAgIHtpbnN0YW5jZXMubWFwKGQgPT4gKFxyXG4gICAgICAgICAgICAgICAgPG9wdGlvbiBrZXk9e2QuaWR9IHZhbHVlPXtkLmlkfT57ZC5jYWxsX3NpZ259ICgje2QuaWR9KTwvb3B0aW9uPlxyXG4gICAgICAgICAgICAgICkpfVxyXG4gICAgICAgICAgICA8L3NlbGVjdD5cclxuICAgICAgICAgIDwvbGFiZWw+XHJcblxyXG4gICAgICAgICAgey8qIFRyYW5zcG9ydCAqL31cclxuICAgICAgICAgIDxsYWJlbCBjbGFzc05hbWU9XCJmbGV4IGZsZXgtY29sIGdhcC0xXCI+XHJcbiAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQteHNcIiBzdHlsZT17eyBjb2xvcjogJyM5NGEzYjgnIH19PlRSQU5TUE9SVDwvc3Bhbj5cclxuICAgICAgICAgICAgPHNlbGVjdCBjbGFzc05hbWU9XCJkYS1pbnB1dFwiIHZhbHVlPXt0cmFuc3BvcnR9XHJcbiAgICAgICAgICAgICAgb25DaGFuZ2U9e2UgPT4gc2V0VHJhbnNwb3J0KGUudGFyZ2V0LnZhbHVlIGFzIFRyYW5zcG9ydCl9PlxyXG4gICAgICAgICAgICAgIDxvcHRncm91cCBsYWJlbD1cIlN0YW5kYXJkXCI+XHJcbiAgICAgICAgICAgICAgICA8b3B0aW9uIHZhbHVlPVwidWRwXCI+VURQPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAgICA8b3B0aW9uIHZhbHVlPVwidGNwXCI+VENQPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAgICA8b3B0aW9uIHZhbHVlPVwic2VyaWFsXCI+U2VyaWFsPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAgPC9vcHRncm91cD5cclxuICAgICAgICAgICAgICA8b3B0Z3JvdXAgbGFiZWw9XCJIRiBSYWRpbyAoTmF2YWwpXCI+XHJcbiAgICAgICAgICAgICAgICA8b3B0aW9uIHZhbHVlPVwiaGZfc2VyaWFsXCI+SEYgU2VyaWFsIChtb2RlbSBhcyBzZXJpYWwgcG9ydCk8L29wdGlvbj5cclxuICAgICAgICAgICAgICAgIDxvcHRpb24gdmFsdWU9XCJoZl90Y3BcIj5IRiBUQ1AgKG1vZGVtIEFMRSBpbnRlcmZhY2UpPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAgPC9vcHRncm91cD5cclxuICAgICAgICAgICAgPC9zZWxlY3Q+XHJcbiAgICAgICAgICA8L2xhYmVsPlxyXG5cclxuICAgICAgICAgIHsvKiBIRiBtb2RlbSB0eXBlIOKAlCBvbmx5IHNob3duIGZvciBIRiB0cmFuc3BvcnRzICovfVxyXG4gICAgICAgICAge2lzSEYgJiYgKFxyXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggZmxleC1jb2wgZ2FwLTIgcC0zIHJvdW5kZWRcIlxyXG4gICAgICAgICAgICAgIHN0eWxlPXt7IGJhY2tncm91bmQ6ICdyZ2JhKDYsMTgyLDIxMiwwLjA3KScsIGJvcmRlcjogJzFweCBzb2xpZCByZ2JhKDYsMTgyLDIxMiwwLjIpJyB9fT5cclxuICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGdhcC0yIG1iLTFcIj5cclxuICAgICAgICAgICAgICAgIDxSYWRpbyBzaXplPXsxM30gc3R5bGU9e3sgY29sb3I6ICcjMDZiNmQ0JyB9fSAvPlxyXG4gICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC14cyBmb250LW1lZGl1bVwiIHN0eWxlPXt7IGNvbG9yOiAnIzA2YjZkNCcgfX0+SEYgTGluayBDb25maWd1cmF0aW9uPC9zcGFuPlxyXG4gICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgIDxsYWJlbCBjbGFzc05hbWU9XCJmbGV4IGZsZXgtY29sIGdhcC0xXCI+XHJcbiAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzXCIgc3R5bGU9e3sgY29sb3I6ICcjOTRhM2I4JyB9fT5NT0RFTSBUWVBFPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgPHNlbGVjdCBjbGFzc05hbWU9XCJkYS1pbnB1dFwiIHZhbHVlPXttb2RlbVR5cGV9XHJcbiAgICAgICAgICAgICAgICAgIG9uQ2hhbmdlPXtlID0+IHNldE1vZGVtVHlwZShlLnRhcmdldC52YWx1ZSBhcyBNb2RlbVR5cGUpfT5cclxuICAgICAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT1cImdlbmVyaWNcIj5HZW5lcmljPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAgICAgIDxvcHRpb24gdmFsdWU9XCJoYXJyaXNcIj5IYXJyaXMgKEFOL1BSQyBzZXJpZXMpPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAgICAgIDxvcHRpb24gdmFsdWU9XCJjb2RhblwiPkNvZGFuPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAgICAgIDxvcHRpb24gdmFsdWU9XCJiYXJyZXR0XCI+QmFycmV0dDwvb3B0aW9uPlxyXG4gICAgICAgICAgICAgICAgPC9zZWxlY3Q+XHJcbiAgICAgICAgICAgICAgPC9sYWJlbD5cclxuICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LVsxMXB4XVwiIHN0eWxlPXt7IGNvbG9yOiAnIzRiNTU2MycgfX0+XHJcbiAgICAgICAgICAgICAgICBIRiB1c2VzIGV4dGVuZGVkIHRpbWVvdXRzICg0NSBzIGhlYXJ0YmVhdCwgOCBzIEFDSykgYW5kXHJcbiAgICAgICAgICAgICAgICByYXRlLWxpbWl0cyB0ZWxlbWV0cnkgdG8gMeKAkzIgSHogdG8gc3RheSB3aXRoaW4gbGluayBiYW5kd2lkdGguXHJcbiAgICAgICAgICAgICAgPC9wPlxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICl9XHJcblxyXG4gICAgICAgICAgey8qIFNlcmlhbCBwb3J0IGZpZWxkcyAqL31cclxuICAgICAgICAgIHtpc1NlcmlhbCA/IChcclxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJncmlkIGdyaWQtY29scy0yIGdhcC0zXCI+XHJcbiAgICAgICAgICAgICAgPGxhYmVsIGNsYXNzTmFtZT1cImZsZXggZmxleC1jb2wgZ2FwLTFcIj5cclxuICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQteHNcIiBzdHlsZT17eyBjb2xvcjogJyM5NGEzYjgnIH19PlNFUklBTCBQT1JUPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgPGlucHV0IGNsYXNzTmFtZT1cImRhLWlucHV0IG1vbm9cIiB2YWx1ZT17c2VyaWFsUG9ydH1cclxuICAgICAgICAgICAgICAgICAgb25DaGFuZ2U9e2UgPT4gc2V0U2VyaWFsUG9ydChlLnRhcmdldC52YWx1ZSl9IC8+XHJcbiAgICAgICAgICAgICAgPC9sYWJlbD5cclxuICAgICAgICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwiZmxleCBmbGV4LWNvbCBnYXAtMVwiPlxyXG4gICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC14c1wiIHN0eWxlPXt7IGNvbG9yOiAnIzk0YTNiOCcgfX0+QkFVRCBSQVRFPC9zcGFuPlxyXG4gICAgICAgICAgICAgICAgPGlucHV0IHR5cGU9XCJudW1iZXJcIiBjbGFzc05hbWU9XCJkYS1pbnB1dCBtb25vXCIgdmFsdWU9e2JhdWR9XHJcbiAgICAgICAgICAgICAgICAgIG9uQ2hhbmdlPXtlID0+IHNldEJhdWQoTnVtYmVyKGUudGFyZ2V0LnZhbHVlKSl9IC8+XHJcbiAgICAgICAgICAgICAgPC9sYWJlbD5cclxuICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICApIDogKFxyXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQgZ3JpZC1jb2xzLTIgZ2FwLTNcIj5cclxuICAgICAgICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwiZmxleCBmbGV4LWNvbCBnYXAtMVwiPlxyXG4gICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC14c1wiIHN0eWxlPXt7IGNvbG9yOiAnIzk0YTNiOCcgfX0+SE9TVDwvc3Bhbj5cclxuICAgICAgICAgICAgICAgIDxpbnB1dCBjbGFzc05hbWU9XCJkYS1pbnB1dCBtb25vXCIgdmFsdWU9e2hvc3R9XHJcbiAgICAgICAgICAgICAgICAgIG9uQ2hhbmdlPXtlID0+IHNldEhvc3QoZS50YXJnZXQudmFsdWUpfSAvPlxyXG4gICAgICAgICAgICAgIDwvbGFiZWw+XHJcbiAgICAgICAgICAgICAgPGxhYmVsIGNsYXNzTmFtZT1cImZsZXggZmxleC1jb2wgZ2FwLTFcIj5cclxuICAgICAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQteHNcIiBzdHlsZT17eyBjb2xvcjogJyM5NGEzYjgnIH19PlBPUlQ8L3NwYW4+XHJcbiAgICAgICAgICAgICAgICA8aW5wdXQgdHlwZT1cIm51bWJlclwiIGNsYXNzTmFtZT1cImRhLWlucHV0IG1vbm9cIiB2YWx1ZT17cG9ydH1cclxuICAgICAgICAgICAgICAgICAgb25DaGFuZ2U9e2UgPT4gc2V0UG9ydChOdW1iZXIoZS50YXJnZXQudmFsdWUpKX0gLz5cclxuICAgICAgICAgICAgICA8L2xhYmVsPlxyXG4gICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICl9XHJcblxyXG4gICAgICAgICAge2VyciAmJiAoXHJcbiAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQteHMgcHgtMyBweS0yIHJvdW5kZWRcIlxyXG4gICAgICAgICAgICAgIHN0eWxlPXt7IGJhY2tncm91bmQ6ICdyZ2JhKDIzOSw2OCw2OCwwLjEpJywgY29sb3I6ICcjZWY0NDQ0JyB9fT57ZXJyfTwvcD5cclxuICAgICAgICAgICl9XHJcblxyXG4gICAgICAgICAgey8qIEF1dG8gQ29ubmVjdCDigJQgdHJpZXMgYWxsIHBvcnRzIGF1dG9tYXRpY2FsbHkgKi99XHJcbiAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgIGNsYXNzTmFtZT1cInctZnVsbCBmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWNlbnRlciBnYXAtMiBweS0yIHJvdW5kZWQgdGV4dC1zbSBmb250LW1lZGl1bSB0cmFuc2l0aW9uLWNvbG9yc1wiXHJcbiAgICAgICAgICAgIHN0eWxlPXt7XHJcbiAgICAgICAgICAgICAgYmFja2dyb3VuZDogYXV0b0Nvbm5lY3RpbmcgPyAncmdiYSgyMzQsMTc5LDgsMC4wOCknIDogJ3JnYmEoMjM0LDE3OSw4LDAuMSknLFxyXG4gICAgICAgICAgICAgIGNvbG9yOiBhdXRvQ29ubmVjdGluZyA/ICcjYTE2MjA3JyA6ICcjZWFiMzA4JyxcclxuICAgICAgICAgICAgICBib3JkZXI6ICcxcHggc29saWQgcmdiYSgyMzQsMTc5LDgsMC4zKScsXHJcbiAgICAgICAgICAgICAgb3BhY2l0eTogbG9hZGluZyA/IDAuNSA6IDEsXHJcbiAgICAgICAgICAgIH19XHJcbiAgICAgICAgICAgIG9uQ2xpY2s9e2F1dG9Db25uZWN0fVxyXG4gICAgICAgICAgICBkaXNhYmxlZD17bG9hZGluZyB8fCBhdXRvQ29ubmVjdGluZ30+XHJcbiAgICAgICAgICAgIDxaYXAgc2l6ZT17MTR9IGNsYXNzTmFtZT17YXV0b0Nvbm5lY3RpbmcgPyAnYW5pbWF0ZS1wdWxzZScgOiAnJ30gLz5cclxuICAgICAgICAgICAge2F1dG9Db25uZWN0aW5nID8gJ1NjYW5uaW5nIGFsbCBwb3J0c+KApicgOiAnQXV0byBDb25uZWN0J31cclxuICAgICAgICAgIDwvYnV0dG9uPlxyXG5cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBnYXAtMlwiPlxyXG4gICAgICAgICAgICA8YnV0dG9uIGNsYXNzTmFtZT1cImRhLWJ0biBkYS1idG4tZ2hvc3QgZmxleC0xXCIgb25DbGljaz17b25DbG9zZX0+Q2FuY2VsPC9idXR0b24+XHJcbiAgICAgICAgICAgIDxidXR0b24gY2xhc3NOYW1lPVwiZGEtYnRuIGRhLWJ0bi1wcmltYXJ5IGZsZXgtMVwiIG9uQ2xpY2s9e2Nvbm5lY3R9IGRpc2FibGVkPXtsb2FkaW5nIHx8IGF1dG9Db25uZWN0aW5nfT5cclxuICAgICAgICAgICAgICB7bG9hZGluZyA/ICdDb25uZWN0aW5n4oCmJyA6ICdDb25uZWN0J31cclxuICAgICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICA8L2Rpdj5cclxuICAgICAgPC9kaXY+XHJcbiAgICA8L2Rpdj5cclxuICApXHJcbn1cclxuIl0sImZpbGUiOiJDOi9Vc2Vycy9jaGFuZC9PbmVEcml2ZS9EZXNrdG9wL0Ryb25lLUFyanVuYS9mcm9udGVuZC9zcmMvd29ya3NwYWNlcy9GbGVldC9Db25uZWN0TW9kYWwudHN4In0=

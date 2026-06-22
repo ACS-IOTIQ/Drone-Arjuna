@@ -172,7 +172,7 @@ export class RobustWebSocket {
   private onMessageCallback: ((data: any) => void) | null = null
   private onCloseCallback: (() => void) | null = null
   private onErrorCallback: ((error: Event) => void) | null = null
-  private heartbeatInterval: NodeJS.Timeout | null = null
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private channelId: string
 
   constructor(url: string, channelId: string) {

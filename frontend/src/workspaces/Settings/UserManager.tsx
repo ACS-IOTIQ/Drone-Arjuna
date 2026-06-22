@@ -37,6 +37,7 @@ export function UserManager() {
   const [requests, setRequests] = useState<AccessRequest[]>([])
   const [editing, setEditing] = useState<UserRecord | null>(null)
   const [saving, setSaving] = useState(false)
+  const [approvingId, setApprovingId] = useState<string | null>(null)
   const [err, setErr] = useState('')
   const [requestErr, setRequestErr] = useState('')
 
@@ -93,6 +94,7 @@ export function UserManager() {
     }
 
     try {
+      setApprovingId(req.id)
       await api.post('/api/auth/register', body)
       await loadUsers()
       updateAccessRequest(req.id, {
@@ -105,6 +107,8 @@ export function UserManager() {
       loadRequests()
     } catch (e: any) {
       setRequestErr(e.response?.data?.detail ?? 'Approval failed. Confirm you are logged in as admin.')
+    } finally {
+      setApprovingId(null)
     }
   }
 
@@ -183,8 +187,12 @@ export function UserManager() {
                   )}
                   {req.status === 'pending' && (
                     <>
-                      <button className="da-btn da-btn-success text-xs" onClick={() => approveRequest(req)}>
-                        <UserCheck size={13} /> Allow
+                      <button
+                        className="da-btn da-btn-success text-xs"
+                        disabled={approvingId === req.id}
+                        onClick={() => approveRequest(req)}
+                      >
+                        <UserCheck size={13} /> {approvingId === req.id ? 'Creating...' : 'Allow'}
                       </button>
                       <button className="da-btn da-btn-danger text-xs" onClick={() => rejectRequest(req)}>
                         <UserX size={13} /> Reject

@@ -1,0 +1,319 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/workspaces/Fly/CommandPanel.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=f3682b40"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+var _s = $RefreshSig$();
+import __vite__cjsImport3_react from "/node_modules/.vite/deps/react.js?v=f3682b40"; const useState = __vite__cjsImport3_react["useState"];
+import { AlertTriangle } from "/node_modules/.vite/deps/lucide-react.js?v=f3682b40";
+import { droneControlApi } from "/src/api/droneControl.ts?t=1782056534296";
+import { useTelemetryStore } from "/src/store/telemetryStore.ts?t=1782056534296";
+const MODES = ["STABILIZE", "ALT_HOLD", "LOITER", "AUTO", "GUIDED", "RTL", "LAND"];
+export function CommandPanel({ droneId }) {
+  _s();
+  const frame = useTelemetryStore((s) => s.frames[droneId]);
+  const [confirm, setConfirm] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const send = async (cmd, params = {}) => {
+    setBusy(true);
+    try {
+      await droneControlApi.command({ drone_id: droneId, command: cmd, params });
+    } finally {
+      setBusy(false);
+      setConfirm(null);
+    }
+  };
+  const safeCmd = (cmd, params = {}) => {
+    setConfirm(cmd);
+  };
+  return /* @__PURE__ */ jsxDEV(
+    "div",
+    {
+      className: "da-card flex flex-col gap-2 p-3",
+      style: { background: "rgba(255,255,255,0.95)", backdropFilter: "blur(8px)" },
+      children: [
+        /* @__PURE__ */ jsxDEV("p", { className: "text-[10px] font-semibold", style: { color: "#475569" }, children: "FLIGHT COMMANDS" }, void 0, false, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+          lineNumber: 54,
+          columnNumber: 7
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-2 gap-1.5", children: [
+          /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              disabled: busy || frame?.is_armed,
+              onClick: () => setConfirm("arm"),
+              className: "da-btn da-btn-success justify-center text-xs py-2",
+              children: "Arm"
+            },
+            void 0,
+            false,
+            {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+              lineNumber: 58,
+              columnNumber: 9
+            },
+            this
+          ),
+          /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              disabled: busy || !frame?.is_armed,
+              onClick: () => setConfirm("disarm"),
+              className: "da-btn da-btn-ghost justify-center text-xs py-2",
+              children: "Disarm"
+            },
+            void 0,
+            false,
+            {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+              lineNumber: 64,
+              columnNumber: 9
+            },
+            this
+          )
+        ] }, void 0, true, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+          lineNumber: 57,
+          columnNumber: 7
+        }, this),
+        frame?.is_armed && (frame?.alt_agl ?? 0) < 2 && /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            disabled: busy,
+            onClick: () => send("takeoff", { altitude: 30 }),
+            className: "da-btn da-btn-primary justify-center text-xs py-2 font-semibold",
+            children: "Takeoff"
+          },
+          void 0,
+          false,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+            lineNumber: 74,
+            columnNumber: 7
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV("div", { className: "flex flex-col gap-1", children: [
+          /* @__PURE__ */ jsxDEV("p", { className: "text-[10px]", style: { color: "#4b5563" }, children: "SET MODE" }, void 0, false, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+            lineNumber: 84,
+            columnNumber: 9
+          }, this),
+          ["LOITER", "AUTO", "GUIDED"].map(
+            (m) => /* @__PURE__ */ jsxDEV(
+              "button",
+              {
+                disabled: busy || frame?.flight_mode === m,
+                onClick: () => send("set_mode", { mode: m }),
+                className: "da-btn da-btn-ghost justify-between text-xs py-1.5",
+                style: { opacity: frame?.flight_mode === m ? 0.5 : 1 },
+                children: [
+                  m,
+                  frame?.flight_mode === m && /* @__PURE__ */ jsxDEV("span", { style: { color: "#22c55e", fontSize: 9 }, children: "ACTIVE" }, void 0, false, {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+                    lineNumber: 92,
+                    columnNumber: 42
+                  }, this)
+                ]
+              },
+              m,
+              true,
+              {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+                lineNumber: 86,
+                columnNumber: 9
+              },
+              this
+            )
+          )
+        ] }, void 0, true, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+          lineNumber: 83,
+          columnNumber: 7
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "flex flex-col gap-1", children: [
+          /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              disabled: busy,
+              onClick: () => setConfirm("rtl"),
+              className: "da-btn justify-center text-xs py-2 font-semibold",
+              style: {
+                background: "rgba(245,158,11,0.15)",
+                color: "#f59e0b",
+                border: "1px solid rgba(245,158,11,0.3)"
+              },
+              children: "Return to Launch"
+            },
+            void 0,
+            false,
+            {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+              lineNumber: 99,
+              columnNumber: 9
+            },
+            this
+          ),
+          /* @__PURE__ */ jsxDEV(
+            "button",
+            {
+              disabled: busy,
+              onClick: () => setConfirm("land"),
+              className: "da-btn justify-center text-xs py-2",
+              style: {
+                background: "rgba(59,130,246,0.1)",
+                color: "#3b82f6",
+                border: "1px solid rgba(59,130,246,0.2)"
+              },
+              children: "Land Now"
+            },
+            void 0,
+            false,
+            {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+              lineNumber: 105,
+              columnNumber: 9
+            },
+            this
+          )
+        ] }, void 0, true, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+          lineNumber: 98,
+          columnNumber: 7
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            disabled: busy,
+            onClick: () => setConfirm("emergency_stop"),
+            className: "da-btn da-btn-danger justify-center text-xs py-2.5 font-bold tracking-wide mt-1",
+            children: "EMERGENCY STOP"
+          },
+          void 0,
+          false,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+            lineNumber: 114,
+            columnNumber: 7
+          },
+          this
+        ),
+        confirm && /* @__PURE__ */ jsxDEV(
+          "div",
+          {
+            className: "mt-1 p-2 rounded flex flex-col gap-2",
+            style: { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" },
+            children: [
+              /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-1.5 text-xs", style: { color: "#f87171" }, children: [
+                /* @__PURE__ */ jsxDEV(AlertTriangle, { size: 12 }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+                  lineNumber: 124,
+                  columnNumber: 13
+                }, this),
+                "Confirm: ",
+                /* @__PURE__ */ jsxDEV("strong", { children: confirm.toUpperCase() }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+                  lineNumber: 125,
+                  columnNumber: 22
+                }, this)
+              ] }, void 0, true, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+                lineNumber: 123,
+                columnNumber: 11
+              }, this),
+              /* @__PURE__ */ jsxDEV("div", { className: "flex gap-1.5", children: [
+                /* @__PURE__ */ jsxDEV(
+                  "button",
+                  {
+                    onClick: () => setConfirm(null),
+                    className: "da-btn da-btn-ghost text-xs py-1 flex-1",
+                    children: "Cancel"
+                  },
+                  void 0,
+                  false,
+                  {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+                    lineNumber: 128,
+                    columnNumber: 13
+                  },
+                  this
+                ),
+                /* @__PURE__ */ jsxDEV(
+                  "button",
+                  {
+                    onClick: () => send(confirm),
+                    className: "da-btn da-btn-danger text-xs py-1 flex-1",
+                    children: "Confirm"
+                  },
+                  void 0,
+                  false,
+                  {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+                    lineNumber: 130,
+                    columnNumber: 13
+                  },
+                  this
+                )
+              ] }, void 0, true, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+                lineNumber: 127,
+                columnNumber: 11
+              }, this)
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+            lineNumber: 121,
+            columnNumber: 7
+          },
+          this
+        )
+      ]
+    },
+    void 0,
+    true,
+    {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx",
+      lineNumber: 51,
+      columnNumber: 5
+    },
+    this
+  );
+}
+_s(CommandPanel, "cdFlt2yluPAi9UCG3y/bYEdiSiw=", false, function() {
+  return [useTelemetryStore];
+});
+_c = CommandPanel;
+export default CommandPanel;
+var _c;
+$RefreshReg$(_c, "CommandPanel");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Fly/CommandPanel.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLEVBb0ZBO0FBRUo7QUFBQ0osR0ExR2VGLGNBQVk7QUFBQSxVQUNaRixpQkFBaUI7QUFBQTtBQUFBLEtBRGpCRTtBQTRHaEIsZUFBZUE7QUFBWSxJQUFBOEI7QUFBQSxhQUFBQSxJQUFBIiwibmFtZXMiOlsidXNlU3RhdGUiLCJBbGVydFRyaWFuZ2xlIiwiZHJvbmVDb250cm9sQXBpIiwidXNlVGVsZW1ldHJ5U3RvcmUiLCJNT0RFUyIsIkNvbW1hbmRQYW5lbCIsImRyb25lSWQiLCJfcyIsImZyYW1lIiwicyIsImZyYW1lcyIsImNvbmZpcm0iLCJzZXRDb25maXJtIiwiYnVzeSIsInNldEJ1c3kiLCJzZW5kIiwiY21kIiwicGFyYW1zIiwiY29tbWFuZCIsImRyb25lX2lkIiwic2FmZUNtZCIsImJhY2tncm91bmQiLCJiYWNrZHJvcEZpbHRlciIsImNvbG9yIiwiaXNfYXJtZWQiLCJhbHRfYWdsIiwiYWx0aXR1ZGUiLCJtYXAiLCJtIiwiZmxpZ2h0X21vZGUiLCJtb2RlIiwib3BhY2l0eSIsImZvbnRTaXplIiwiYm9yZGVyIiwidG9VcHBlckNhc2UiLCJfYyJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJDb21tYW5kUGFuZWwudHN4Il0sInNvdXJjZXNDb250ZW50IjpbIlxyXG4vLyDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZBcclxuLy8gQ29tbWFuZFBhbmVsLnRzeFxyXG4vLyDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZDilZBcclxuaW1wb3J0IHsgdXNlU3RhdGUgfSBmcm9tICdyZWFjdCdcclxuaW1wb3J0IHsgQWxlcnRUcmlhbmdsZSwgQ2hldnJvbkRvd24gfSBmcm9tICdsdWNpZGUtcmVhY3QnXHJcbmltcG9ydCB7IGRyb25lQ29udHJvbEFwaSB9IGZyb20gJ0AvYXBpL2Ryb25lQ29udHJvbCdcclxuaW1wb3J0IHsgdXNlVGVsZW1ldHJ5U3RvcmUgfSBmcm9tICdAL3N0b3JlL3RlbGVtZXRyeVN0b3JlJ1xyXG5cclxuY29uc3QgTU9ERVMgPSBbJ1NUQUJJTElaRScsICdBTFRfSE9MRCcsICdMT0lURVInLCAnQVVUTycsICdHVUlERUQnLCAnUlRMJywgJ0xBTkQnXVxyXG5cclxuZXhwb3J0IGZ1bmN0aW9uIENvbW1hbmRQYW5lbCh7IGRyb25lSWQgfTogeyBkcm9uZUlkOiBudW1iZXIgfSkge1xyXG4gIGNvbnN0IGZyYW1lID0gdXNlVGVsZW1ldHJ5U3RvcmUocyA9PiBzLmZyYW1lc1tkcm9uZUlkXSlcclxuICBjb25zdCBbY29uZmlybSwgc2V0Q29uZmlybV0gPSB1c2VTdGF0ZTxzdHJpbmcgfCBudWxsPihudWxsKVxyXG4gIGNvbnN0IFtidXN5LCBzZXRCdXN5XSA9IHVzZVN0YXRlKGZhbHNlKVxyXG5cclxuICBjb25zdCBzZW5kID0gYXN5bmMgKGNtZDogc3RyaW5nLCBwYXJhbXMgPSB7fSkgPT4ge1xyXG4gICAgc2V0QnVzeSh0cnVlKVxyXG4gICAgdHJ5IHtcclxuICAgICAgYXdhaXQgZHJvbmVDb250cm9sQXBpLmNvbW1hbmQoeyBkcm9uZV9pZDogZHJvbmVJZCwgY29tbWFuZDogY21kIGFzIGFueSwgcGFyYW1zIH0pXHJcbiAgICB9IGZpbmFsbHkge1xyXG4gICAgICBzZXRCdXN5KGZhbHNlKVxyXG4gICAgICBzZXRDb25maXJtKG51bGwpXHJcbiAgICB9XHJcbiAgfVxyXG5cclxuICBjb25zdCBzYWZlQ21kID0gKGNtZDogc3RyaW5nLCBwYXJhbXMgPSB7fSkgPT4ge1xyXG4gICAgc2V0Q29uZmlybShjbWQpXHJcbiAgfVxyXG5cclxuICByZXR1cm4gKFxyXG4gICAgPGRpdiBjbGFzc05hbWU9XCJkYS1jYXJkIGZsZXggZmxleC1jb2wgZ2FwLTIgcC0zXCJcclxuICAgICAgc3R5bGU9e3sgYmFja2dyb3VuZDogJ3JnYmEoMjU1LDI1NSwyNTUsMC45NSknLCBiYWNrZHJvcEZpbHRlcjogJ2JsdXIoOHB4KScgfX0+XHJcblxyXG4gICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LVsxMHB4XSBmb250LXNlbWlib2xkXCIgc3R5bGU9e3sgY29sb3I6ICcjNDc1NTY5JyB9fT5GTElHSFQgQ09NTUFORFM8L3A+XHJcblxyXG4gICAgICB7LyogQXJtIC8gRGlzYXJtICovfVxyXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQgZ3JpZC1jb2xzLTIgZ2FwLTEuNVwiPlxyXG4gICAgICAgIDxidXR0b25cclxuICAgICAgICAgIGRpc2FibGVkPXtidXN5IHx8IGZyYW1lPy5pc19hcm1lZH1cclxuICAgICAgICAgIG9uQ2xpY2s9eygpID0+IHNldENvbmZpcm0oJ2FybScpfVxyXG4gICAgICAgICAgY2xhc3NOYW1lPVwiZGEtYnRuIGRhLWJ0bi1zdWNjZXNzIGp1c3RpZnktY2VudGVyIHRleHQteHMgcHktMlwiPlxyXG4gICAgICAgICAgQXJtXHJcbiAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgZGlzYWJsZWQ9e2J1c3kgfHwgIWZyYW1lPy5pc19hcm1lZH1cclxuICAgICAgICAgIG9uQ2xpY2s9eygpID0+IHNldENvbmZpcm0oJ2Rpc2FybScpfVxyXG4gICAgICAgICAgY2xhc3NOYW1lPVwiZGEtYnRuIGRhLWJ0bi1naG9zdCBqdXN0aWZ5LWNlbnRlciB0ZXh0LXhzIHB5LTJcIj5cclxuICAgICAgICAgIERpc2FybVxyXG4gICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICA8L2Rpdj5cclxuXHJcbiAgICAgIHsvKiBUYWtlb2ZmLCB2aXNpYmxlIHdoZW4gYXJtZWQgYW5kIG9uIHRoZSBncm91bmQgKi99XHJcbiAgICAgIHtmcmFtZT8uaXNfYXJtZWQgJiYgKGZyYW1lPy5hbHRfYWdsID8/IDApIDwgMiAmJiAoXHJcbiAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgZGlzYWJsZWQ9e2J1c3l9XHJcbiAgICAgICAgICBvbkNsaWNrPXsoKSA9PiBzZW5kKCd0YWtlb2ZmJywgeyBhbHRpdHVkZTogMzAgfSl9XHJcbiAgICAgICAgICBjbGFzc05hbWU9XCJkYS1idG4gZGEtYnRuLXByaW1hcnkganVzdGlmeS1jZW50ZXIgdGV4dC14cyBweS0yIGZvbnQtc2VtaWJvbGRcIj5cclxuICAgICAgICAgIFRha2VvZmZcclxuICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgKX1cclxuXHJcbiAgICAgIHsvKiBNb2RlIGJ1dHRvbnMgKi99XHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBmbGV4LWNvbCBnYXAtMVwiPlxyXG4gICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtWzEwcHhdXCIgc3R5bGU9e3sgY29sb3I6ICcjNGI1NTYzJyB9fT5TRVQgTU9ERTwvcD5cclxuICAgICAgICB7WydMT0lURVInLCAnQVVUTycsICdHVUlERUQnXS5tYXAobSA9PiAoXHJcbiAgICAgICAgICA8YnV0dG9uIGtleT17bX1cclxuICAgICAgICAgICAgZGlzYWJsZWQ9e2J1c3kgfHwgZnJhbWU/LmZsaWdodF9tb2RlID09PSBtfVxyXG4gICAgICAgICAgICBvbkNsaWNrPXsoKSA9PiBzZW5kKCdzZXRfbW9kZScsIHsgbW9kZTogbSB9KX1cclxuICAgICAgICAgICAgY2xhc3NOYW1lPVwiZGEtYnRuIGRhLWJ0bi1naG9zdCBqdXN0aWZ5LWJldHdlZW4gdGV4dC14cyBweS0xLjVcIlxyXG4gICAgICAgICAgICBzdHlsZT17eyBvcGFjaXR5OiBmcmFtZT8uZmxpZ2h0X21vZGUgPT09IG0gPyAwLjUgOiAxIH19PlxyXG4gICAgICAgICAgICB7bX1cclxuICAgICAgICAgICAge2ZyYW1lPy5mbGlnaHRfbW9kZSA9PT0gbSAmJiA8c3BhbiBzdHlsZT17eyBjb2xvcjogJyMyMmM1NWUnLCBmb250U2l6ZTogOSB9fT5BQ1RJVkU8L3NwYW4+fVxyXG4gICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgKSl9XHJcbiAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgey8qIFJUTCArIExhbmQg4oCUIGhpZ2hsaWdodGVkICovfVxyXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggZmxleC1jb2wgZ2FwLTFcIj5cclxuICAgICAgICA8YnV0dG9uIGRpc2FibGVkPXtidXN5fSBvbkNsaWNrPXsoKSA9PiBzZXRDb25maXJtKCdydGwnKX1cclxuICAgICAgICAgIGNsYXNzTmFtZT1cImRhLWJ0biBqdXN0aWZ5LWNlbnRlciB0ZXh0LXhzIHB5LTIgZm9udC1zZW1pYm9sZFwiXHJcbiAgICAgICAgICBzdHlsZT17eyBiYWNrZ3JvdW5kOiAncmdiYSgyNDUsMTU4LDExLDAuMTUpJywgY29sb3I6ICcjZjU5ZTBiJyxcclxuICAgICAgICAgICAgYm9yZGVyOiAnMXB4IHNvbGlkIHJnYmEoMjQ1LDE1OCwxMSwwLjMpJyB9fT5cclxuICAgICAgICAgIFJldHVybiB0byBMYXVuY2hcclxuICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICA8YnV0dG9uIGRpc2FibGVkPXtidXN5fSBvbkNsaWNrPXsoKSA9PiBzZXRDb25maXJtKCdsYW5kJyl9XHJcbiAgICAgICAgICBjbGFzc05hbWU9XCJkYS1idG4ganVzdGlmeS1jZW50ZXIgdGV4dC14cyBweS0yXCJcclxuICAgICAgICAgIHN0eWxlPXt7IGJhY2tncm91bmQ6ICdyZ2JhKDU5LDEzMCwyNDYsMC4xKScsIGNvbG9yOiAnIzNiODJmNicsXHJcbiAgICAgICAgICAgIGJvcmRlcjogJzFweCBzb2xpZCByZ2JhKDU5LDEzMCwyNDYsMC4yKScgfX0+XHJcbiAgICAgICAgICBMYW5kIE5vd1xyXG4gICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICA8L2Rpdj5cclxuXHJcbiAgICAgIHsvKiBFbWVyZ2VuY3kgc3RvcCAqL31cclxuICAgICAgPGJ1dHRvbiBkaXNhYmxlZD17YnVzeX0gb25DbGljaz17KCkgPT4gc2V0Q29uZmlybSgnZW1lcmdlbmN5X3N0b3AnKX1cclxuICAgICAgICBjbGFzc05hbWU9XCJkYS1idG4gZGEtYnRuLWRhbmdlciBqdXN0aWZ5LWNlbnRlciB0ZXh0LXhzIHB5LTIuNSBmb250LWJvbGQgdHJhY2tpbmctd2lkZSBtdC0xXCI+XHJcbiAgICAgICAgRU1FUkdFTkNZIFNUT1BcclxuICAgICAgPC9idXR0b24+XHJcblxyXG4gICAgICB7LyogQ29uZmlybSBkaWFsb2cgKi99XHJcbiAgICAgIHtjb25maXJtICYmIChcclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm10LTEgcC0yIHJvdW5kZWQgZmxleCBmbGV4LWNvbCBnYXAtMlwiXHJcbiAgICAgICAgICBzdHlsZT17eyBiYWNrZ3JvdW5kOiAncmdiYSgyMzksNjgsNjgsMC4xKScsIGJvcmRlcjogJzFweCBzb2xpZCByZ2JhKDIzOSw2OCw2OCwwLjMpJyB9fT5cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTEuNSB0ZXh0LXhzXCIgc3R5bGU9e3sgY29sb3I6ICcjZjg3MTcxJyB9fT5cclxuICAgICAgICAgICAgPEFsZXJ0VHJpYW5nbGUgc2l6ZT17MTJ9IC8+XHJcbiAgICAgICAgICAgIENvbmZpcm06IDxzdHJvbmc+e2NvbmZpcm0udG9VcHBlckNhc2UoKX08L3N0cm9uZz5cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGdhcC0xLjVcIj5cclxuICAgICAgICAgICAgPGJ1dHRvbiBvbkNsaWNrPXsoKSA9PiBzZXRDb25maXJtKG51bGwpfVxyXG4gICAgICAgICAgICAgIGNsYXNzTmFtZT1cImRhLWJ0biBkYS1idG4tZ2hvc3QgdGV4dC14cyBweS0xIGZsZXgtMVwiPkNhbmNlbDwvYnV0dG9uPlxyXG4gICAgICAgICAgICA8YnV0dG9uIG9uQ2xpY2s9eygpID0+IHNlbmQoY29uZmlybSl9XHJcbiAgICAgICAgICAgICAgY2xhc3NOYW1lPVwiZGEtYnRuIGRhLWJ0bi1kYW5nZXIgdGV4dC14cyBweS0xIGZsZXgtMVwiPkNvbmZpcm08L2J1dHRvbj5cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgIDwvZGl2PlxyXG4gICAgICApfVxyXG4gICAgPC9kaXY+XHJcbiAgKVxyXG59XHJcblxyXG5leHBvcnQgZGVmYXVsdCBDb21tYW5kUGFuZWxcclxuIl0sImZpbGUiOiJDOi9Vc2Vycy9jaGFuZC9PbmVEcml2ZS9EZXNrdG9wL0Ryb25lLUFyanVuYS9mcm9udGVuZC9zcmMvd29ya3NwYWNlcy9GbHkvQ29tbWFuZFBhbmVsLnRzeCJ9

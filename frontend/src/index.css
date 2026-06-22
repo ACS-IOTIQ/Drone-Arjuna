@@ -29,6 +29,38 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+.da-login-bg {
+  position: relative;
+  background:
+    linear-gradient(140deg, rgba(15,23,42,0.96), rgba(19,54,59,0.96) 48%, rgba(17,24,39,0.98)),
+    linear-gradient(90deg, #0f172a, #0f766e);
+}
+
+.da-login-grid {
+  opacity: 0.18;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.12) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(to bottom, black, transparent 86%);
+}
+
+.da-login-runway {
+  opacity: 0.3;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 78px, rgba(45,212,191,0.22) 78px 80px),
+    linear-gradient(180deg, transparent, rgba(37,99,235,0.22));
+  clip-path: polygon(42% 0, 58% 0, 88% 100%, 12% 100%);
+}
+
+.da-login-card {
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(226,232,240,0.9);
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(2,6,23,0.34), inset 0 1px 0 rgba(255,255,255,0.8);
+  backdrop-filter: blur(12px);
+}
+
 /* Scrollbars */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: #e2e8f0; }

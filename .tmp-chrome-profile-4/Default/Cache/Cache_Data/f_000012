@@ -1,0 +1,643 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/workspaces/Plan/MissionEditor.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=f3682b40"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+var _s = $RefreshSig$();
+import __vite__cjsImport3_react from "/node_modules/.vite/deps/react.js?v=f3682b40"; const useState = __vite__cjsImport3_react["useState"];
+import { Save, Trash2, Play, Anchor, FolderOpen } from "/node_modules/.vite/deps/lucide-react.js?v=f3682b40";
+import { useMissionStore } from "/src/store/missionStore.ts";
+import { useFleetStore } from "/src/store/fleetStore.ts";
+import { useVesselStore } from "/src/store/vesselStore.ts";
+import { droneFlightApi } from "/src/api/droneFlight.ts";
+export default function MissionEditor() {
+  _s();
+  const { draftWaypoints, geofence, missions, saveMission, removeWaypoint, loadMission } = useMissionStore();
+  const { instances } = useFleetStore();
+  const { vessels } = useVesselStore();
+  const [name, setName] = useState("");
+  const [type, setType] = useState("ISR");
+  const [droneId, setDroneId] = useState();
+  const [homeType, setHomeType] = useState("fixed");
+  const [homeVesselId, setHomeVesselId] = useState();
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [summary, setSummary] = useState(null);
+  const [err, setErr] = useState("");
+  const estimate = async () => {
+    if (draftWaypoints.length < 2) return;
+    try {
+      const { data: m } = await droneFlightApi.createMission({
+        name: "_preview",
+        waypoints: draftWaypoints
+      });
+      const { data: s } = await droneFlightApi.getMissionSummary(m.id);
+      setSummary(s);
+      await droneFlightApi.deleteMission(m.id);
+    } catch {
+    }
+  };
+  const load = async (id) => {
+    setLoading(true);
+    setErr("");
+    setSummary(null);
+    try {
+      const meta = await loadMission(id);
+      setName(meta.name);
+      setType(meta.mission_type);
+      setDroneId(meta.drone_instance_id ?? void 0);
+      setHomeType(meta.home_point_type ?? "fixed");
+      setHomeVesselId(meta.home_vessel_id ?? void 0);
+    } catch {
+      setErr("Failed to load mission");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const save = async () => {
+    if (!name.trim() || draftWaypoints.length === 0) return;
+    if (homeType === "dynamic_vessel" && !homeVesselId) {
+      setErr("Select a home vessel for ship-based operations");
+      return;
+    }
+    setSaving(true);
+    setErr("");
+    try {
+      await saveMission(name, type, droneId, homeType, homeVesselId);
+      setName("");
+    } catch (e) {
+      setErr(e.response?.data?.detail ?? "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "flex flex-col h-full", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "px-4 py-3", style: { borderBottom: "1px solid var(--da-border)" }, children: [
+      /* @__PURE__ */ jsxDEV("h3", { className: "text-sm font-semibold", children: "Mission Editor" }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+        lineNumber: 92,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("p", { className: "text-xs mt-0.5", style: { color: "#6b7280" }, children: loading ? "Loading mission..." : `${draftWaypoints.length} waypoints - ${geofence.length} geofence vertices` }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+        lineNumber: 93,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+      lineNumber: 91,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "p-4 flex flex-col gap-3", style: { borderBottom: "1px solid var(--da-border)" }, children: [
+      /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1", children: [
+        /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#94a3b8" }, children: "MISSION NAME" }, void 0, false, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+          lineNumber: 101,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          "input",
+          {
+            className: "da-input",
+            placeholder: "ALPHA-7",
+            value: name,
+            onChange: (e) => setName(e.target.value)
+          },
+          void 0,
+          false,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 102,
+            columnNumber: 11
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+        lineNumber: 100,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1", children: [
+        /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#94a3b8" }, children: "TYPE" }, void 0, false, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+          lineNumber: 107,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV("select", { className: "da-input", value: type, onChange: (e) => setType(e.target.value), children: ["ISR", "Strike", "Patrol", "Logistics", "SAR", "Training"].map(
+          (t) => /* @__PURE__ */ jsxDEV("option", { children: t }, t, false, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 110,
+            columnNumber: 13
+          }, this)
+        ) }, void 0, false, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+          lineNumber: 108,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+        lineNumber: 106,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1", children: [
+        /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#94a3b8" }, children: "ASSIGN DRONE" }, void 0, false, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+          lineNumber: 116,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          "select",
+          {
+            className: "da-input",
+            value: droneId ?? "",
+            onChange: (e) => setDroneId(e.target.value ? Number(e.target.value) : void 0),
+            children: [
+              /* @__PURE__ */ jsxDEV("option", { value: "", children: "— Unassigned —" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                lineNumber: 119,
+                columnNumber: 13
+              }, this),
+              instances.map(
+                (d) => /* @__PURE__ */ jsxDEV("option", { value: d.id, children: d.call_sign }, d.id, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                  lineNumber: 121,
+                  columnNumber: 13
+                }, this)
+              )
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 117,
+            columnNumber: 11
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+        lineNumber: 115,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("label", { className: "flex flex-col gap-1", children: [
+        /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#94a3b8" }, children: "HOME POINT" }, void 0, false, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+          lineNumber: 128,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          "select",
+          {
+            className: "da-input",
+            value: homeType,
+            onChange: (e) => {
+              setHomeType(e.target.value);
+              if (e.target.value === "fixed") setHomeVesselId(void 0);
+            },
+            children: [
+              /* @__PURE__ */ jsxDEV("option", { value: "fixed", children: "Fixed (ground base)" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                lineNumber: 134,
+                columnNumber: 13
+              }, this),
+              /* @__PURE__ */ jsxDEV("option", { value: "dynamic_vessel", children: "Dynamic — Return to Ship (HF)" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                lineNumber: 135,
+                columnNumber: 13
+              }, this)
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 129,
+            columnNumber: 11
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+        lineNumber: 127,
+        columnNumber: 9
+      }, this),
+      homeType === "dynamic_vessel" && /* @__PURE__ */ jsxDEV(
+        "div",
+        {
+          className: "flex flex-col gap-2 p-3 rounded",
+          style: { background: "rgba(6,182,212,0.07)", border: "1px solid rgba(6,182,212,0.2)" },
+          children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-1.5 mb-1", children: [
+              /* @__PURE__ */ jsxDEV(Anchor, { size: 12, style: { color: "#06b6d4" } }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                lineNumber: 143,
+                columnNumber: 15
+              }, this),
+              /* @__PURE__ */ jsxDEV("span", { className: "text-xs font-medium", style: { color: "#06b6d4" }, children: "Home Vessel" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                lineNumber: 144,
+                columnNumber: 15
+              }, this)
+            ] }, void 0, true, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+              lineNumber: 142,
+              columnNumber: 13
+            }, this),
+            /* @__PURE__ */ jsxDEV(
+              "select",
+              {
+                className: "da-input",
+                value: homeVesselId ?? "",
+                onChange: (e) => setHomeVesselId(e.target.value ? Number(e.target.value) : void 0),
+                children: [
+                  /* @__PURE__ */ jsxDEV("option", { value: "", children: "— Select vessel —" }, void 0, false, {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                    lineNumber: 148,
+                    columnNumber: 15
+                  }, this),
+                  vessels.map(
+                    (v) => /* @__PURE__ */ jsxDEV("option", { value: v.id, children: [
+                      v.vessel_id,
+                      " — ",
+                      v.name,
+                      v.latitude != null ? ` (pos known)` : " (no position)"
+                    ] }, v.id, true, {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                      lineNumber: 150,
+                      columnNumber: 13
+                    }, this)
+                  )
+                ]
+              },
+              void 0,
+              true,
+              {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                lineNumber: 146,
+                columnNumber: 13
+              },
+              this
+            ),
+            vessels.length === 0 && /* @__PURE__ */ jsxDEV("p", { className: "text-[11px]", style: { color: "#f59e0b" }, children: "No vessels registered. Add one in Settings → Naval Vessels." }, void 0, false, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+              lineNumber: 157,
+              columnNumber: 11
+            }, this),
+            homeVesselId && vessels.find((v) => v.id === homeVesselId)?.latitude == null && /* @__PURE__ */ jsxDEV("p", { className: "text-[11px]", style: { color: "#f59e0b" }, children: "Vessel has no current position — range estimation will be unavailable." }, void 0, false, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+              lineNumber: 162,
+              columnNumber: 11
+            }, this),
+            /* @__PURE__ */ jsxDEV("p", { className: "text-[11px]", style: { color: "#4b5563" }, children: "Home waypoint will be set to the vessel's current GPS position at upload time. The return coordinate updates continuously via the HF position feed." }, void 0, false, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+              lineNumber: 166,
+              columnNumber: 13
+            }, this)
+          ]
+        },
+        void 0,
+        true,
+        {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+          lineNumber: 140,
+          columnNumber: 9
+        },
+        this
+      )
+    ] }, void 0, true, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+      lineNumber: 99,
+      columnNumber: 7
+    }, this),
+    summary && /* @__PURE__ */ jsxDEV(
+      "div",
+      {
+        className: "mx-4 mt-3 p-3 rounded text-xs grid grid-cols-2 gap-2",
+        style: { background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)" },
+        children: [
+          /* @__PURE__ */ jsxDEV("span", { style: { color: "#6b7280" }, children: "Distance" }, void 0, false, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 178,
+            columnNumber: 11
+          }, this),
+          /* @__PURE__ */ jsxDEV("span", { className: "mono text-right", children: [
+            summary.total_distance_km,
+            " km"
+          ] }, void 0, true, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 179,
+            columnNumber: 11
+          }, this),
+          /* @__PURE__ */ jsxDEV("span", { style: { color: "#6b7280" }, children: "Est. time" }, void 0, false, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 180,
+            columnNumber: 11
+          }, this),
+          /* @__PURE__ */ jsxDEV("span", { className: "mono text-right", children: [
+            summary.estimated_flight_time_min,
+            " min"
+          ] }, void 0, true, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 181,
+            columnNumber: 11
+          }, this),
+          /* @__PURE__ */ jsxDEV("span", { style: { color: "#6b7280" }, children: "Battery est." }, void 0, false, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 182,
+            columnNumber: 11
+          }, this),
+          /* @__PURE__ */ jsxDEV("span", { className: "mono text-right", style: { color: summary.estimated_battery_pct > 80 ? "#ef4444" : "#94a3b8" }, children: [
+            summary.estimated_battery_pct,
+            "%"
+          ] }, void 0, true, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 183,
+            columnNumber: 11
+          }, this)
+        ]
+      },
+      void 0,
+      true,
+      {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+        lineNumber: 176,
+        columnNumber: 7
+      },
+      this
+    ),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1", children: draftWaypoints.length === 0 ? /* @__PURE__ */ jsxDEV("p", { className: "text-xs text-center py-8", style: { color: "#374151" }, children: "Click the map to add waypoints" }, void 0, false, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+      lineNumber: 192,
+      columnNumber: 9
+    }, this) : draftWaypoints.map(
+      (wp, i) => /* @__PURE__ */ jsxDEV(
+        WaypointRow,
+        {
+          wp,
+          idx: i,
+          onRemove: () => removeWaypoint(wp.sequence)
+        },
+        wp.sequence,
+        false,
+        {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+          lineNumber: 197,
+          columnNumber: 9
+        },
+        this
+      )
+    ) }, void 0, false, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+      lineNumber: 190,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "p-4 flex flex-col gap-2", style: { borderTop: "1px solid var(--da-border)" }, children: [
+      err && /* @__PURE__ */ jsxDEV("p", { className: "text-xs", style: { color: "#ef4444" }, children: err }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+        lineNumber: 205,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV(
+        "button",
+        {
+          className: "da-btn da-btn-ghost justify-center text-xs",
+          onClick: estimate,
+          disabled: draftWaypoints.length < 2,
+          children: [
+            /* @__PURE__ */ jsxDEV(Play, { size: 12 }, void 0, false, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+              lineNumber: 208,
+              columnNumber: 11
+            }, this),
+            " Estimate flight"
+          ]
+        },
+        void 0,
+        true,
+        {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+          lineNumber: 206,
+          columnNumber: 9
+        },
+        this
+      ),
+      /* @__PURE__ */ jsxDEV(
+        "button",
+        {
+          className: "da-btn da-btn-primary justify-center",
+          onClick: save,
+          disabled: saving || !name || draftWaypoints.length === 0,
+          children: [
+            /* @__PURE__ */ jsxDEV(Save, { size: 14 }, void 0, false, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+              lineNumber: 212,
+              columnNumber: 11
+            }, this),
+            saving ? "Saving..." : "Save Mission"
+          ]
+        },
+        void 0,
+        true,
+        {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+          lineNumber: 210,
+          columnNumber: 9
+        },
+        this
+      )
+    ] }, void 0, true, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+      lineNumber: 204,
+      columnNumber: 7
+    }, this),
+    missions.length > 0 && /* @__PURE__ */ jsxDEV("div", { className: "px-4 pb-4", children: [
+      /* @__PURE__ */ jsxDEV("p", { className: "text-xs font-medium mb-2", style: { color: "#6b7280" }, children: "SAVED MISSIONS" }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+        lineNumber: 220,
+        columnNumber: 11
+      }, this),
+      missions.slice(0, 5).map(
+        (m) => /* @__PURE__ */ jsxDEV(
+          "div",
+          {
+            className: "flex items-center gap-2 py-1.5 border-b text-xs",
+            style: { borderColor: "var(--da-border)" },
+            children: [
+              /* @__PURE__ */ jsxDEV("span", { className: "flex-1 truncate", style: { color: "#94a3b8" }, children: m.name }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                lineNumber: 224,
+                columnNumber: 15
+              }, this),
+              /* @__PURE__ */ jsxDEV("span", { className: "da-badge shrink-0", style: {
+                background: m.status === "planning" ? "rgba(107,114,128,0.2)" : "rgba(34,197,94,0.15)",
+                color: m.status === "planning" ? "#6b7280" : "#22c55e"
+              }, children: m.status }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                lineNumber: 225,
+                columnNumber: 15
+              }, this),
+              /* @__PURE__ */ jsxDEV(
+                "button",
+                {
+                  onClick: () => load(m.id),
+                  disabled: loading,
+                  title: "Load into editor",
+                  className: "shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors",
+                  style: { background: "rgba(59,130,246,0.12)", color: "#3b82f6" },
+                  children: [
+                    /* @__PURE__ */ jsxDEV(FolderOpen, { size: 10 }, void 0, false, {
+                      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                      lineNumber: 235,
+                      columnNumber: 17
+                    }, this),
+                    "Load"
+                  ]
+                },
+                void 0,
+                true,
+                {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+                  lineNumber: 229,
+                  columnNumber: 15
+                },
+                this
+              )
+            ]
+          },
+          m.id,
+          true,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 222,
+            columnNumber: 9
+          },
+          this
+        )
+      )
+    ] }, void 0, true, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+      lineNumber: 219,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+    lineNumber: 89,
+    columnNumber: 5
+  }, this);
+}
+_s(MissionEditor, "9oU85BVtWBkWaQy14f9RbVZCZ2M=", false, function() {
+  return [useMissionStore, useFleetStore, useVesselStore];
+});
+_c = MissionEditor;
+function WaypointRow({ wp, idx, onRemove }) {
+  return /* @__PURE__ */ jsxDEV(
+    "div",
+    {
+      className: "flex items-center gap-2 px-2 py-1.5 rounded text-xs group",
+      style: { background: "rgba(255,255,255,0.02)" },
+      children: [
+        /* @__PURE__ */ jsxDEV(
+          "span",
+          {
+            className: "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
+            style: { background: wp.is_home ? "#22c55e" : "#3b82f6", color: "white" },
+            children: wp.is_home ? "H" : wp.sequence
+          },
+          void 0,
+          false,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 250,
+            columnNumber: 7
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV("div", { className: "flex-1 min-w-0", children: [
+          /* @__PURE__ */ jsxDEV("span", { className: "mono", style: { color: "#94a3b8" }, children: [
+            wp.latitude.toFixed(4),
+            ", ",
+            wp.longitude.toFixed(4)
+          ] }, void 0, true, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 255,
+            columnNumber: 9
+          }, this),
+          /* @__PURE__ */ jsxDEV("span", { className: "ml-2", style: { color: "#4b5563" }, children: [
+            wp.altitude_m,
+            "m ",
+            wp.altitude_ref
+          ] }, void 0, true, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 258,
+            columnNumber: 9
+          }, this)
+        ] }, void 0, true, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+          lineNumber: 254,
+          columnNumber: 7
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: onRemove,
+            className: "opacity-0 group-hover:opacity-100 transition-opacity",
+            style: { color: "#ef4444" },
+            children: /* @__PURE__ */ jsxDEV(Trash2, { size: 12 }, void 0, false, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+              lineNumber: 263,
+              columnNumber: 9
+            }, this)
+          },
+          void 0,
+          false,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+            lineNumber: 260,
+            columnNumber: 7
+          },
+          this
+        )
+      ]
+    },
+    void 0,
+    true,
+    {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx",
+      lineNumber: 248,
+      columnNumber: 5
+    },
+    this
+  );
+}
+_c2 = WaypointRow;
+var _c, _c2;
+$RefreshReg$(_c, "MissionEditor");
+$RefreshReg$(_c2, "WaypointRow");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Plan/MissionEditor.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,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SnhGO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFLQTtBQUFBLFFBQ0E7QUFBQSxVQUFDO0FBQUE7QUFBQSxZQUFPLFNBQVNMO0FBQUFBLFlBQ2YsV0FBVTtBQUFBLFlBQ1YsT0FBTyxFQUFFMUIsT0FBTyxVQUFVO0FBQUEsWUFDMUIsaUNBQUMsVUFBTyxNQUFNLE1BQWQ7QUFBQTtBQUFBO0FBQUE7QUFBQSxtQkFBaUI7QUFBQTtBQUFBLFVBSG5CO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxRQUlBO0FBQUE7QUFBQTtBQUFBLElBaEJGO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxFQWlCQTtBQUVKO0FBQUNnQyxNQXJCUVI7QUFBVyxJQUFBUyxJQUFBRDtBQUFBLGFBQUFDLElBQUE7QUFBQSxhQUFBRCxLQUFBIiwibmFtZXMiOlsidXNlU3RhdGUiLCJTYXZlIiwiVHJhc2gyIiwiUGxheSIsIkFuY2hvciIsIkZvbGRlck9wZW4iLCJ1c2VNaXNzaW9uU3RvcmUiLCJ1c2VGbGVldFN0b3JlIiwidXNlVmVzc2VsU3RvcmUiLCJkcm9uZUZsaWdodEFwaSIsIk1pc3Npb25FZGl0b3IiLCJfcyIsImRyYWZ0V2F5cG9pbnRzIiwiZ2VvZmVuY2UiLCJtaXNzaW9ucyIsInNhdmVNaXNzaW9uIiwicmVtb3ZlV2F5cG9pbnQiLCJsb2FkTWlzc2lvbiIsImluc3RhbmNlcyIsInZlc3NlbHMiLCJuYW1lIiwic2V0TmFtZSIsInR5cGUiLCJzZXRUeXBlIiwiZHJvbmVJZCIsInNldERyb25lSWQiLCJob21lVHlwZSIsInNldEhvbWVUeXBlIiwiaG9tZVZlc3NlbElkIiwic2V0SG9tZVZlc3NlbElkIiwic2F2aW5nIiwic2V0U2F2aW5nIiwibG9hZGluZyIsInNldExvYWRpbmciLCJzdW1tYXJ5Iiwic2V0U3VtbWFyeSIsImVyciIsInNldEVyciIsImVzdGltYXRlIiwibGVuZ3RoIiwiZGF0YSIsIm0iLCJjcmVhdGVNaXNzaW9uIiwid2F5cG9pbnRzIiwicyIsImdldE1pc3Npb25TdW1tYXJ5IiwiaWQiLCJkZWxldGVNaXNzaW9uIiwibG9hZCIsIm1ldGEiLCJtaXNzaW9uX3R5cGUiLCJkcm9uZV9pbnN0YW5jZV9pZCIsInVuZGVmaW5lZCIsImhvbWVfcG9pbnRfdHlwZSIsImhvbWVfdmVzc2VsX2lkIiwic2F2ZSIsInRyaW0iLCJlIiwicmVzcG9uc2UiLCJkZXRhaWwiLCJib3JkZXJCb3R0b20iLCJjb2xvciIsInRhcmdldCIsInZhbHVlIiwibWFwIiwidCIsIk51bWJlciIsImQiLCJjYWxsX3NpZ24iLCJiYWNrZ3JvdW5kIiwiYm9yZGVyIiwidiIsInZlc3NlbF9pZCIsImxhdGl0dWRlIiwiZmluZCIsInRvdGFsX2Rpc3RhbmNlX2ttIiwiZXN0aW1hdGVkX2ZsaWdodF90aW1lX21pbiIsImVzdGltYXRlZF9iYXR0ZXJ5X3BjdCIsIndwIiwiaSIsInNlcXVlbmNlIiwiYm9yZGVyVG9wIiwic2xpY2UiLCJib3JkZXJDb2xvciIsInN0YXR1cyIsIldheXBvaW50Um93IiwiaWR4Iiwib25SZW1vdmUiLCJpc19ob21lIiwidG9GaXhlZCIsImxvbmdpdHVkZSIsImFsdGl0dWRlX20iLCJhbHRpdHVkZV9yZWYiLCJfYzIiLCJfYyJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJNaXNzaW9uRWRpdG9yLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgeyB1c2VTdGF0ZSB9IGZyb20gJ3JlYWN0J1xyXG5pbXBvcnQgeyBTYXZlLCBUcmFzaDIsIFBsYXksIEFuY2hvciwgRm9sZGVyT3BlbiB9IGZyb20gJ2x1Y2lkZS1yZWFjdCdcclxuaW1wb3J0IHsgdXNlTWlzc2lvblN0b3JlIH0gZnJvbSAnQC9zdG9yZS9taXNzaW9uU3RvcmUnXHJcbmltcG9ydCB7IHVzZUZsZWV0U3RvcmUgfSBmcm9tICdAL3N0b3JlL2ZsZWV0U3RvcmUnXHJcbmltcG9ydCB7IHVzZVZlc3NlbFN0b3JlIH0gZnJvbSAnQC9zdG9yZS92ZXNzZWxTdG9yZSdcclxuaW1wb3J0IHsgZHJvbmVGbGlnaHRBcGkgfSBmcm9tICdAL2FwaS9kcm9uZUZsaWdodCdcclxuXHJcbmV4cG9ydCBkZWZhdWx0IGZ1bmN0aW9uIE1pc3Npb25FZGl0b3IoKSB7XHJcbiAgY29uc3QgeyBkcmFmdFdheXBvaW50cywgZ2VvZmVuY2UsIG1pc3Npb25zLCBzYXZlTWlzc2lvbiwgcmVtb3ZlV2F5cG9pbnQsIGxvYWRNaXNzaW9uIH0gPSB1c2VNaXNzaW9uU3RvcmUoKVxyXG4gIGNvbnN0IHsgaW5zdGFuY2VzIH0gPSB1c2VGbGVldFN0b3JlKClcclxuICBjb25zdCB7IHZlc3NlbHMgfSA9IHVzZVZlc3NlbFN0b3JlKClcclxuXHJcbiAgY29uc3QgW25hbWUsIHNldE5hbWVdICAgICAgICAgICAgICAgPSB1c2VTdGF0ZSgnJylcclxuICBjb25zdCBbdHlwZSwgc2V0VHlwZV0gICAgICAgICAgICAgICA9IHVzZVN0YXRlKCdJU1InKVxyXG4gIGNvbnN0IFtkcm9uZUlkLCBzZXREcm9uZUlkXSAgICAgICAgID0gdXNlU3RhdGU8bnVtYmVyIHwgdW5kZWZpbmVkPigpXHJcbiAgY29uc3QgW2hvbWVUeXBlLCBzZXRIb21lVHlwZV0gICAgICAgPSB1c2VTdGF0ZTwnZml4ZWQnIHwgJ2R5bmFtaWNfdmVzc2VsJz4oJ2ZpeGVkJylcclxuICBjb25zdCBbaG9tZVZlc3NlbElkLCBzZXRIb21lVmVzc2VsSWRdID0gdXNlU3RhdGU8bnVtYmVyIHwgdW5kZWZpbmVkPigpXHJcbiAgY29uc3QgW3NhdmluZywgc2V0U2F2aW5nXSAgICAgICAgICAgPSB1c2VTdGF0ZShmYWxzZSlcclxuICBjb25zdCBbbG9hZGluZywgc2V0TG9hZGluZ10gICAgICAgICA9IHVzZVN0YXRlKGZhbHNlKVxyXG4gIGNvbnN0IFtzdW1tYXJ5LCBzZXRTdW1tYXJ5XSAgICAgICAgID0gdXNlU3RhdGU8YW55PihudWxsKVxyXG4gIGNvbnN0IFtlcnIsIHNldEVycl0gICAgICAgICAgICAgICAgID0gdXNlU3RhdGUoJycpXHJcblxyXG4gIC8vIEVzdGltYXRlIHN1bW1hcnkgZnJvbSBkcmFmdFxyXG4gIGNvbnN0IGVzdGltYXRlID0gYXN5bmMgKCkgPT4ge1xyXG4gICAgaWYgKGRyYWZ0V2F5cG9pbnRzLmxlbmd0aCA8IDIpIHJldHVyblxyXG4gICAgLy8gU2F2ZSB0ZW1wIG1pc3Npb24gdG8gZ2V0IHNlcnZlci1zaWRlIGNhbGN1bGF0aW9uXHJcbiAgICB0cnkge1xyXG4gICAgICBjb25zdCB7IGRhdGE6IG0gfSA9IGF3YWl0IGRyb25lRmxpZ2h0QXBpLmNyZWF0ZU1pc3Npb24oe1xyXG4gICAgICAgIG5hbWU6ICdfcHJldmlldycsIHdheXBvaW50czogZHJhZnRXYXlwb2ludHMsXHJcbiAgICAgIH0pXHJcbiAgICAgIGNvbnN0IHsgZGF0YTogcyB9ID0gYXdhaXQgZHJvbmVGbGlnaHRBcGkuZ2V0TWlzc2lvblN1bW1hcnkobS5pZClcclxuICAgICAgc2V0U3VtbWFyeShzKVxyXG4gICAgICBhd2FpdCBkcm9uZUZsaWdodEFwaS5kZWxldGVNaXNzaW9uKG0uaWQpXHJcbiAgICB9IGNhdGNoIHsgLyogaWdub3JlICovIH1cclxuICB9XHJcblxyXG4gIGNvbnN0IGxvYWQgPSBhc3luYyAoaWQ6IG51bWJlcikgPT4ge1xyXG4gICAgc2V0TG9hZGluZyh0cnVlKTsgc2V0RXJyKCcnKTsgc2V0U3VtbWFyeShudWxsKVxyXG4gICAgdHJ5IHtcclxuICAgICAgY29uc3QgbWV0YSA9IGF3YWl0IGxvYWRNaXNzaW9uKGlkKVxyXG4gICAgICBzZXROYW1lKG1ldGEubmFtZSlcclxuICAgICAgc2V0VHlwZShtZXRhLm1pc3Npb25fdHlwZSlcclxuICAgICAgc2V0RHJvbmVJZChtZXRhLmRyb25lX2luc3RhbmNlX2lkID8/IHVuZGVmaW5lZClcclxuICAgICAgc2V0SG9tZVR5cGUoKG1ldGEuaG9tZV9wb2ludF90eXBlIGFzICdmaXhlZCcgfCAnZHluYW1pY192ZXNzZWwnKSA/PyAnZml4ZWQnKVxyXG4gICAgICBzZXRIb21lVmVzc2VsSWQobWV0YS5ob21lX3Zlc3NlbF9pZCA/PyB1bmRlZmluZWQpXHJcbiAgICB9IGNhdGNoIHtcclxuICAgICAgc2V0RXJyKCdGYWlsZWQgdG8gbG9hZCBtaXNzaW9uJylcclxuICAgIH0gZmluYWxseSB7XHJcbiAgICAgIHNldExvYWRpbmcoZmFsc2UpXHJcbiAgICB9XHJcbiAgfVxyXG5cclxuICBjb25zdCBzYXZlID0gYXN5bmMgKCkgPT4ge1xyXG4gICAgaWYgKCFuYW1lLnRyaW0oKSB8fCBkcmFmdFdheXBvaW50cy5sZW5ndGggPT09IDApIHJldHVyblxyXG4gICAgaWYgKGhvbWVUeXBlID09PSAnZHluYW1pY192ZXNzZWwnICYmICFob21lVmVzc2VsSWQpIHtcclxuICAgICAgc2V0RXJyKCdTZWxlY3QgYSBob21lIHZlc3NlbCBmb3Igc2hpcC1iYXNlZCBvcGVyYXRpb25zJyk7IHJldHVyblxyXG4gICAgfVxyXG4gICAgc2V0U2F2aW5nKHRydWUpOyBzZXRFcnIoJycpXHJcbiAgICB0cnkge1xyXG4gICAgICBhd2FpdCBzYXZlTWlzc2lvbihuYW1lLCB0eXBlLCBkcm9uZUlkLCBob21lVHlwZSwgaG9tZVZlc3NlbElkKVxyXG4gICAgICBzZXROYW1lKCcnKVxyXG4gICAgfSBjYXRjaCAoZTogYW55KSB7XHJcbiAgICAgIHNldEVycihlLnJlc3BvbnNlPy5kYXRhPy5kZXRhaWwgPz8gJ1NhdmUgZmFpbGVkJylcclxuICAgIH0gZmluYWxseSB7XHJcbiAgICAgIHNldFNhdmluZyhmYWxzZSlcclxuICAgIH1cclxuICB9XHJcblxyXG4gIHJldHVybiAoXHJcbiAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggZmxleC1jb2wgaC1mdWxsXCI+XHJcbiAgICAgIHsvKiBQYW5lbCBoZWFkZXIgKi99XHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwicHgtNCBweS0zXCIgc3R5bGU9e3sgYm9yZGVyQm90dG9tOiAnMXB4IHNvbGlkIHZhcigtLWRhLWJvcmRlciknIH19PlxyXG4gICAgICAgIDxoMyBjbGFzc05hbWU9XCJ0ZXh0LXNtIGZvbnQtc2VtaWJvbGRcIj5NaXNzaW9uIEVkaXRvcjwvaDM+XHJcbiAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC14cyBtdC0wLjVcIiBzdHlsZT17eyBjb2xvcjogJyM2YjcyODAnIH19PlxyXG4gICAgICAgICAge2xvYWRpbmcgPyAnTG9hZGluZyBtaXNzaW9uLi4uJyA6IGAke2RyYWZ0V2F5cG9pbnRzLmxlbmd0aH0gd2F5cG9pbnRzIC0gJHtnZW9mZW5jZS5sZW5ndGh9IGdlb2ZlbmNlIHZlcnRpY2VzYH1cclxuICAgICAgICA8L3A+XHJcbiAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgey8qIE1pc3Npb24gbWV0YSAqL31cclxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJwLTQgZmxleCBmbGV4LWNvbCBnYXAtM1wiIHN0eWxlPXt7IGJvcmRlckJvdHRvbTogJzFweCBzb2xpZCB2YXIoLS1kYS1ib3JkZXIpJyB9fT5cclxuICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwiZmxleCBmbGV4LWNvbCBnYXAtMVwiPlxyXG4gICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC14c1wiIHN0eWxlPXt7IGNvbG9yOiAnIzk0YTNiOCcgfX0+TUlTU0lPTiBOQU1FPC9zcGFuPlxyXG4gICAgICAgICAgPGlucHV0IGNsYXNzTmFtZT1cImRhLWlucHV0XCIgcGxhY2Vob2xkZXI9XCJBTFBIQS03XCIgdmFsdWU9e25hbWV9XHJcbiAgICAgICAgICAgIG9uQ2hhbmdlPXtlID0+IHNldE5hbWUoZS50YXJnZXQudmFsdWUpfSAvPlxyXG4gICAgICAgIDwvbGFiZWw+XHJcblxyXG4gICAgICAgIDxsYWJlbCBjbGFzc05hbWU9XCJmbGV4IGZsZXgtY29sIGdhcC0xXCI+XHJcbiAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzXCIgc3R5bGU9e3sgY29sb3I6ICcjOTRhM2I4JyB9fT5UWVBFPC9zcGFuPlxyXG4gICAgICAgICAgPHNlbGVjdCBjbGFzc05hbWU9XCJkYS1pbnB1dFwiIHZhbHVlPXt0eXBlfSBvbkNoYW5nZT17ZSA9PiBzZXRUeXBlKGUudGFyZ2V0LnZhbHVlKX0+XHJcbiAgICAgICAgICAgIHtbJ0lTUicsICdTdHJpa2UnLCAnUGF0cm9sJywgJ0xvZ2lzdGljcycsICdTQVInLCAnVHJhaW5pbmcnXS5tYXAodCA9PiAoXHJcbiAgICAgICAgICAgICAgPG9wdGlvbiBrZXk9e3R9Pnt0fTwvb3B0aW9uPlxyXG4gICAgICAgICAgICApKX1cclxuICAgICAgICAgIDwvc2VsZWN0PlxyXG4gICAgICAgIDwvbGFiZWw+XHJcblxyXG4gICAgICAgIDxsYWJlbCBjbGFzc05hbWU9XCJmbGV4IGZsZXgtY29sIGdhcC0xXCI+XHJcbiAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzXCIgc3R5bGU9e3sgY29sb3I6ICcjOTRhM2I4JyB9fT5BU1NJR04gRFJPTkU8L3NwYW4+XHJcbiAgICAgICAgICA8c2VsZWN0IGNsYXNzTmFtZT1cImRhLWlucHV0XCIgdmFsdWU9e2Ryb25lSWQgPz8gJyd9XHJcbiAgICAgICAgICAgIG9uQ2hhbmdlPXtlID0+IHNldERyb25lSWQoZS50YXJnZXQudmFsdWUgPyBOdW1iZXIoZS50YXJnZXQudmFsdWUpIDogdW5kZWZpbmVkKX0+XHJcbiAgICAgICAgICAgIDxvcHRpb24gdmFsdWU9XCJcIj7igJQgVW5hc3NpZ25lZCDigJQ8L29wdGlvbj5cclxuICAgICAgICAgICAge2luc3RhbmNlcy5tYXAoZCA9PiAoXHJcbiAgICAgICAgICAgICAgPG9wdGlvbiBrZXk9e2QuaWR9IHZhbHVlPXtkLmlkfT57ZC5jYWxsX3NpZ259PC9vcHRpb24+XHJcbiAgICAgICAgICAgICkpfVxyXG4gICAgICAgICAgPC9zZWxlY3Q+XHJcbiAgICAgICAgPC9sYWJlbD5cclxuXHJcbiAgICAgICAgey8qIEhvbWUgcG9pbnQgdHlwZSAqL31cclxuICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwiZmxleCBmbGV4LWNvbCBnYXAtMVwiPlxyXG4gICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC14c1wiIHN0eWxlPXt7IGNvbG9yOiAnIzk0YTNiOCcgfX0+SE9NRSBQT0lOVDwvc3Bhbj5cclxuICAgICAgICAgIDxzZWxlY3QgY2xhc3NOYW1lPVwiZGEtaW5wdXRcIiB2YWx1ZT17aG9tZVR5cGV9XHJcbiAgICAgICAgICAgIG9uQ2hhbmdlPXtlID0+IHtcclxuICAgICAgICAgICAgICBzZXRIb21lVHlwZShlLnRhcmdldC52YWx1ZSBhcyBhbnkpXHJcbiAgICAgICAgICAgICAgaWYgKGUudGFyZ2V0LnZhbHVlID09PSAnZml4ZWQnKSBzZXRIb21lVmVzc2VsSWQodW5kZWZpbmVkKVxyXG4gICAgICAgICAgICB9fT5cclxuICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT1cImZpeGVkXCI+Rml4ZWQgKGdyb3VuZCBiYXNlKTwvb3B0aW9uPlxyXG4gICAgICAgICAgICA8b3B0aW9uIHZhbHVlPVwiZHluYW1pY192ZXNzZWxcIj5EeW5hbWljIOKAlCBSZXR1cm4gdG8gU2hpcCAoSEYpPC9vcHRpb24+XHJcbiAgICAgICAgICA8L3NlbGVjdD5cclxuICAgICAgICA8L2xhYmVsPlxyXG5cclxuICAgICAgICB7aG9tZVR5cGUgPT09ICdkeW5hbWljX3Zlc3NlbCcgJiYgKFxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGZsZXgtY29sIGdhcC0yIHAtMyByb3VuZGVkXCJcclxuICAgICAgICAgICAgc3R5bGU9e3sgYmFja2dyb3VuZDogJ3JnYmEoNiwxODIsMjEyLDAuMDcpJywgYm9yZGVyOiAnMXB4IHNvbGlkIHJnYmEoNiwxODIsMjEyLDAuMiknIH19PlxyXG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGdhcC0xLjUgbWItMVwiPlxyXG4gICAgICAgICAgICAgIDxBbmNob3Igc2l6ZT17MTJ9IHN0eWxlPXt7IGNvbG9yOiAnIzA2YjZkNCcgfX0gLz5cclxuICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzIGZvbnQtbWVkaXVtXCIgc3R5bGU9e3sgY29sb3I6ICcjMDZiNmQ0JyB9fT5Ib21lIFZlc3NlbDwvc3Bhbj5cclxuICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgIDxzZWxlY3QgY2xhc3NOYW1lPVwiZGEtaW5wdXRcIiB2YWx1ZT17aG9tZVZlc3NlbElkID8/ICcnfVxyXG4gICAgICAgICAgICAgIG9uQ2hhbmdlPXtlID0+IHNldEhvbWVWZXNzZWxJZChlLnRhcmdldC52YWx1ZSA/IE51bWJlcihlLnRhcmdldC52YWx1ZSkgOiB1bmRlZmluZWQpfT5cclxuICAgICAgICAgICAgICA8b3B0aW9uIHZhbHVlPVwiXCI+4oCUIFNlbGVjdCB2ZXNzZWwg4oCUPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAge3Zlc3NlbHMubWFwKHYgPT4gKFxyXG4gICAgICAgICAgICAgICAgPG9wdGlvbiBrZXk9e3YuaWR9IHZhbHVlPXt2LmlkfT5cclxuICAgICAgICAgICAgICAgICAge3YudmVzc2VsX2lkfSDigJQge3YubmFtZX1cclxuICAgICAgICAgICAgICAgICAge3YubGF0aXR1ZGUgIT0gbnVsbCA/IGAgKHBvcyBrbm93bilgIDogJyAobm8gcG9zaXRpb24pJ31cclxuICAgICAgICAgICAgICAgIDwvb3B0aW9uPlxyXG4gICAgICAgICAgICAgICkpfVxyXG4gICAgICAgICAgICA8L3NlbGVjdD5cclxuICAgICAgICAgICAge3Zlc3NlbHMubGVuZ3RoID09PSAwICYmIChcclxuICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LVsxMXB4XVwiIHN0eWxlPXt7IGNvbG9yOiAnI2Y1OWUwYicgfX0+XHJcbiAgICAgICAgICAgICAgICBObyB2ZXNzZWxzIHJlZ2lzdGVyZWQuIEFkZCBvbmUgaW4gU2V0dGluZ3Mg4oaSIE5hdmFsIFZlc3NlbHMuXHJcbiAgICAgICAgICAgICAgPC9wPlxyXG4gICAgICAgICAgICApfVxyXG4gICAgICAgICAgICB7aG9tZVZlc3NlbElkICYmIHZlc3NlbHMuZmluZCh2ID0+IHYuaWQgPT09IGhvbWVWZXNzZWxJZCk/LmxhdGl0dWRlID09IG51bGwgJiYgKFxyXG4gICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtWzExcHhdXCIgc3R5bGU9e3sgY29sb3I6ICcjZjU5ZTBiJyB9fT5cclxuICAgICAgICAgICAgICAgIFZlc3NlbCBoYXMgbm8gY3VycmVudCBwb3NpdGlvbiDigJQgcmFuZ2UgZXN0aW1hdGlvbiB3aWxsIGJlIHVuYXZhaWxhYmxlLlxyXG4gICAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgICAgKX1cclxuICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1bMTFweF1cIiBzdHlsZT17eyBjb2xvcjogJyM0YjU1NjMnIH19PlxyXG4gICAgICAgICAgICAgIEhvbWUgd2F5cG9pbnQgd2lsbCBiZSBzZXQgdG8gdGhlIHZlc3NlbCdzIGN1cnJlbnQgR1BTIHBvc2l0aW9uIGF0IHVwbG9hZCB0aW1lLlxyXG4gICAgICAgICAgICAgIFRoZSByZXR1cm4gY29vcmRpbmF0ZSB1cGRhdGVzIGNvbnRpbnVvdXNseSB2aWEgdGhlIEhGIHBvc2l0aW9uIGZlZWQuXHJcbiAgICAgICAgICAgIDwvcD5cclxuICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICl9XHJcbiAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgey8qIFN1bW1hcnkgZXN0aW1hdGUgKi99XHJcbiAgICAgIHtzdW1tYXJ5ICYmIChcclxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cIm14LTQgbXQtMyBwLTMgcm91bmRlZCB0ZXh0LXhzIGdyaWQgZ3JpZC1jb2xzLTIgZ2FwLTJcIlxyXG4gICAgICAgICAgc3R5bGU9e3sgYmFja2dyb3VuZDogJ3JnYmEoNTksMTMwLDI0NiwwLjA4KScsIGJvcmRlcjogJzFweCBzb2xpZCByZ2JhKDU5LDEzMCwyNDYsMC4yKScgfX0+XHJcbiAgICAgICAgICA8c3BhbiBzdHlsZT17eyBjb2xvcjogJyM2YjcyODAnIH19PkRpc3RhbmNlPC9zcGFuPlxyXG4gICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwibW9ubyB0ZXh0LXJpZ2h0XCI+e3N1bW1hcnkudG90YWxfZGlzdGFuY2Vfa219IGttPC9zcGFuPlxyXG4gICAgICAgICAgPHNwYW4gc3R5bGU9e3sgY29sb3I6ICcjNmI3MjgwJyB9fT5Fc3QuIHRpbWU8L3NwYW4+XHJcbiAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJtb25vIHRleHQtcmlnaHRcIj57c3VtbWFyeS5lc3RpbWF0ZWRfZmxpZ2h0X3RpbWVfbWlufSBtaW48L3NwYW4+XHJcbiAgICAgICAgICA8c3BhbiBzdHlsZT17eyBjb2xvcjogJyM2YjcyODAnIH19PkJhdHRlcnkgZXN0Ljwvc3Bhbj5cclxuICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cIm1vbm8gdGV4dC1yaWdodFwiIHN0eWxlPXt7IGNvbG9yOiBzdW1tYXJ5LmVzdGltYXRlZF9iYXR0ZXJ5X3BjdCA+IDgwID8gJyNlZjQ0NDQnIDogJyM5NGEzYjgnIH19PlxyXG4gICAgICAgICAgICB7c3VtbWFyeS5lc3RpbWF0ZWRfYmF0dGVyeV9wY3R9JVxyXG4gICAgICAgICAgPC9zcGFuPlxyXG4gICAgICAgIDwvZGl2PlxyXG4gICAgICApfVxyXG5cclxuICAgICAgey8qIFdheXBvaW50IGxpc3QgKi99XHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleC0xIG92ZXJmbG93LXktYXV0byBweC00IHB5LTMgZmxleCBmbGV4LWNvbCBnYXAtMVwiPlxyXG4gICAgICAgIHtkcmFmdFdheXBvaW50cy5sZW5ndGggPT09IDAgPyAoXHJcbiAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LXhzIHRleHQtY2VudGVyIHB5LThcIiBzdHlsZT17eyBjb2xvcjogJyMzNzQxNTEnIH19PlxyXG4gICAgICAgICAgICBDbGljayB0aGUgbWFwIHRvIGFkZCB3YXlwb2ludHNcclxuICAgICAgICAgIDwvcD5cclxuICAgICAgICApIDogKFxyXG4gICAgICAgICAgZHJhZnRXYXlwb2ludHMubWFwKCh3cCwgaSkgPT4gKFxyXG4gICAgICAgICAgICA8V2F5cG9pbnRSb3cga2V5PXt3cC5zZXF1ZW5jZX0gd3A9e3dwfSBpZHg9e2l9XHJcbiAgICAgICAgICAgICAgb25SZW1vdmU9eygpID0+IHJlbW92ZVdheXBvaW50KHdwLnNlcXVlbmNlKX0gLz5cclxuICAgICAgICAgICkpXHJcbiAgICAgICAgKX1cclxuICAgICAgPC9kaXY+XHJcblxyXG4gICAgICB7LyogQWN0aW9uIGJ1dHRvbnMgKi99XHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwicC00IGZsZXggZmxleC1jb2wgZ2FwLTJcIiBzdHlsZT17eyBib3JkZXJUb3A6ICcxcHggc29saWQgdmFyKC0tZGEtYm9yZGVyKScgfX0+XHJcbiAgICAgICAge2VyciAmJiA8cCBjbGFzc05hbWU9XCJ0ZXh0LXhzXCIgc3R5bGU9e3sgY29sb3I6ICcjZWY0NDQ0JyB9fT57ZXJyfTwvcD59XHJcbiAgICAgICAgPGJ1dHRvbiBjbGFzc05hbWU9XCJkYS1idG4gZGEtYnRuLWdob3N0IGp1c3RpZnktY2VudGVyIHRleHQteHNcIlxyXG4gICAgICAgICAgb25DbGljaz17ZXN0aW1hdGV9IGRpc2FibGVkPXtkcmFmdFdheXBvaW50cy5sZW5ndGggPCAyfT5cclxuICAgICAgICAgIDxQbGF5IHNpemU9ezEyfSAvPiBFc3RpbWF0ZSBmbGlnaHRcclxuICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICA8YnV0dG9uIGNsYXNzTmFtZT1cImRhLWJ0biBkYS1idG4tcHJpbWFyeSBqdXN0aWZ5LWNlbnRlclwiXHJcbiAgICAgICAgICBvbkNsaWNrPXtzYXZlfSBkaXNhYmxlZD17c2F2aW5nIHx8ICFuYW1lIHx8IGRyYWZ0V2F5cG9pbnRzLmxlbmd0aCA9PT0gMH0+XHJcbiAgICAgICAgICA8U2F2ZSBzaXplPXsxNH0gLz5cclxuICAgICAgICAgIHtzYXZpbmcgPyAnU2F2aW5nLi4uJyA6ICdTYXZlIE1pc3Npb24nfVxyXG4gICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICA8L2Rpdj5cclxuXHJcbiAgICAgIHsvKiBTYXZlZCBtaXNzaW9ucyBsaXN0ICovfVxyXG4gICAgICB7bWlzc2lvbnMubGVuZ3RoID4gMCAmJiAoXHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJweC00IHBiLTRcIj5cclxuICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQteHMgZm9udC1tZWRpdW0gbWItMlwiIHN0eWxlPXt7IGNvbG9yOiAnIzZiNzI4MCcgfX0+U0FWRUQgTUlTU0lPTlM8L3A+XHJcbiAgICAgICAgICB7bWlzc2lvbnMuc2xpY2UoMCwgNSkubWFwKG0gPT4gKFxyXG4gICAgICAgICAgICA8ZGl2IGtleT17bS5pZH0gY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTIgcHktMS41IGJvcmRlci1iIHRleHQteHNcIlxyXG4gICAgICAgICAgICAgIHN0eWxlPXt7IGJvcmRlckNvbG9yOiAndmFyKC0tZGEtYm9yZGVyKScgfX0+XHJcbiAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwiZmxleC0xIHRydW5jYXRlXCIgc3R5bGU9e3sgY29sb3I6ICcjOTRhM2I4JyB9fT57bS5uYW1lfTwvc3Bhbj5cclxuICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJkYS1iYWRnZSBzaHJpbmstMFwiIHN0eWxlPXt7XHJcbiAgICAgICAgICAgICAgICBiYWNrZ3JvdW5kOiBtLnN0YXR1cyA9PT0gJ3BsYW5uaW5nJyA/ICdyZ2JhKDEwNywxMTQsMTI4LDAuMiknIDogJ3JnYmEoMzQsMTk3LDk0LDAuMTUpJyxcclxuICAgICAgICAgICAgICAgIGNvbG9yOiBtLnN0YXR1cyA9PT0gJ3BsYW5uaW5nJyA/ICcjNmI3MjgwJyA6ICcjMjJjNTVlJyxcclxuICAgICAgICAgICAgICB9fT57bS5zdGF0dXN9PC9zcGFuPlxyXG4gICAgICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgICAgIG9uQ2xpY2s9eygpID0+IGxvYWQobS5pZCl9XHJcbiAgICAgICAgICAgICAgICBkaXNhYmxlZD17bG9hZGluZ31cclxuICAgICAgICAgICAgICAgIHRpdGxlPVwiTG9hZCBpbnRvIGVkaXRvclwiXHJcbiAgICAgICAgICAgICAgICBjbGFzc05hbWU9XCJzaHJpbmstMCBmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMSBweC0xLjUgcHktMC41IHJvdW5kZWQgdGV4dC1bMTBweF0gdHJhbnNpdGlvbi1jb2xvcnNcIlxyXG4gICAgICAgICAgICAgICAgc3R5bGU9e3sgYmFja2dyb3VuZDogJ3JnYmEoNTksMTMwLDI0NiwwLjEyKScsIGNvbG9yOiAnIzNiODJmNicgfX0+XHJcbiAgICAgICAgICAgICAgICA8Rm9sZGVyT3BlbiBzaXplPXsxMH0gLz5cclxuICAgICAgICAgICAgICAgIExvYWRcclxuICAgICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICApKX1cclxuICAgICAgICA8L2Rpdj5cclxuICAgICAgKX1cclxuICAgIDwvZGl2PlxyXG4gIClcclxufVxyXG5cclxuZnVuY3Rpb24gV2F5cG9pbnRSb3coeyB3cCwgaWR4LCBvblJlbW92ZSB9OiB7IHdwOiBhbnk7IGlkeDogbnVtYmVyOyBvblJlbW92ZTogKCkgPT4gdm9pZCB9KSB7XHJcbiAgcmV0dXJuIChcclxuICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTIgcHgtMiBweS0xLjUgcm91bmRlZCB0ZXh0LXhzIGdyb3VwXCJcclxuICAgICAgc3R5bGU9e3sgYmFja2dyb3VuZDogJ3JnYmEoMjU1LDI1NSwyNTUsMC4wMiknIH19PlxyXG4gICAgICA8c3BhbiBjbGFzc05hbWU9XCJ3LTUgaC01IHJvdW5kZWQtZnVsbCBmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWNlbnRlciB0ZXh0LVsxMHB4XSBmb250LWJvbGQgc2hyaW5rLTBcIlxyXG4gICAgICAgIHN0eWxlPXt7IGJhY2tncm91bmQ6IHdwLmlzX2hvbWUgPyAnIzIyYzU1ZScgOiAnIzNiODJmNicsIGNvbG9yOiAnd2hpdGUnIH19PlxyXG4gICAgICAgIHt3cC5pc19ob21lID8gJ0gnIDogd3Auc2VxdWVuY2V9XHJcbiAgICAgIDwvc3Bhbj5cclxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4LTEgbWluLXctMFwiPlxyXG4gICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cIm1vbm9cIiBzdHlsZT17eyBjb2xvcjogJyM5NGEzYjgnIH19PlxyXG4gICAgICAgICAge3dwLmxhdGl0dWRlLnRvRml4ZWQoNCl9LCB7d3AubG9uZ2l0dWRlLnRvRml4ZWQoNCl9XHJcbiAgICAgICAgPC9zcGFuPlxyXG4gICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cIm1sLTJcIiBzdHlsZT17eyBjb2xvcjogJyM0YjU1NjMnIH19Pnt3cC5hbHRpdHVkZV9tfW0ge3dwLmFsdGl0dWRlX3JlZn08L3NwYW4+XHJcbiAgICAgIDwvZGl2PlxyXG4gICAgICA8YnV0dG9uIG9uQ2xpY2s9e29uUmVtb3ZlfVxyXG4gICAgICAgIGNsYXNzTmFtZT1cIm9wYWNpdHktMCBncm91cC1ob3ZlcjpvcGFjaXR5LTEwMCB0cmFuc2l0aW9uLW9wYWNpdHlcIlxyXG4gICAgICAgIHN0eWxlPXt7IGNvbG9yOiAnI2VmNDQ0NCcgfX0+XHJcbiAgICAgICAgPFRyYXNoMiBzaXplPXsxMn0gLz5cclxuICAgICAgPC9idXR0b24+XHJcbiAgICA8L2Rpdj5cclxuICApXHJcbn1cclxuIl0sImZpbGUiOiJDOi9Vc2Vycy9jaGFuZC9PbmVEcml2ZS9EZXNrdG9wL0Ryb25lLUFyanVuYS9mcm9udGVuZC9zcmMvd29ya3NwYWNlcy9QbGFuL01pc3Npb25FZGl0b3IudHN4In0=

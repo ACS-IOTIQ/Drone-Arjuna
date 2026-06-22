@@ -1,0 +1,289 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/workspaces/Monitor/TelemetryChart.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=f3682b40"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+var _s = $RefreshSig$();
+import __vite__cjsImport3_react from "/node_modules/.vite/deps/react.js?v=f3682b40"; const useState = __vite__cjsImport3_react["useState"];
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine
+} from "/node_modules/.vite/deps/recharts.js?v=f3682b40";
+import { useTelemetryStore } from "/src/store/telemetryStore.ts?t=1782056534296";
+const PARAMS = [
+  { key: "alt_agl", label: "Altitude AGL", color: "#3b82f6", unit: "m" },
+  { key: "groundspeed_ms", label: "Ground Speed", color: "#22c55e", unit: "m/s" },
+  {
+    key: "battery_remaining_pct",
+    label: "Battery",
+    color: "#f59e0b",
+    unit: "%",
+    warnThreshold: 25,
+    dangerThreshold: 15
+  },
+  { key: "climb_rate_ms", label: "Climb Rate", color: "#a78bfa", unit: "m/s" },
+  { key: "airspeed_ms", label: "Airspeed", color: "#2dd4bf", unit: "m/s" },
+  {
+    key: "rssi",
+    label: "RSSI",
+    color: "#fb923c",
+    unit: "",
+    dangerThreshold: 40
+  }
+];
+export default function TelemetryChart({ droneId, maxHistory = 120 }) {
+  _s();
+  const [activeParam, setActiveParam] = useState("alt_agl");
+  const history = useTelemetryStore((s) => s.history[droneId] ?? []);
+  const param = PARAMS.find((p) => p.key === activeParam) ?? PARAMS[0];
+  const step = Math.max(1, Math.floor(history.length / maxHistory));
+  const chartData = history.filter((_, i) => i % step === 0).map((f, i) => ({
+    t: i,
+    value: f[activeParam]
+  }));
+  const values = chartData.map((d) => d.value).filter((v) => v != null);
+  const minVal = values.length ? Math.min(...values) : 0;
+  const maxVal = values.length ? Math.max(...values) : 100;
+  const padding = (maxVal - minVal) * 0.15 || 10;
+  const yDomain = [
+    Math.floor(minVal - padding),
+    Math.ceil(maxVal + padding)
+  ];
+  return /* @__PURE__ */ jsxDEV("div", { className: "da-card p-4 flex flex-col gap-3", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between flex-wrap gap-2", children: [
+      /* @__PURE__ */ jsxDEV("h3", { className: "text-sm font-semibold", children: "Telemetry Chart" }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+        lineNumber: 80,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "flex flex-wrap gap-1", children: PARAMS.map(
+        (p) => /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => setActiveParam(p.key),
+            className: "da-btn text-xs py-0.5 px-2",
+            style: {
+              background: activeParam === p.key ? p.color + "22" : "transparent",
+              color: activeParam === p.key ? p.color : "#6b7280",
+              border: `1px solid ${activeParam === p.key ? p.color + "55" : "var(--da-border)"}`
+            },
+            children: p.label
+          },
+          p.key,
+          false,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+            lineNumber: 83,
+            columnNumber: 11
+          },
+          this
+        )
+      ) }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+        lineNumber: 81,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+      lineNumber: 79,
+      columnNumber: 7
+    }, this),
+    chartData.length > 0 && /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "w-2 h-2 rounded-full animate-pulse", style: { background: param.color } }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+        lineNumber: 100,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("span", { className: "text-xs mono", style: { color: param.color }, children: [
+        chartData[chartData.length - 1]?.value?.toFixed(2),
+        param.unit
+      ] }, void 0, true, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+        lineNumber: 101,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("span", { className: "text-xs", style: { color: "#4b5563" }, children: "live" }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+        lineNumber: 104,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+      lineNumber: 99,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { style: { height: 200 }, children: chartData.length < 2 ? /* @__PURE__ */ jsxDEV(
+      "div",
+      {
+        className: "h-full flex items-center justify-center",
+        style: { color: "#374151", fontSize: 13 },
+        children: "Waiting for telemetry data…"
+      },
+      void 0,
+      false,
+      {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+        lineNumber: 111,
+        columnNumber: 9
+      },
+      this
+    ) : /* @__PURE__ */ jsxDEV(ResponsiveContainer, { width: "100%", height: "100%", children: /* @__PURE__ */ jsxDEV(LineChart, { data: chartData, margin: { top: 4, right: 8, left: 0, bottom: 0 }, children: [
+      /* @__PURE__ */ jsxDEV(CartesianGrid, { strokeDasharray: "3 3", stroke: "var(--da-border)" }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+        lineNumber: 118,
+        columnNumber: 15
+      }, this),
+      /* @__PURE__ */ jsxDEV(XAxis, { dataKey: "t", hide: true }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+        lineNumber: 119,
+        columnNumber: 15
+      }, this),
+      /* @__PURE__ */ jsxDEV(
+        YAxis,
+        {
+          domain: yDomain,
+          width: 44,
+          tick: { fontSize: 10, fill: "#6b7280" },
+          tickFormatter: (v) => `${v}${param.unit}`
+        },
+        void 0,
+        false,
+        {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+          lineNumber: 120,
+          columnNumber: 15
+        },
+        this
+      ),
+      /* @__PURE__ */ jsxDEV(
+        Tooltip,
+        {
+          contentStyle: {
+            background: "var(--da-card)",
+            border: "1px solid var(--da-border)",
+            fontSize: 12,
+            borderRadius: 6
+          },
+          formatter: (v) => [`${v?.toFixed(2)}${param.unit}`, param.label],
+          labelFormatter: () => ""
+        },
+        void 0,
+        false,
+        {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+          lineNumber: 126,
+          columnNumber: 15
+        },
+        this
+      ),
+      param.warnThreshold !== void 0 && /* @__PURE__ */ jsxDEV(
+        ReferenceLine,
+        {
+          y: param.warnThreshold,
+          stroke: "#f59e0b",
+          strokeDasharray: "4 2",
+          strokeWidth: 0.8
+        },
+        void 0,
+        false,
+        {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+          lineNumber: 137,
+          columnNumber: 13
+        },
+        this
+      ),
+      param.dangerThreshold !== void 0 && /* @__PURE__ */ jsxDEV(
+        ReferenceLine,
+        {
+          y: param.dangerThreshold,
+          stroke: "#ef4444",
+          strokeDasharray: "4 2",
+          strokeWidth: 0.8
+        },
+        void 0,
+        false,
+        {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+          lineNumber: 141,
+          columnNumber: 13
+        },
+        this
+      ),
+      /* @__PURE__ */ jsxDEV(
+        Line,
+        {
+          type: "monotone",
+          dataKey: "value",
+          stroke: param.color,
+          dot: false,
+          strokeWidth: 1.5,
+          isAnimationActive: false
+        },
+        void 0,
+        false,
+        {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+          lineNumber: 144,
+          columnNumber: 15
+        },
+        this
+      )
+    ] }, void 0, true, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+      lineNumber: 117,
+      columnNumber: 13
+    }, this) }, void 0, false, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+      lineNumber: 116,
+      columnNumber: 9
+    }, this) }, void 0, false, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+      lineNumber: 109,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx",
+    lineNumber: 77,
+    columnNumber: 5
+  }, this);
+}
+_s(TelemetryChart, "5J9k1aeuSoZpP0uRlkYAj+bFKA4=", false, function() {
+  return [useTelemetryStore];
+});
+_c = TelemetryChart;
+var _c;
+$RefreshReg$(_c, "TelemetryChart");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/workspaces/Monitor/TelemetryChart.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,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QSxRQUFDO0FBQUE7QUFBQSxVQUFjLEdBQUdwQyxNQUFNVjtBQUFBQSxVQUFlLFFBQU87QUFBQSxVQUM1QyxpQkFBZ0I7QUFBQSxVQUFNLGFBQWE7QUFBQTtBQUFBLFFBRHJDO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxNQUN5QztBQUFBLE1BRTFDVSxNQUFNVCxvQkFBb0I2QyxVQUN6QjtBQUFBLFFBQUM7QUFBQTtBQUFBLFVBQWMsR0FBR3BDLE1BQU1UO0FBQUFBLFVBQWlCLFFBQU87QUFBQSxVQUM5QyxpQkFBZ0I7QUFBQSxVQUFNLGFBQWE7QUFBQTtBQUFBLFFBRHJDO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxNQUN5QztBQUFBLE1BRTNDO0FBQUEsUUFBQztBQUFBO0FBQUEsVUFDQyxNQUFLO0FBQUEsVUFDTCxTQUFRO0FBQUEsVUFDUixRQUFRUyxNQUFNWjtBQUFBQSxVQUNkLEtBQUs7QUFBQSxVQUNMLGFBQWE7QUFBQSxVQUNiLG1CQUFtQjtBQUFBO0FBQUEsUUFOckI7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLE1BTTJCO0FBQUEsU0FqQzdCO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0FtQ0EsS0FwQ0Y7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQXFDQSxLQTVDSjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBOENBO0FBQUEsT0E5RUY7QUFBQTtBQUFBO0FBQUE7QUFBQSxTQStFQTtBQUVKO0FBQUNPLEdBMUd1QkgsZ0JBQWM7QUFBQSxVQUVwQlIsaUJBQWlCO0FBQUE7QUFBQSxLQUZYUTtBQUFjLElBQUE2QztBQUFBLGFBQUFBLElBQUEiLCJuYW1lcyI6WyJ1c2VTdGF0ZSIsIkxpbmVDaGFydCIsIkxpbmUiLCJYQXhpcyIsIllBeGlzIiwiQ2FydGVzaWFuR3JpZCIsIlRvb2x0aXAiLCJSZXNwb25zaXZlQ29udGFpbmVyIiwiUmVmZXJlbmNlTGluZSIsInVzZVRlbGVtZXRyeVN0b3JlIiwiUEFSQU1TIiwia2V5IiwibGFiZWwiLCJjb2xvciIsInVuaXQiLCJ3YXJuVGhyZXNob2xkIiwiZGFuZ2VyVGhyZXNob2xkIiwiVGVsZW1ldHJ5Q2hhcnQiLCJkcm9uZUlkIiwibWF4SGlzdG9yeSIsIl9zIiwiYWN0aXZlUGFyYW0iLCJzZXRBY3RpdmVQYXJhbSIsImhpc3RvcnkiLCJzIiwicGFyYW0iLCJmaW5kIiwicCIsInN0ZXAiLCJNYXRoIiwibWF4IiwiZmxvb3IiLCJsZW5ndGgiLCJjaGFydERhdGEiLCJmaWx0ZXIiLCJfIiwiaSIsIm1hcCIsImYiLCJ0IiwidmFsdWUiLCJ2YWx1ZXMiLCJkIiwidiIsIm1pblZhbCIsIm1pbiIsIm1heFZhbCIsInBhZGRpbmciLCJ5RG9tYWluIiwiY2VpbCIsImJhY2tncm91bmQiLCJib3JkZXIiLCJ0b0ZpeGVkIiwiaGVpZ2h0IiwiZm9udFNpemUiLCJ0b3AiLCJyaWdodCIsImxlZnQiLCJib3R0b20iLCJmaWxsIiwiYm9yZGVyUmFkaXVzIiwidW5kZWZpbmVkIiwiX2MiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiVGVsZW1ldHJ5Q2hhcnQudHN4Il0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IHVzZVN0YXRlIH0gZnJvbSAncmVhY3QnXHJcbmltcG9ydCB7XHJcbiAgTGluZUNoYXJ0LCBMaW5lLCBYQXhpcywgWUF4aXMsIENhcnRlc2lhbkdyaWQsXHJcbiAgVG9vbHRpcCwgUmVzcG9uc2l2ZUNvbnRhaW5lciwgUmVmZXJlbmNlTGluZSxcclxufSBmcm9tICdyZWNoYXJ0cydcclxuaW1wb3J0IHsgdXNlVGVsZW1ldHJ5U3RvcmUgfSBmcm9tICdAL3N0b3JlL3RlbGVtZXRyeVN0b3JlJ1xyXG5cclxuaW50ZXJmYWNlIFBhcmFtRGVmIHtcclxuICBrZXk6ICAgc3RyaW5nXHJcbiAgbGFiZWw6IHN0cmluZ1xyXG4gIGNvbG9yOiBzdHJpbmdcclxuICB1bml0OiAgc3RyaW5nXHJcbiAgd2FyblRocmVzaG9sZD86IG51bWJlclxyXG4gIGRhbmdlclRocmVzaG9sZD86IG51bWJlclxyXG59XHJcblxyXG5jb25zdCBQQVJBTVM6IFBhcmFtRGVmW10gPSBbXHJcbiAgeyBrZXk6ICdhbHRfYWdsJywgICAgICAgICAgICAgICBsYWJlbDogJ0FsdGl0dWRlIEFHTCcsICBjb2xvcjogJyMzYjgyZjYnLCB1bml0OiAnbScgICB9LFxyXG4gIHsga2V5OiAnZ3JvdW5kc3BlZWRfbXMnLCAgICAgICAgbGFiZWw6ICdHcm91bmQgU3BlZWQnLCAgY29sb3I6ICcjMjJjNTVlJywgdW5pdDogJ20vcycgfSxcclxuICB7IGtleTogJ2JhdHRlcnlfcmVtYWluaW5nX3BjdCcsIGxhYmVsOiAnQmF0dGVyeScsICAgICAgIGNvbG9yOiAnI2Y1OWUwYicsIHVuaXQ6ICclJyxcclxuICAgIHdhcm5UaHJlc2hvbGQ6IDI1LCBkYW5nZXJUaHJlc2hvbGQ6IDE1IH0sXHJcbiAgeyBrZXk6ICdjbGltYl9yYXRlX21zJywgICAgICAgICBsYWJlbDogJ0NsaW1iIFJhdGUnLCAgICBjb2xvcjogJyNhNzhiZmEnLCB1bml0OiAnbS9zJyB9LFxyXG4gIHsga2V5OiAnYWlyc3BlZWRfbXMnLCAgICAgICAgICAgbGFiZWw6ICdBaXJzcGVlZCcsICAgICAgY29sb3I6ICcjMmRkNGJmJywgdW5pdDogJ20vcycgfSxcclxuICB7IGtleTogJ3Jzc2knLCAgICAgICAgICAgICAgICAgIGxhYmVsOiAnUlNTSScsICAgICAgICAgIGNvbG9yOiAnI2ZiOTIzYycsIHVuaXQ6ICcnLFxyXG4gICAgZGFuZ2VyVGhyZXNob2xkOiA0MCB9LFxyXG5dXHJcblxyXG5pbnRlcmZhY2UgUHJvcHMge1xyXG4gIGRyb25lSWQ6ICAgIG51bWJlclxyXG4gIG1heEhpc3Rvcnk/OiBudW1iZXIgICAvLyBwb2ludHMgdG8gZGlzcGxheSDigJQgZGVmYXVsdCAxMjBcclxufVxyXG5cclxuZXhwb3J0IGRlZmF1bHQgZnVuY3Rpb24gVGVsZW1ldHJ5Q2hhcnQoeyBkcm9uZUlkLCBtYXhIaXN0b3J5ID0gMTIwIH06IFByb3BzKSB7XHJcbiAgY29uc3QgW2FjdGl2ZVBhcmFtLCBzZXRBY3RpdmVQYXJhbV0gPSB1c2VTdGF0ZSgnYWx0X2FnbCcpXHJcbiAgY29uc3QgaGlzdG9yeSA9IHVzZVRlbGVtZXRyeVN0b3JlKHMgPT4gcy5oaXN0b3J5W2Ryb25lSWRdID8/IFtdKVxyXG5cclxuICBjb25zdCBwYXJhbSA9IFBBUkFNUy5maW5kKHAgPT4gcC5rZXkgPT09IGFjdGl2ZVBhcmFtKSA/PyBQQVJBTVNbMF1cclxuXHJcbiAgLy8gRG93bnNhbXBsZSB0byBtYXhIaXN0b3J5IHBvaW50c1xyXG4gIGNvbnN0IHN0ZXAgPSBNYXRoLm1heCgxLCBNYXRoLmZsb29yKGhpc3RvcnkubGVuZ3RoIC8gbWF4SGlzdG9yeSkpXHJcbiAgY29uc3QgY2hhcnREYXRhID0gaGlzdG9yeVxyXG4gICAgLmZpbHRlcigoXywgaSkgPT4gaSAlIHN0ZXAgPT09IDApXHJcbiAgICAubWFwKChmLCBpKSA9PiAoe1xyXG4gICAgICB0OiAgICAgaSxcclxuICAgICAgdmFsdWU6IChmIGFzIGFueSlbYWN0aXZlUGFyYW1dLFxyXG4gICAgfSkpXHJcblxyXG4gIGNvbnN0IHZhbHVlcyAgPSBjaGFydERhdGEubWFwKGQgPT4gZC52YWx1ZSkuZmlsdGVyKHYgPT4gdiAhPSBudWxsKVxyXG4gIGNvbnN0IG1pblZhbCAgPSB2YWx1ZXMubGVuZ3RoID8gTWF0aC5taW4oLi4udmFsdWVzKSA6IDBcclxuICBjb25zdCBtYXhWYWwgID0gdmFsdWVzLmxlbmd0aCA/IE1hdGgubWF4KC4uLnZhbHVlcykgOiAxMDBcclxuICBjb25zdCBwYWRkaW5nID0gKG1heFZhbCAtIG1pblZhbCkgKiAwLjE1IHx8IDEwXHJcbiAgY29uc3QgeURvbWFpbjogW251bWJlciwgbnVtYmVyXSA9IFtcclxuICAgIE1hdGguZmxvb3IobWluVmFsIC0gcGFkZGluZyksXHJcbiAgICBNYXRoLmNlaWwobWF4VmFsICArIHBhZGRpbmcpLFxyXG4gIF1cclxuXHJcbiAgcmV0dXJuIChcclxuICAgIDxkaXYgY2xhc3NOYW1lPVwiZGEtY2FyZCBwLTQgZmxleCBmbGV4LWNvbCBnYXAtM1wiPlxyXG4gICAgICB7LyogUGFyYW0gc2VsZWN0b3IgKi99XHJcbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIganVzdGlmeS1iZXR3ZWVuIGZsZXgtd3JhcCBnYXAtMlwiPlxyXG4gICAgICAgIDxoMyBjbGFzc05hbWU9XCJ0ZXh0LXNtIGZvbnQtc2VtaWJvbGRcIj5UZWxlbWV0cnkgQ2hhcnQ8L2gzPlxyXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBmbGV4LXdyYXAgZ2FwLTFcIj5cclxuICAgICAgICAgIHtQQVJBTVMubWFwKHAgPT4gKFxyXG4gICAgICAgICAgICA8YnV0dG9uIGtleT17cC5rZXl9XHJcbiAgICAgICAgICAgICAgb25DbGljaz17KCkgPT4gc2V0QWN0aXZlUGFyYW0ocC5rZXkpfVxyXG4gICAgICAgICAgICAgIGNsYXNzTmFtZT1cImRhLWJ0biB0ZXh0LXhzIHB5LTAuNSBweC0yXCJcclxuICAgICAgICAgICAgICBzdHlsZT17e1xyXG4gICAgICAgICAgICAgICAgYmFja2dyb3VuZDogYWN0aXZlUGFyYW0gPT09IHAua2V5ID8gcC5jb2xvciArICcyMicgOiAndHJhbnNwYXJlbnQnLFxyXG4gICAgICAgICAgICAgICAgY29sb3I6ICAgICAgYWN0aXZlUGFyYW0gPT09IHAua2V5ID8gcC5jb2xvciAgICAgICA6ICcjNmI3MjgwJyxcclxuICAgICAgICAgICAgICAgIGJvcmRlcjogICAgIGAxcHggc29saWQgJHthY3RpdmVQYXJhbSA9PT0gcC5rZXkgPyBwLmNvbG9yICsgJzU1JyA6ICd2YXIoLS1kYS1ib3JkZXIpJ31gLFxyXG4gICAgICAgICAgICAgIH19PlxyXG4gICAgICAgICAgICAgIHtwLmxhYmVsfVxyXG4gICAgICAgICAgICA8L2J1dHRvbj5cclxuICAgICAgICAgICkpfVxyXG4gICAgICAgIDwvZGl2PlxyXG4gICAgICA8L2Rpdj5cclxuXHJcbiAgICAgIHsvKiBMaXZlIHZhbHVlIGJhZGdlICovfVxyXG4gICAgICB7Y2hhcnREYXRhLmxlbmd0aCA+IDAgJiYgKFxyXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTJcIj5cclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwidy0yIGgtMiByb3VuZGVkLWZ1bGwgYW5pbWF0ZS1wdWxzZVwiIHN0eWxlPXt7IGJhY2tncm91bmQ6IHBhcmFtLmNvbG9yIH19IC8+XHJcbiAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzIG1vbm9cIiBzdHlsZT17eyBjb2xvcjogcGFyYW0uY29sb3IgfX0+XHJcbiAgICAgICAgICAgIHtjaGFydERhdGFbY2hhcnREYXRhLmxlbmd0aCAtIDFdPy52YWx1ZT8udG9GaXhlZCgyKX17cGFyYW0udW5pdH1cclxuICAgICAgICAgIDwvc3Bhbj5cclxuICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQteHNcIiBzdHlsZT17eyBjb2xvcjogJyM0YjU1NjMnIH19PmxpdmU8L3NwYW4+XHJcbiAgICAgICAgPC9kaXY+XHJcbiAgICAgICl9XHJcblxyXG4gICAgICB7LyogQ2hhcnQgKi99XHJcbiAgICAgIDxkaXYgc3R5bGU9e3sgaGVpZ2h0OiAyMDAgfX0+XHJcbiAgICAgICAge2NoYXJ0RGF0YS5sZW5ndGggPCAyID8gKFxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJoLWZ1bGwgZmxleCBpdGVtcy1jZW50ZXIganVzdGlmeS1jZW50ZXJcIlxyXG4gICAgICAgICAgICBzdHlsZT17eyBjb2xvcjogJyMzNzQxNTEnLCBmb250U2l6ZTogMTMgfX0+XHJcbiAgICAgICAgICAgIFdhaXRpbmcgZm9yIHRlbGVtZXRyeSBkYXRh4oCmXHJcbiAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICApIDogKFxyXG4gICAgICAgICAgPFJlc3BvbnNpdmVDb250YWluZXIgd2lkdGg9XCIxMDAlXCIgaGVpZ2h0PVwiMTAwJVwiPlxyXG4gICAgICAgICAgICA8TGluZUNoYXJ0IGRhdGE9e2NoYXJ0RGF0YX0gbWFyZ2luPXt7IHRvcDogNCwgcmlnaHQ6IDgsIGxlZnQ6IDAsIGJvdHRvbTogMCB9fT5cclxuICAgICAgICAgICAgICA8Q2FydGVzaWFuR3JpZCBzdHJva2VEYXNoYXJyYXk9XCIzIDNcIiBzdHJva2U9XCJ2YXIoLS1kYS1ib3JkZXIpXCIgLz5cclxuICAgICAgICAgICAgICA8WEF4aXMgZGF0YUtleT1cInRcIiBoaWRlIC8+XHJcbiAgICAgICAgICAgICAgPFlBeGlzXHJcbiAgICAgICAgICAgICAgICBkb21haW49e3lEb21haW59XHJcbiAgICAgICAgICAgICAgICB3aWR0aD17NDR9XHJcbiAgICAgICAgICAgICAgICB0aWNrPXt7IGZvbnRTaXplOiAxMCwgZmlsbDogJyM2YjcyODAnIH19XHJcbiAgICAgICAgICAgICAgICB0aWNrRm9ybWF0dGVyPXt2ID0+IGAke3Z9JHtwYXJhbS51bml0fWB9XHJcbiAgICAgICAgICAgICAgLz5cclxuICAgICAgICAgICAgICA8VG9vbHRpcFxyXG4gICAgICAgICAgICAgICAgY29udGVudFN0eWxlPXt7XHJcbiAgICAgICAgICAgICAgICAgIGJhY2tncm91bmQ6ICd2YXIoLS1kYS1jYXJkKScsXHJcbiAgICAgICAgICAgICAgICAgIGJvcmRlcjogJzFweCBzb2xpZCB2YXIoLS1kYS1ib3JkZXIpJyxcclxuICAgICAgICAgICAgICAgICAgZm9udFNpemU6IDEyLCBib3JkZXJSYWRpdXM6IDYsXHJcbiAgICAgICAgICAgICAgICB9fVxyXG4gICAgICAgICAgICAgICAgZm9ybWF0dGVyPXsodjogbnVtYmVyKSA9PiBbYCR7dj8udG9GaXhlZCgyKX0ke3BhcmFtLnVuaXR9YCwgcGFyYW0ubGFiZWxdfVxyXG4gICAgICAgICAgICAgICAgbGFiZWxGb3JtYXR0ZXI9eygpID0+ICcnfVxyXG4gICAgICAgICAgICAgIC8+XHJcbiAgICAgICAgICAgICAgey8qIFdhcm5pbmcgcmVmZXJlbmNlIGxpbmVzICovfVxyXG4gICAgICAgICAgICAgIHtwYXJhbS53YXJuVGhyZXNob2xkICE9PSB1bmRlZmluZWQgJiYgKFxyXG4gICAgICAgICAgICAgICAgPFJlZmVyZW5jZUxpbmUgeT17cGFyYW0ud2FyblRocmVzaG9sZH0gc3Ryb2tlPVwiI2Y1OWUwYlwiXHJcbiAgICAgICAgICAgICAgICAgIHN0cm9rZURhc2hhcnJheT1cIjQgMlwiIHN0cm9rZVdpZHRoPXswLjh9IC8+XHJcbiAgICAgICAgICAgICAgKX1cclxuICAgICAgICAgICAgICB7cGFyYW0uZGFuZ2VyVGhyZXNob2xkICE9PSB1bmRlZmluZWQgJiYgKFxyXG4gICAgICAgICAgICAgICAgPFJlZmVyZW5jZUxpbmUgeT17cGFyYW0uZGFuZ2VyVGhyZXNob2xkfSBzdHJva2U9XCIjZWY0NDQ0XCJcclxuICAgICAgICAgICAgICAgICAgc3Ryb2tlRGFzaGFycmF5PVwiNCAyXCIgc3Ryb2tlV2lkdGg9ezAuOH0gLz5cclxuICAgICAgICAgICAgICApfVxyXG4gICAgICAgICAgICAgIDxMaW5lXHJcbiAgICAgICAgICAgICAgICB0eXBlPVwibW9ub3RvbmVcIlxyXG4gICAgICAgICAgICAgICAgZGF0YUtleT1cInZhbHVlXCJcclxuICAgICAgICAgICAgICAgIHN0cm9rZT17cGFyYW0uY29sb3J9XHJcbiAgICAgICAgICAgICAgICBkb3Q9e2ZhbHNlfVxyXG4gICAgICAgICAgICAgICAgc3Ryb2tlV2lkdGg9ezEuNX1cclxuICAgICAgICAgICAgICAgIGlzQW5pbWF0aW9uQWN0aXZlPXtmYWxzZX1cclxuICAgICAgICAgICAgICAvPlxyXG4gICAgICAgICAgICA8L0xpbmVDaGFydD5cclxuICAgICAgICAgIDwvUmVzcG9uc2l2ZUNvbnRhaW5lcj5cclxuICAgICAgICApfVxyXG4gICAgICA8L2Rpdj5cclxuICAgIDwvZGl2PlxyXG4gIClcclxufSJdLCJmaWxlIjoiQzovVXNlcnMvY2hhbmQvT25lRHJpdmUvRGVza3RvcC9Ecm9uZS1Bcmp1bmEvZnJvbnRlbmQvc3JjL3dvcmtzcGFjZXMvTW9uaXRvci9UZWxlbWV0cnlDaGFydC50c3gifQ==

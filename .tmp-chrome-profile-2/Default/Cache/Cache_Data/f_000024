@@ -1,0 +1,490 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/common/SystemLogViewer.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=f3682b40"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+var _s = $RefreshSig$();
+import { AlertCircle, CheckCircle2, Clock, Download, Filter, Info, Trash2, TriangleAlert } from "/node_modules/.vite/deps/lucide-react.js?v=f3682b40";
+import { useEventLogStore } from "/src/store/eventLogStore.ts";
+import __vite__cjsImport5_react from "/node_modules/.vite/deps/react.js?v=f3682b40"; const useState = __vite__cjsImport5_react["useState"];
+export default function SystemLogViewer() {
+  _s();
+  const { events, clearOldEvents, exportLogs } = useEventLogStore();
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedLevel, setSelectedLevel] = useState("all");
+  const filteredEvents = events.filter((e) => {
+    if (selectedCategory !== "all" && e.category !== selectedCategory) return false;
+    if (selectedLevel !== "all" && e.level !== selectedLevel) return false;
+    return true;
+  });
+  const levelIcon = (level) => {
+    switch (level) {
+      case "error":
+        return /* @__PURE__ */ jsxDEV(AlertCircle, { size: 14, className: "text-red-600" }, void 0, false, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+          lineNumber: 38,
+          columnNumber: 16
+        }, this);
+      case "warning":
+        return /* @__PURE__ */ jsxDEV(TriangleAlert, { size: 14, className: "text-yellow-600" }, void 0, false, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+          lineNumber: 40,
+          columnNumber: 16
+        }, this);
+      case "success":
+        return /* @__PURE__ */ jsxDEV(CheckCircle2, { size: 14, className: "text-green-600" }, void 0, false, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+          lineNumber: 42,
+          columnNumber: 16
+        }, this);
+      default:
+        return /* @__PURE__ */ jsxDEV(Info, { size: 14, className: "text-blue-600" }, void 0, false, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+          lineNumber: 44,
+          columnNumber: 16
+        }, this);
+    }
+  };
+  const levelBg = (level) => {
+    switch (level) {
+      case "error":
+        return "bg-red-50";
+      case "warning":
+        return "bg-yellow-50";
+      case "success":
+        return "bg-green-50";
+      default:
+        return "bg-blue-50";
+    }
+  };
+  const handleExport = (format) => {
+    const content = exportLogs(format);
+    const blob = new Blob([content], { type: format === "json" ? "application/json" : "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `system-logs.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "flex flex-col gap-4 p-4 h-full overflow-hidden", children: [
+    /* @__PURE__ */ jsxDEV("div", { children: [
+      /* @__PURE__ */ jsxDEV("h2", { className: "text-lg font-bold text-slate-900", children: "System Event Logs" }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+        lineNumber: 76,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-slate-600", children: "Audit trail of all system operations and events" }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+        lineNumber: 77,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+      lineNumber: 75,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex flex-col sm:flex-row gap-3 items-start sm:items-center", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "flex gap-2 flex-wrap", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxDEV(Filter, { size: 14, className: "text-slate-500" }, void 0, false, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+            lineNumber: 85,
+            columnNumber: 13
+          }, this),
+          /* @__PURE__ */ jsxDEV(
+            "select",
+            {
+              value: selectedCategory,
+              onChange: (e) => setSelectedCategory(e.target.value),
+              className: "da-input text-sm py-1",
+              children: [
+                /* @__PURE__ */ jsxDEV("option", { value: "all", children: "All Categories" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 91,
+                  columnNumber: 15
+                }, this),
+                /* @__PURE__ */ jsxDEV("option", { value: "auth", children: "Auth" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 92,
+                  columnNumber: 15
+                }, this),
+                /* @__PURE__ */ jsxDEV("option", { value: "drone", children: "Drone" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 93,
+                  columnNumber: 15
+                }, this),
+                /* @__PURE__ */ jsxDEV("option", { value: "mission", children: "Mission" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 94,
+                  columnNumber: 15
+                }, this),
+                /* @__PURE__ */ jsxDEV("option", { value: "command", children: "Command" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 95,
+                  columnNumber: 15
+                }, this),
+                /* @__PURE__ */ jsxDEV("option", { value: "system", children: "System" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 96,
+                  columnNumber: 15
+                }, this),
+                /* @__PURE__ */ jsxDEV("option", { value: "connection", children: "Connection" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 97,
+                  columnNumber: 15
+                }, this),
+                /* @__PURE__ */ jsxDEV("option", { value: "telemetry", children: "Telemetry" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 98,
+                  columnNumber: 15
+                }, this)
+              ]
+            },
+            void 0,
+            true,
+            {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+              lineNumber: 86,
+              columnNumber: 13
+            },
+            this
+          )
+        ] }, void 0, true, {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+          lineNumber: 84,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          "select",
+          {
+            value: selectedLevel,
+            onChange: (e) => setSelectedLevel(e.target.value),
+            className: "da-input text-sm py-1",
+            children: [
+              /* @__PURE__ */ jsxDEV("option", { value: "all", children: "All Levels" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 108,
+                columnNumber: 13
+              }, this),
+              /* @__PURE__ */ jsxDEV("option", { value: "info", children: "Info" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 109,
+                columnNumber: 13
+              }, this),
+              /* @__PURE__ */ jsxDEV("option", { value: "success", children: "Success" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 110,
+                columnNumber: 13
+              }, this),
+              /* @__PURE__ */ jsxDEV("option", { value: "warning", children: "Warning" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 111,
+                columnNumber: 13
+              }, this),
+              /* @__PURE__ */ jsxDEV("option", { value: "error", children: "Error" }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 112,
+                columnNumber: 13
+              }, this)
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+            lineNumber: 103,
+            columnNumber: 11
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+        lineNumber: 82,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "flex gap-2 ml-auto", children: [
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => handleExport("json"),
+            className: "da-btn da-btn-ghost text-xs gap-1",
+            title: "Export as JSON",
+            children: [
+              /* @__PURE__ */ jsxDEV(Download, { size: 13 }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 123,
+                columnNumber: 13
+              }, this),
+              "JSON"
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+            lineNumber: 118,
+            columnNumber: 11
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => handleExport("csv"),
+            className: "da-btn da-btn-ghost text-xs gap-1",
+            title: "Export as CSV",
+            children: [
+              /* @__PURE__ */ jsxDEV(Download, { size: 13 }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 131,
+                columnNumber: 13
+              }, this),
+              "CSV"
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+            lineNumber: 126,
+            columnNumber: 11
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(
+          "button",
+          {
+            onClick: () => clearOldEvents(7),
+            className: "da-btn da-btn-ghost text-xs gap-1 text-red-600",
+            title: "Clear events older than 7 days",
+            children: [
+              /* @__PURE__ */ jsxDEV(Trash2, { size: 13 }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 141,
+                columnNumber: 13
+              }, this),
+              "Clear"
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+            lineNumber: 136,
+            columnNumber: 11
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+        lineNumber: 116,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+      lineNumber: 81,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "text-sm text-slate-600", children: [
+      "Showing ",
+      /* @__PURE__ */ jsxDEV("span", { className: "font-semibold", children: filteredEvents.length }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+        lineNumber: 149,
+        columnNumber: 17
+      }, this),
+      " of",
+      " ",
+      /* @__PURE__ */ jsxDEV("span", { className: "font-semibold", children: events.length }, void 0, false, {
+        fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+        lineNumber: 150,
+        columnNumber: 9
+      }, this),
+      " total events"
+    ] }, void 0, true, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+      lineNumber: 148,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex-1 overflow-y-auto border border-slate-200 rounded-lg", children: filteredEvents.length === 0 ? /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-center h-full text-slate-500", children: /* @__PURE__ */ jsxDEV("p", { children: "No events found" }, void 0, false, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+      lineNumber: 157,
+      columnNumber: 13
+    }, this) }, void 0, false, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+      lineNumber: 156,
+      columnNumber: 9
+    }, this) : /* @__PURE__ */ jsxDEV("div", { className: "divide-y divide-slate-200", children: filteredEvents.map(
+      (event) => /* @__PURE__ */ jsxDEV(
+        "div",
+        {
+          className: `px-4 py-3 hover:bg-slate-50 transition-colors ${levelBg(event.level)}`,
+          children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-start gap-3", children: [
+            /* @__PURE__ */ jsxDEV("div", { className: "mt-1", children: levelIcon(event.level) }, void 0, false, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+              lineNumber: 168,
+              columnNumber: 19
+            }, this),
+            /* @__PURE__ */ jsxDEV("div", { className: "flex-1 min-w-0", children: [
+              /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2 flex-wrap", children: [
+                /* @__PURE__ */ jsxDEV("h4", { className: "font-semibold text-sm text-slate-900", children: event.title }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 173,
+                  columnNumber: 23
+                }, this),
+                /* @__PURE__ */ jsxDEV("span", { className: "text-xs px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600", children: event.category }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 174,
+                  columnNumber: 23
+                }, this),
+                /* @__PURE__ */ jsxDEV(
+                  "span",
+                  {
+                    className: `text-xs px-2 py-0.5 rounded font-semibold ${event.level === "error" ? "bg-red-100 text-red-700" : event.level === "warning" ? "bg-yellow-100 text-yellow-700" : event.level === "success" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`,
+                    children: event.level
+                  },
+                  void 0,
+                  false,
+                  {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                    lineNumber: 177,
+                    columnNumber: 23
+                  },
+                  this
+                )
+              ] }, void 0, true, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 172,
+                columnNumber: 21
+              }, this),
+              /* @__PURE__ */ jsxDEV("p", { className: "text-sm text-slate-700 mt-1", children: event.description }, void 0, false, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 192,
+                columnNumber: 21
+              }, this),
+              /* @__PURE__ */ jsxDEV("div", { className: "flex flex-wrap gap-4 mt-2 text-xs text-slate-500", children: [
+                /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-1", children: [
+                  /* @__PURE__ */ jsxDEV(Clock, { size: 12 }, void 0, false, {
+                    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                    lineNumber: 197,
+                    columnNumber: 25
+                  }, this),
+                  event.timestamp.toLocaleString()
+                ] }, void 0, true, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 196,
+                  columnNumber: 23
+                }, this),
+                event.userId && /* @__PURE__ */ jsxDEV("div", { className: "px-2 py-0.5 bg-white border border-slate-200 rounded", children: [
+                  "User: ",
+                  event.userId
+                ] }, void 0, true, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 201,
+                  columnNumber: 19
+                }, this),
+                event.droneId && /* @__PURE__ */ jsxDEV("div", { className: "px-2 py-0.5 bg-white border border-slate-200 rounded", children: [
+                  "Drone: ",
+                  event.droneId
+                ] }, void 0, true, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 206,
+                  columnNumber: 19
+                }, this),
+                event.missionId && /* @__PURE__ */ jsxDEV("div", { className: "px-2 py-0.5 bg-white border border-slate-200 rounded", children: [
+                  "Mission: ",
+                  event.missionId
+                ] }, void 0, true, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 211,
+                  columnNumber: 19
+                }, this)
+              ] }, void 0, true, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 195,
+                columnNumber: 21
+              }, this),
+              event.details && Object.keys(event.details).length > 0 && /* @__PURE__ */ jsxDEV("div", { className: "mt-2 text-xs bg-white border border-slate-200 rounded p-2", children: [
+                /* @__PURE__ */ jsxDEV("p", { className: "font-semibold text-slate-700 mb-1", children: "Details:" }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 220,
+                  columnNumber: 25
+                }, this),
+                /* @__PURE__ */ jsxDEV("pre", { className: "text-slate-600 overflow-x-auto", children: JSON.stringify(event.details, null, 2) }, void 0, false, {
+                  fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                  lineNumber: 221,
+                  columnNumber: 25
+                }, this)
+              ] }, void 0, true, {
+                fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+                lineNumber: 219,
+                columnNumber: 17
+              }, this)
+            ] }, void 0, true, {
+              fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+              lineNumber: 171,
+              columnNumber: 19
+            }, this)
+          ] }, void 0, true, {
+            fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+            lineNumber: 166,
+            columnNumber: 17
+          }, this)
+        },
+        event.id,
+        false,
+        {
+          fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+          lineNumber: 162,
+          columnNumber: 11
+        },
+        this
+      )
+    ) }, void 0, false, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+      lineNumber: 160,
+      columnNumber: 9
+    }, this) }, void 0, false, {
+      fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+      lineNumber: 154,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx",
+    lineNumber: 73,
+    columnNumber: 5
+  }, this);
+}
+_s(SystemLogViewer, "xlwJYaaZvTTunPbHkbk4aaIIzU4=", false, function() {
+  return [useEventLogStore];
+});
+_c = SystemLogViewer;
+var _c;
+$RefreshReg$(_c, "SystemLogViewer");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("C:/Users/chand/OneDrive/Desktop/Drone-Arjuna/frontend/src/components/common/SystemLogViewer.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,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TyxhQUNMLHVCQUFDLFNBQUksV0FBVSx3REFBdUQ7QUFBQTtBQUFBLGtCQUMxRFAsTUFBTU87QUFBQUEscUJBRGxCO0FBQUE7QUFBQTtBQUFBO0FBQUEsdUJBRUE7QUFBQSxtQkFsQko7QUFBQTtBQUFBO0FBQUE7QUFBQSxxQkFvQkE7QUFBQSxjQUdDUCxNQUFNUSxXQUFXQyxPQUFPQyxLQUFLVixNQUFNUSxPQUFPLEVBQUVWLFNBQVMsS0FDcEQsdUJBQUMsU0FBSSxXQUFVLDZEQUNiO0FBQUEsdUNBQUMsT0FBRSxXQUFVLHFDQUFvQyx3QkFBakQ7QUFBQTtBQUFBO0FBQUE7QUFBQSx1QkFBeUQ7QUFBQSxnQkFDekQsdUJBQUMsU0FBSSxXQUFVLGtDQUNaYSxlQUFLQyxVQUFVWixNQUFNUSxTQUFTLE1BQU0sQ0FBQyxLQUR4QztBQUFBO0FBQUE7QUFBQTtBQUFBLHVCQUVBO0FBQUEsbUJBSkY7QUFBQTtBQUFBO0FBQUE7QUFBQSxxQkFLQTtBQUFBLGlCQXJESjtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQXVEQTtBQUFBLGVBNURGO0FBQUE7QUFBQTtBQUFBO0FBQUEsaUJBNkRBO0FBQUE7QUFBQSxRQWhFS1IsTUFBTWE7QUFBQUEsUUFEYjtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLE1Ba0VBO0FBQUEsSUFDRCxLQXJFSDtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBc0VBLEtBNUVKO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0E4RUE7QUFBQSxPQS9KRjtBQUFBO0FBQUE7QUFBQTtBQUFBLFNBZ0tBO0FBRUo7QUFBQ2hELEdBbk51QkQsaUJBQWU7QUFBQSxVQUNVRixnQkFBZ0I7QUFBQTtBQUFBLEtBRHpDRTtBQUFlLElBQUFrRDtBQUFBLGFBQUFBLElBQUEiLCJuYW1lcyI6WyJBbGVydENpcmNsZSIsIkNoZWNrQ2lyY2xlMiIsIkNsb2NrIiwiRG93bmxvYWQiLCJGaWx0ZXIiLCJJbmZvIiwiVHJhc2gyIiwiVHJpYW5nbGVBbGVydCIsInVzZUV2ZW50TG9nU3RvcmUiLCJ1c2VTdGF0ZSIsIlN5c3RlbUxvZ1ZpZXdlciIsIl9zIiwiZXZlbnRzIiwiY2xlYXJPbGRFdmVudHMiLCJleHBvcnRMb2dzIiwic2VsZWN0ZWRDYXRlZ29yeSIsInNldFNlbGVjdGVkQ2F0ZWdvcnkiLCJzZWxlY3RlZExldmVsIiwic2V0U2VsZWN0ZWRMZXZlbCIsImZpbHRlcmVkRXZlbnRzIiwiZmlsdGVyIiwiZSIsImNhdGVnb3J5IiwibGV2ZWwiLCJsZXZlbEljb24iLCJsZXZlbEJnIiwiaGFuZGxlRXhwb3J0IiwiZm9ybWF0IiwiY29udGVudCIsImJsb2IiLCJCbG9iIiwidHlwZSIsInVybCIsIlVSTCIsImNyZWF0ZU9iamVjdFVSTCIsImEiLCJkb2N1bWVudCIsImNyZWF0ZUVsZW1lbnQiLCJocmVmIiwiZG93bmxvYWQiLCJjbGljayIsInJldm9rZU9iamVjdFVSTCIsInRhcmdldCIsInZhbHVlIiwibGVuZ3RoIiwibWFwIiwiZXZlbnQiLCJ0aXRsZSIsImRlc2NyaXB0aW9uIiwidGltZXN0YW1wIiwidG9Mb2NhbGVTdHJpbmciLCJ1c2VySWQiLCJkcm9uZUlkIiwibWlzc2lvbklkIiwiZGV0YWlscyIsIk9iamVjdCIsImtleXMiLCJKU09OIiwic3RyaW5naWZ5IiwiaWQiLCJfYyJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJTeXN0ZW1Mb2dWaWV3ZXIudHN4Il0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IEFsZXJ0Q2lyY2xlLCBDaGVja0NpcmNsZTIsIENsb2NrLCBEb3dubG9hZCwgRmlsdGVyLCBJbmZvLCBUcmFzaDIsIFRyaWFuZ2xlQWxlcnQgfSBmcm9tICdsdWNpZGUtcmVhY3QnXG5pbXBvcnQgeyB1c2VFdmVudExvZ1N0b3JlLCB0eXBlIEV2ZW50Q2F0ZWdvcnksIHR5cGUgRXZlbnRMZXZlbCB9IGZyb20gJ0Avc3RvcmUvZXZlbnRMb2dTdG9yZSdcclxuaW1wb3J0IHsgdXNlU3RhdGUgfSBmcm9tICdyZWFjdCdcclxuXHJcbmV4cG9ydCBkZWZhdWx0IGZ1bmN0aW9uIFN5c3RlbUxvZ1ZpZXdlcigpIHtcclxuICBjb25zdCB7IGV2ZW50cywgY2xlYXJPbGRFdmVudHMsIGV4cG9ydExvZ3MgfSA9IHVzZUV2ZW50TG9nU3RvcmUoKVxyXG4gIGNvbnN0IFtzZWxlY3RlZENhdGVnb3J5LCBzZXRTZWxlY3RlZENhdGVnb3J5XSA9IHVzZVN0YXRlPEV2ZW50Q2F0ZWdvcnkgfCAnYWxsJz4oJ2FsbCcpXHJcbiAgY29uc3QgW3NlbGVjdGVkTGV2ZWwsIHNldFNlbGVjdGVkTGV2ZWxdID0gdXNlU3RhdGU8RXZlbnRMZXZlbCB8ICdhbGwnPignYWxsJylcclxuXHJcbiAgY29uc3QgZmlsdGVyZWRFdmVudHMgPSBldmVudHMuZmlsdGVyKGUgPT4ge1xyXG4gICAgaWYgKHNlbGVjdGVkQ2F0ZWdvcnkgIT09ICdhbGwnICYmIGUuY2F0ZWdvcnkgIT09IHNlbGVjdGVkQ2F0ZWdvcnkpIHJldHVybiBmYWxzZVxyXG4gICAgaWYgKHNlbGVjdGVkTGV2ZWwgIT09ICdhbGwnICYmIGUubGV2ZWwgIT09IHNlbGVjdGVkTGV2ZWwpIHJldHVybiBmYWxzZVxyXG4gICAgcmV0dXJuIHRydWVcclxuICB9KVxyXG5cclxuICBjb25zdCBsZXZlbEljb24gPSAobGV2ZWw6IEV2ZW50TGV2ZWwpID0+IHtcclxuICAgIHN3aXRjaCAobGV2ZWwpIHtcclxuICAgICAgY2FzZSAnZXJyb3InOlxyXG4gICAgICAgIHJldHVybiA8QWxlcnRDaXJjbGUgc2l6ZT17MTR9IGNsYXNzTmFtZT1cInRleHQtcmVkLTYwMFwiIC8+XHJcbiAgICAgIGNhc2UgJ3dhcm5pbmcnOlxuICAgICAgICByZXR1cm4gPFRyaWFuZ2xlQWxlcnQgc2l6ZT17MTR9IGNsYXNzTmFtZT1cInRleHQteWVsbG93LTYwMFwiIC8+XG4gICAgICBjYXNlICdzdWNjZXNzJzpcclxuICAgICAgICByZXR1cm4gPENoZWNrQ2lyY2xlMiBzaXplPXsxNH0gY2xhc3NOYW1lPVwidGV4dC1ncmVlbi02MDBcIiAvPlxyXG4gICAgICBkZWZhdWx0OlxyXG4gICAgICAgIHJldHVybiA8SW5mbyBzaXplPXsxNH0gY2xhc3NOYW1lPVwidGV4dC1ibHVlLTYwMFwiIC8+XHJcbiAgICB9XHJcbiAgfVxyXG5cclxuICBjb25zdCBsZXZlbEJnID0gKGxldmVsOiBFdmVudExldmVsKSA9PiB7XHJcbiAgICBzd2l0Y2ggKGxldmVsKSB7XHJcbiAgICAgIGNhc2UgJ2Vycm9yJzpcclxuICAgICAgICByZXR1cm4gJ2JnLXJlZC01MCdcclxuICAgICAgY2FzZSAnd2FybmluZyc6XHJcbiAgICAgICAgcmV0dXJuICdiZy15ZWxsb3ctNTAnXHJcbiAgICAgIGNhc2UgJ3N1Y2Nlc3MnOlxyXG4gICAgICAgIHJldHVybiAnYmctZ3JlZW4tNTAnXHJcbiAgICAgIGRlZmF1bHQ6XHJcbiAgICAgICAgcmV0dXJuICdiZy1ibHVlLTUwJ1xyXG4gICAgfVxyXG4gIH1cclxuXHJcbiAgY29uc3QgaGFuZGxlRXhwb3J0ID0gKGZvcm1hdDogJ2pzb24nIHwgJ2NzdicpID0+IHtcclxuICAgIGNvbnN0IGNvbnRlbnQgPSBleHBvcnRMb2dzKGZvcm1hdClcclxuICAgIGNvbnN0IGJsb2IgPSBuZXcgQmxvYihbY29udGVudF0sIHsgdHlwZTogZm9ybWF0ID09PSAnanNvbicgPyAnYXBwbGljYXRpb24vanNvbicgOiAndGV4dC9jc3YnIH0pXHJcbiAgICBjb25zdCB1cmwgPSBVUkwuY3JlYXRlT2JqZWN0VVJMKGJsb2IpXHJcbiAgICBjb25zdCBhID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnYScpXHJcbiAgICBhLmhyZWYgPSB1cmxcclxuICAgIGEuZG93bmxvYWQgPSBgc3lzdGVtLWxvZ3MuJHtmb3JtYXR9YFxyXG4gICAgYS5jbGljaygpXHJcbiAgICBVUkwucmV2b2tlT2JqZWN0VVJMKHVybClcclxuICB9XHJcblxyXG4gIHJldHVybiAoXHJcbiAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggZmxleC1jb2wgZ2FwLTQgcC00IGgtZnVsbCBvdmVyZmxvdy1oaWRkZW5cIj5cclxuICAgICAgey8qIEhlYWRlciAqL31cclxuICAgICAgPGRpdj5cclxuICAgICAgICA8aDIgY2xhc3NOYW1lPVwidGV4dC1sZyBmb250LWJvbGQgdGV4dC1zbGF0ZS05MDBcIj5TeXN0ZW0gRXZlbnQgTG9nczwvaDI+XHJcbiAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1zbSB0ZXh0LXNsYXRlLTYwMFwiPkF1ZGl0IHRyYWlsIG9mIGFsbCBzeXN0ZW0gb3BlcmF0aW9ucyBhbmQgZXZlbnRzPC9wPlxyXG4gICAgICA8L2Rpdj5cclxuXHJcbiAgICAgIHsvKiBDb250cm9scyAqL31cclxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGZsZXgtY29sIHNtOmZsZXgtcm93IGdhcC0zIGl0ZW1zLXN0YXJ0IHNtOml0ZW1zLWNlbnRlclwiPlxyXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBnYXAtMiBmbGV4LXdyYXBcIj5cclxuICAgICAgICAgIHsvKiBDYXRlZ29yeSBGaWx0ZXIgKi99XHJcbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGdhcC0yXCI+XHJcbiAgICAgICAgICAgIDxGaWx0ZXIgc2l6ZT17MTR9IGNsYXNzTmFtZT1cInRleHQtc2xhdGUtNTAwXCIgLz5cclxuICAgICAgICAgICAgPHNlbGVjdFxyXG4gICAgICAgICAgICAgIHZhbHVlPXtzZWxlY3RlZENhdGVnb3J5fVxyXG4gICAgICAgICAgICAgIG9uQ2hhbmdlPXtlID0+IHNldFNlbGVjdGVkQ2F0ZWdvcnkoZS50YXJnZXQudmFsdWUgYXMgYW55KX1cclxuICAgICAgICAgICAgICBjbGFzc05hbWU9XCJkYS1pbnB1dCB0ZXh0LXNtIHB5LTFcIlxyXG4gICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT1cImFsbFwiPkFsbCBDYXRlZ29yaWVzPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT1cImF1dGhcIj5BdXRoPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT1cImRyb25lXCI+RHJvbmU8L29wdGlvbj5cclxuICAgICAgICAgICAgICA8b3B0aW9uIHZhbHVlPVwibWlzc2lvblwiPk1pc3Npb248L29wdGlvbj5cclxuICAgICAgICAgICAgICA8b3B0aW9uIHZhbHVlPVwiY29tbWFuZFwiPkNvbW1hbmQ8L29wdGlvbj5cclxuICAgICAgICAgICAgICA8b3B0aW9uIHZhbHVlPVwic3lzdGVtXCI+U3lzdGVtPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT1cImNvbm5lY3Rpb25cIj5Db25uZWN0aW9uPC9vcHRpb24+XHJcbiAgICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT1cInRlbGVtZXRyeVwiPlRlbGVtZXRyeTwvb3B0aW9uPlxyXG4gICAgICAgICAgICA8L3NlbGVjdD5cclxuICAgICAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgICAgIHsvKiBMZXZlbCBGaWx0ZXIgKi99XHJcbiAgICAgICAgICA8c2VsZWN0XHJcbiAgICAgICAgICAgIHZhbHVlPXtzZWxlY3RlZExldmVsfVxyXG4gICAgICAgICAgICBvbkNoYW5nZT17ZSA9PiBzZXRTZWxlY3RlZExldmVsKGUudGFyZ2V0LnZhbHVlIGFzIGFueSl9XHJcbiAgICAgICAgICAgIGNsYXNzTmFtZT1cImRhLWlucHV0IHRleHQtc20gcHktMVwiXHJcbiAgICAgICAgICA+XHJcbiAgICAgICAgICAgIDxvcHRpb24gdmFsdWU9XCJhbGxcIj5BbGwgTGV2ZWxzPC9vcHRpb24+XHJcbiAgICAgICAgICAgIDxvcHRpb24gdmFsdWU9XCJpbmZvXCI+SW5mbzwvb3B0aW9uPlxyXG4gICAgICAgICAgICA8b3B0aW9uIHZhbHVlPVwic3VjY2Vzc1wiPlN1Y2Nlc3M8L29wdGlvbj5cclxuICAgICAgICAgICAgPG9wdGlvbiB2YWx1ZT1cIndhcm5pbmdcIj5XYXJuaW5nPC9vcHRpb24+XHJcbiAgICAgICAgICAgIDxvcHRpb24gdmFsdWU9XCJlcnJvclwiPkVycm9yPC9vcHRpb24+XHJcbiAgICAgICAgICA8L3NlbGVjdD5cclxuICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGdhcC0yIG1sLWF1dG9cIj5cclxuICAgICAgICAgIHsvKiBFeHBvcnQgQnV0dG9ucyAqL31cclxuICAgICAgICAgIDxidXR0b25cclxuICAgICAgICAgICAgb25DbGljaz17KCkgPT4gaGFuZGxlRXhwb3J0KCdqc29uJyl9XHJcbiAgICAgICAgICAgIGNsYXNzTmFtZT1cImRhLWJ0biBkYS1idG4tZ2hvc3QgdGV4dC14cyBnYXAtMVwiXHJcbiAgICAgICAgICAgIHRpdGxlPVwiRXhwb3J0IGFzIEpTT05cIlxyXG4gICAgICAgICAgPlxyXG4gICAgICAgICAgICA8RG93bmxvYWQgc2l6ZT17MTN9IC8+XHJcbiAgICAgICAgICAgIEpTT05cclxuICAgICAgICAgIDwvYnV0dG9uPlxyXG4gICAgICAgICAgPGJ1dHRvblxyXG4gICAgICAgICAgICBvbkNsaWNrPXsoKSA9PiBoYW5kbGVFeHBvcnQoJ2NzdicpfVxyXG4gICAgICAgICAgICBjbGFzc05hbWU9XCJkYS1idG4gZGEtYnRuLWdob3N0IHRleHQteHMgZ2FwLTFcIlxyXG4gICAgICAgICAgICB0aXRsZT1cIkV4cG9ydCBhcyBDU1ZcIlxyXG4gICAgICAgICAgPlxyXG4gICAgICAgICAgICA8RG93bmxvYWQgc2l6ZT17MTN9IC8+XHJcbiAgICAgICAgICAgIENTVlxyXG4gICAgICAgICAgPC9idXR0b24+XHJcblxyXG4gICAgICAgICAgey8qIENsZWFyIE9sZCBFdmVudHMgKi99XHJcbiAgICAgICAgICA8YnV0dG9uXHJcbiAgICAgICAgICAgIG9uQ2xpY2s9eygpID0+IGNsZWFyT2xkRXZlbnRzKDcpfVxyXG4gICAgICAgICAgICBjbGFzc05hbWU9XCJkYS1idG4gZGEtYnRuLWdob3N0IHRleHQteHMgZ2FwLTEgdGV4dC1yZWQtNjAwXCJcclxuICAgICAgICAgICAgdGl0bGU9XCJDbGVhciBldmVudHMgb2xkZXIgdGhhbiA3IGRheXNcIlxyXG4gICAgICAgICAgPlxyXG4gICAgICAgICAgICA8VHJhc2gyIHNpemU9ezEzfSAvPlxyXG4gICAgICAgICAgICBDbGVhclxyXG4gICAgICAgICAgPC9idXR0b24+XHJcbiAgICAgICAgPC9kaXY+XHJcbiAgICAgIDwvZGl2PlxyXG5cclxuICAgICAgey8qIEV2ZW50IENvdW50ICovfVxyXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cInRleHQtc20gdGV4dC1zbGF0ZS02MDBcIj5cclxuICAgICAgICBTaG93aW5nIDxzcGFuIGNsYXNzTmFtZT1cImZvbnQtc2VtaWJvbGRcIj57ZmlsdGVyZWRFdmVudHMubGVuZ3RofTwvc3Bhbj4gb2Z7JyAnfVxyXG4gICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cImZvbnQtc2VtaWJvbGRcIj57ZXZlbnRzLmxlbmd0aH08L3NwYW4+IHRvdGFsIGV2ZW50c1xyXG4gICAgICA8L2Rpdj5cclxuXHJcbiAgICAgIHsvKiBFdmVudHMgTGlzdCAqL31cclxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4LTEgb3ZlcmZsb3cteS1hdXRvIGJvcmRlciBib3JkZXItc2xhdGUtMjAwIHJvdW5kZWQtbGdcIj5cclxuICAgICAgICB7ZmlsdGVyZWRFdmVudHMubGVuZ3RoID09PSAwID8gKFxyXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWNlbnRlciBoLWZ1bGwgdGV4dC1zbGF0ZS01MDBcIj5cclxuICAgICAgICAgICAgPHA+Tm8gZXZlbnRzIGZvdW5kPC9wPlxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgKSA6IChcclxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZGl2aWRlLXkgZGl2aWRlLXNsYXRlLTIwMFwiPlxyXG4gICAgICAgICAgICB7ZmlsdGVyZWRFdmVudHMubWFwKGV2ZW50ID0+IChcclxuICAgICAgICAgICAgICA8ZGl2XHJcbiAgICAgICAgICAgICAgICBrZXk9e2V2ZW50LmlkfVxyXG4gICAgICAgICAgICAgICAgY2xhc3NOYW1lPXtgcHgtNCBweS0zIGhvdmVyOmJnLXNsYXRlLTUwIHRyYW5zaXRpb24tY29sb3JzICR7bGV2ZWxCZyhldmVudC5sZXZlbCl9YH1cclxuICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtc3RhcnQgZ2FwLTNcIj5cclxuICAgICAgICAgICAgICAgICAgey8qIEljb24gKi99XHJcbiAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwibXQtMVwiPntsZXZlbEljb24oZXZlbnQubGV2ZWwpfTwvZGl2PlxyXG5cclxuICAgICAgICAgICAgICAgICAgey8qIENvbnRlbnQgKi99XHJcbiAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleC0xIG1pbi13LTBcIj5cclxuICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGdhcC0yIGZsZXgtd3JhcFwiPlxyXG4gICAgICAgICAgICAgICAgICAgICAgPGg0IGNsYXNzTmFtZT1cImZvbnQtc2VtaWJvbGQgdGV4dC1zbSB0ZXh0LXNsYXRlLTkwMFwiPntldmVudC50aXRsZX08L2g0PlxyXG4gICAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC14cyBweC0yIHB5LTAuNSByb3VuZGVkIGJnLXdoaXRlIGJvcmRlciBib3JkZXItc2xhdGUtMjAwIHRleHQtc2xhdGUtNjAwXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIHtldmVudC5jYXRlZ29yeX1cclxuICAgICAgICAgICAgICAgICAgICAgIDwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICAgIDxzcGFuXHJcbiAgICAgICAgICAgICAgICAgICAgICAgIGNsYXNzTmFtZT17YHRleHQteHMgcHgtMiBweS0wLjUgcm91bmRlZCBmb250LXNlbWlib2xkICR7XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgZXZlbnQubGV2ZWwgPT09ICdlcnJvcidcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgID8gJ2JnLXJlZC0xMDAgdGV4dC1yZWQtNzAwJ1xyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgOiBldmVudC5sZXZlbCA9PT0gJ3dhcm5pbmcnXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgID8gJ2JnLXllbGxvdy0xMDAgdGV4dC15ZWxsb3ctNzAwJ1xyXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICA6IGV2ZW50LmxldmVsID09PSAnc3VjY2VzcydcclxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA/ICdiZy1ncmVlbi0xMDAgdGV4dC1ncmVlbi03MDAnXHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgOiAnYmctYmx1ZS0xMDAgdGV4dC1ibHVlLTcwMCdcclxuICAgICAgICAgICAgICAgICAgICAgICAgfWB9XHJcbiAgICAgICAgICAgICAgICAgICAgICA+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIHtldmVudC5sZXZlbH1cclxuICAgICAgICAgICAgICAgICAgICAgIDwvc3Bhbj5cclxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuXHJcbiAgICAgICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1zbSB0ZXh0LXNsYXRlLTcwMCBtdC0xXCI+e2V2ZW50LmRlc2NyaXB0aW9ufTwvcD5cclxuXHJcbiAgICAgICAgICAgICAgICAgICAgey8qIE1ldGFkYXRhICovfVxyXG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBmbGV4LXdyYXAgZ2FwLTQgbXQtMiB0ZXh0LXhzIHRleHQtc2xhdGUtNTAwXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGdhcC0xXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxDbG9jayBzaXplPXsxMn0gLz5cclxuICAgICAgICAgICAgICAgICAgICAgICAge2V2ZW50LnRpbWVzdGFtcC50b0xvY2FsZVN0cmluZygpfVxyXG4gICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICB7ZXZlbnQudXNlcklkICYmIChcclxuICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJweC0yIHB5LTAuNSBiZy13aGl0ZSBib3JkZXIgYm9yZGVyLXNsYXRlLTIwMCByb3VuZGVkXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgVXNlcjoge2V2ZW50LnVzZXJJZH1cclxuICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgICAgICAgICApfVxyXG4gICAgICAgICAgICAgICAgICAgICAge2V2ZW50LmRyb25lSWQgJiYgKFxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInB4LTIgcHktMC41IGJnLXdoaXRlIGJvcmRlciBib3JkZXItc2xhdGUtMjAwIHJvdW5kZWRcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICBEcm9uZToge2V2ZW50LmRyb25lSWR9XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICAgKX1cclxuICAgICAgICAgICAgICAgICAgICAgIHtldmVudC5taXNzaW9uSWQgJiYgKFxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInB4LTIgcHktMC41IGJnLXdoaXRlIGJvcmRlciBib3JkZXItc2xhdGUtMjAwIHJvdW5kZWRcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgICBNaXNzaW9uOiB7ZXZlbnQubWlzc2lvbklkfVxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cclxuICAgICAgICAgICAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgICAgICAgICAgPC9kaXY+XHJcblxyXG4gICAgICAgICAgICAgICAgICAgIHsvKiBEZXRhaWxzICovfVxyXG4gICAgICAgICAgICAgICAgICAgIHtldmVudC5kZXRhaWxzICYmIE9iamVjdC5rZXlzKGV2ZW50LmRldGFpbHMpLmxlbmd0aCA+IDAgJiYgKFxyXG4gICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJtdC0yIHRleHQteHMgYmctd2hpdGUgYm9yZGVyIGJvcmRlci1zbGF0ZS0yMDAgcm91bmRlZCBwLTJcIj5cclxuICAgICAgICAgICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwiZm9udC1zZW1pYm9sZCB0ZXh0LXNsYXRlLTcwMCBtYi0xXCI+RGV0YWlsczo8L3A+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgIDxwcmUgY2xhc3NOYW1lPVwidGV4dC1zbGF0ZS02MDAgb3ZlcmZsb3cteC1hdXRvXCI+XHJcbiAgICAgICAgICAgICAgICAgICAgICAgICAge0pTT04uc3RyaW5naWZ5KGV2ZW50LmRldGFpbHMsIG51bGwsIDIpfVxyXG4gICAgICAgICAgICAgICAgICAgICAgICA8L3ByZT5cclxuICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgICAgICl9XHJcbiAgICAgICAgICAgICAgICAgIDwvZGl2PlxyXG4gICAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgICAgICkpfVxyXG4gICAgICAgICAgPC9kaXY+XHJcbiAgICAgICAgKX1cclxuICAgICAgPC9kaXY+XHJcbiAgICA8L2Rpdj5cclxuICApXHJcbn1cclxuIl0sImZpbGUiOiJDOi9Vc2Vycy9jaGFuZC9PbmVEcml2ZS9EZXNrdG9wL0Ryb25lLUFyanVuYS9mcm9udGVuZC9zcmMvY29tcG9uZW50cy9jb21tb24vU3lzdGVtTG9nVmlld2VyLnRzeCJ9

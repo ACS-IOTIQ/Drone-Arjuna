@@ -45,6 +45,7 @@ export default function LoginScreen() {
       setRequestError('Name, username, and email are required.')
       return
     }
+
     const saved = createAccessRequest({
       ...request,
       username: request.username.trim(),
@@ -58,22 +59,24 @@ export default function LoginScreen() {
     setRequest(EMPTY_REQUEST)
   }
 
-  const field = (
+  const requestField = (
     key: keyof typeof EMPTY_REQUEST,
     label: string,
     icon: React.ReactNode,
     type = 'text',
     required = false,
   ) => (
-    <label className="flex flex-col gap-2">
-      <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>
+    <label className="flex flex-col gap-1.5">
+      <span className="text-sm font-semibold leading-tight text-slate-700">
         {label}{required ? ' *' : ''}
       </span>
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 flex items-center">{icon}</span>
+        <span className="pointer-events-none absolute left-3 top-1/2 flex -translate-y-1/2 items-center text-slate-400">
+          {icon}
+        </span>
         <input
           type={type}
-          className="da-input pl-9 py-2.5"
+          className="da-input h-11 pl-9"
           value={request[key]}
           onChange={e => setRequest(prev => ({ ...prev, [key]: e.target.value }))}
         />
@@ -82,55 +85,61 @@ export default function LoginScreen() {
   )
 
   return (
-    <main className="min-h-screen w-screen overflow-y-auto px-4 py-8 text-slate-950"
-      style={{
-        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%)',
-        position: 'relative'
-      }}>
-      {/* Animated background grid */}
-      <div className="pointer-events-none absolute inset-0 opacity-10"
-        style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.5) 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-        }} />
-      
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md items-center relative z-10">
-        <section className="da-card w-full p-5 sm:p-6" style={{
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
-        }}>
-          <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-white">
+    <main className="da-login-bg min-h-screen w-full overflow-x-hidden overflow-y-auto px-4 py-6 text-slate-950">
+      <div className="pointer-events-none absolute inset-0 da-login-grid" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 da-login-runway" />
+
+      <div
+        className="relative z-10 mx-auto flex min-h-[calc(100vh-3rem)] w-full items-center"
+        style={{ maxWidth: 'min(32rem, calc(100vw - 4rem))' }}
+      >
+        <section className="da-login-card min-w-0 w-full p-5 sm:p-6 max-h-[calc(100vh-3rem)] overflow-y-auto">
+          <div className="mb-5 text-center">
+            <div
+              className="mx-auto mb-4 flex h-[52px] w-[52px] items-center justify-center rounded-xl text-white shadow-lg shadow-blue-950/20"
+              style={{ background: 'linear-gradient(135deg, #2563eb, #0f766e)' }}
+            >
               <ShieldCheck size={28} />
             </div>
-            <h1 className="text-3xl font-bold leading-tight mb-1">DroneArjuna</h1>
-            <p className="mt-2 text-sm text-slate-600 leading-relaxed">Ground Control System</p>
+            <h1 className="text-3xl font-bold leading-tight text-slate-950">DroneArjuna</h1>
+            <p className="mt-1 text-sm text-slate-600">Ground Control System</p>
           </div>
 
-          <div className="mb-5 grid grid-cols-2 rounded-md border border-slate-200 bg-slate-50 p-1">
+          <div className="mb-5 grid min-h-11 grid-cols-2 rounded-lg border border-slate-200 bg-slate-100 p-1">
             <button
               type="button"
               onClick={() => setMode('signin')}
-              className="rounded px-3 py-2 text-sm font-semibold"
-              style={{ background: mode === 'signin' ? '#ffffff' : 'transparent', color: mode === 'signin' ? '#2563eb' : '#64748b' }}>
+              className="min-w-0 whitespace-nowrap rounded-md px-2 py-2 text-[13px] font-semibold leading-none transition-colors sm:text-sm"
+              style={{
+                background: mode === 'signin' ? '#ffffff' : 'transparent',
+                color: mode === 'signin' ? '#1d4ed8' : '#475569',
+                boxShadow: mode === 'signin' ? '0 1px 4px rgba(15,23,42,0.08)' : 'none',
+              }}
+            >
               Sign In
             </button>
             <button
               type="button"
               onClick={() => setMode('request')}
-              className="rounded px-3 py-2 text-sm font-semibold"
-              style={{ background: mode === 'request' ? '#ffffff' : 'transparent', color: mode === 'request' ? '#2563eb' : '#64748b' }}>
+              className="min-w-0 whitespace-nowrap rounded-md px-2 py-2 text-[13px] font-semibold leading-none transition-colors sm:text-sm"
+              style={{
+                background: mode === 'request' ? '#ffffff' : 'transparent',
+                color: mode === 'request' ? '#0f766e' : '#475569',
+                boxShadow: mode === 'request' ? '0 1px 4px rgba(15,23,42,0.08)' : 'none',
+              }}
+            >
               Request Access
             </button>
           </div>
 
           {mode === 'signin' ? (
-            <form onSubmit={submitLogin} className="flex flex-col gap-5">
-              <label className="flex flex-col gap-2">
-                <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>Username</span>
+            <form onSubmit={submitLogin} className="flex flex-col gap-4">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold leading-tight text-slate-700">Username</span>
                 <div className="relative">
-                  <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 flex items-center" />
+                  <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
-                    className="da-input pl-9 py-2.5"
+                    className="da-input h-11 pl-9"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
                     autoComplete="username"
@@ -139,13 +148,13 @@ export default function LoginScreen() {
                 </div>
               </label>
 
-              <label className="flex flex-col gap-2">
-                <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>Password</span>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold leading-tight text-slate-700">Password</span>
                 <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 flex items-center" />
+                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     type="password"
-                    className="da-input pl-9 py-2.5"
+                    className="da-input h-11 pl-9"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     autoComplete="current-password"
@@ -162,15 +171,16 @@ export default function LoginScreen() {
               <button
                 type="submit"
                 disabled={isLoading || !username.trim() || !password}
-                className="da-btn da-btn-primary justify-center py-3 text-sm font-semibold">
+                className="da-btn da-btn-primary h-11 justify-center text-sm font-semibold"
+              >
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </button>
             </form>
           ) : (
-            <form onSubmit={submitRequest} className="flex flex-col gap-3 max-h-[calc(100vh-20rem)] overflow-y-auto">
+            <form onSubmit={submitRequest} className="flex flex-col gap-3">
               {submitted ? (
                 <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                  <div className="mb-2 flex items-center gap-2 font-semibold">
+                  <div className="mb-3 flex items-center gap-2 font-semibold">
                     <CheckCircle2 size={16} /> Request queued for admin review.
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -189,34 +199,39 @@ export default function LoginScreen() {
                 </div>
               ) : (
                 <>
-                  {field('full_name', 'Full Name', <User size={15} />, 'text', true)}
-                  {field('username', 'Requested Username', <UserPlus size={15} />, 'text', true)}
-                  {field('email', 'Email', <Mail size={15} />, 'email', true)}
-                  {field('mobile', 'Mobile (Optional)', <Phone size={15} />)}
-                  <label className="flex flex-col gap-2">
-                    <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>Requested Role *</span>
+                  {requestField('full_name', 'Full Name', <User size={15} />, 'text', true)}
+                  {requestField('username', 'Requested Username', <UserPlus size={15} />, 'text', true)}
+                  {requestField('email', 'Email', <Mail size={15} />, 'email', true)}
+                  {requestField('mobile', 'Mobile', <Phone size={15} />)}
+
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold leading-tight text-slate-700">Requested Role *</span>
                     <select
-                      className="da-input py-2.5"
+                      className="da-input h-11"
                       value={request.requested_role}
-                      onChange={e => setRequest(prev => ({ ...prev, requested_role: e.target.value }))}>
+                      onChange={e => setRequest(prev => ({ ...prev, requested_role: e.target.value }))}
+                    >
                       {REQUEST_ROLES.map(role => <option key={role} value={role}>{role}</option>)}
                     </select>
                   </label>
-                  <label className="flex flex-col gap-2">
-                    <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>Reason (Optional)</span>
+
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold leading-tight text-slate-700">Reason</span>
                     <textarea
-                      className="da-input py-2.5"
-                      rows={3}
+                      className="da-input min-h-20"
+                      rows={2}
                       value={request.reason}
                       onChange={e => setRequest(prev => ({ ...prev, reason: e.target.value }))}
                     />
                   </label>
+
                   {requestError && (
                     <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                       {requestError}
                     </p>
                   )}
-                  <button type="submit" className="da-btn da-btn-primary justify-center py-3 text-sm font-semibold">
+
+                  <button type="submit" className="da-btn da-btn-primary h-11 justify-center text-sm font-semibold">
                     Submit Request
                   </button>
                 </>

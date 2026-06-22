@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Download, Filter, Info, Trash2, Warning, Clock } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Clock, Download, Filter, Info, Trash2, TriangleAlert } from 'lucide-react'
 import { useEventLogStore, type EventCategory, type EventLevel } from '@/store/eventLogStore'
 import { useState } from 'react'
 
@@ -18,7 +18,7 @@ export default function SystemLogViewer() {
       case 'error':
         return <AlertCircle size={14} className="text-red-600" />
       case 'warning':
-        return <Warning size={14} className="text-yellow-600" />
+        return <TriangleAlert size={14} className="text-yellow-600" />
       case 'success':
         return <CheckCircle2 size={14} className="text-green-600" />
       default:

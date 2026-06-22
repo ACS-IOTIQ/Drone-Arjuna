@@ -6,7 +6,7 @@ import axios from 'axios'
 // Use relative URLs so all requests go through the Vite proxy.
 // Vite proxy maps /api → http://backend:8000 and /ws → ws://backend:8000
 // This avoids CORS entirely since browser and API appear on the same origin.
-export const api = axios.create({ baseURL: '' })
+export const api = axios.create({ baseURL: '', timeout: 12000 })
 
 // Attach JWT from localStorage on every request
 api.interceptors.request.use(cfg => {
@@ -23,7 +23,7 @@ api.interceptors.response.use(
     const isLoginRequest = requestUrl.includes('/api/auth/token')
     if (err.response?.status === 401 && !isLoginRequest) {
       localStorage.removeItem('da_token')
-      window.location.reload()
+      window.dispatchEvent(new Event('da_auth_expired'))
     }
     return Promise.reject(err)
   }

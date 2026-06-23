@@ -49,14 +49,6 @@ class PayloadTypeService:
 
     async def delete(self, pt_id: int) -> None:
         pt = await self.get_by_id(pt_id)
-        # Block deletion if payloads still reference this type
-        result = await self.db.execute(
-            select(Payload).where(Payload.payload_type_id == pt_id)
-        )
-        if result.scalar_one_or_none():
-            raise HTTPException(
-                409, f"Cannot delete payload type #{pt_id} — payloads still reference it"
-            )
         await self.db.delete(pt)
         log.info("payload_type.deleted", id=pt_id)
 

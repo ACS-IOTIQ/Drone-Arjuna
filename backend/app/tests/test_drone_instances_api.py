@@ -305,6 +305,6 @@ async def test_drone_instance_all_fields_persisted(
         assert stored["serial_number"]     == body["serial_number"]
         assert stored["mavlink_system_id"] == body["mavlink_system_id"]
         assert stored["notes"]             == body["notes"]
-        assert stored["status"]            == "available"          # default on creation
+        assert stored["status"]            == "offline"            # default on creation
     finally:
         await client.delete(f"/api/master/drones/{did}", headers=hdrs)

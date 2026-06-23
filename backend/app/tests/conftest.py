@@ -62,7 +62,7 @@ import app.models.drone  # noqa: F401, E402 — registers DroneType, DroneInstan
 import app.models.mission  # noqa: F401, E402 — registers Mission, Waypoint
 import app.models.vessel  # noqa: F401, E402 — registers NavalVessel
 import app.models.telemetry  # noqa: F401, E402 — registers telemetry models
-import app.models.payload  # noqa: F401, E402 — registers PayloadType, Payload
+import app.models.payload  # noqa: F401, E402 — registers PayloadType
 
 pytest_plugins = ("app.tests.testcase_word_report",)
 

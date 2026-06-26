@@ -115,3 +115,17 @@ async def emit_health_alert(drone_id: int, alert_type: str, value: float):
     await publish("drone_control.health_alert", {
         "drone_id": drone_id, "alert_type": alert_type, "value": value,
     })
+
+async def emit_geofence_breach(drone_id: int, lat: float, lon: float):
+    await publish("drone_control.geofence_breach", {
+        "event": "GEOFENCE_BREACH",
+        "drone_id": drone_id,
+        "lat": lat,
+        "lon": lon,
+    })
+
+async def emit_geofence_recovered(drone_id: int):
+    await publish("drone_control.geofence_recovered", {
+        "event": "GEOFENCE_RECOVERED",
+        "drone_id": drone_id,
+    })

@@ -22,6 +22,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 from pymavlink import mavutil
+from shapely import from_wkt, convex_hull as shapely_convex_hull
 
 from app.models.mission import Mission, Waypoint
 from app.models.drone import DroneType, DroneInstance
@@ -31,10 +32,91 @@ from app.modules.drone_control.mavlink_manager import mavlink_manager
 from app.utils.geo_utils import (
     point_in_polygon, geojson_polygon_to_ring, bearing_deg,
 )
+from app.utils.geofence import geofence_store
 
 log = structlog.get_logger()
 
 KNOTS_TO_MS = 0.514444
+
+
+# ══════════════════════════════════════════════════════════════════
+# Mission deconfliction
+# ══════════════════════════════════════════════════════════════════
+
+def deconflict_missions(
+    missions_with_waypoints: list[tuple["Mission", list["Waypoint"]]],
+) -> list[dict]:
+    """
+    Check all pairs of missions for 2-D airspace conflict using
+    Shapely convex hulls built from each mission's waypoints.
+
+    Returns a list of conflict dicts — one entry per conflicting pair:
+        {
+            "mission_a_id": int,
+            "mission_a_name": str,
+            "mission_b_id": int,
+            "mission_b_name": str,
+            "overlap_area_km2": float,   # 0.0 for line/point intersections
+        }
+
+    An empty list means no conflicts.
+
+    Only missions with at least one waypoint participate. Missions
+    whose hull is a point or line segment still contribute — their
+    intersection with another hull may be non-empty even without area.
+    """
+    # Build (mission, convex_hull) pairs — skip missions with no waypoints
+    hulls: list[tuple[Mission, object]] = []
+    for mission, waypoints in missions_with_waypoints:
+        if not waypoints:
+            continue
+        # Build a MULTIPOINT via WKT — bypasses shapely.multipoints() /
+        # create_collection, which fails in Shapely 2.0.4 on this GEOS build
+        # due to a numpy object-array dtype incompatibility.
+        wkt = "MULTIPOINT (" + ", ".join(
+            f"({wp.longitude} {wp.latitude})" for wp in waypoints
+        ) + ")"
+        hull = shapely_convex_hull(from_wkt(wkt))
+        hulls.append((mission, hull))
+
+    conflicts: list[dict] = []
+    for i in range(len(hulls)):
+        for j in range(i + 1, len(hulls)):
+            m_a, hull_a = hulls[i]
+            m_b, hull_b = hulls[j]
+
+            intersection = hull_a.intersection(hull_b)
+            if intersection.is_empty:
+                continue
+
+            # touches() = boundary-only contact (no interior overlap) — not a conflict
+            if hull_a.touches(hull_b):
+                continue
+
+            # Convert intersection area from degrees² to km²
+            # 1 degree ≈ 111.32 km at the equator; use midpoint latitude for correction
+            mid_lat = (
+                sum(wp.latitude for _, wps in missions_with_waypoints for wp in wps)
+                / max(1, sum(len(wps) for _, wps in missions_with_waypoints))
+            )
+            deg2_to_km2 = (111.32 ** 2) * math.cos(math.radians(mid_lat))
+            overlap_km2 = round(intersection.area * deg2_to_km2, 4)
+
+            conflicts.append({
+                "mission_a_id":   m_a.id,
+                "mission_a_name": m_a.name,
+                "mission_b_id":   m_b.id,
+                "mission_b_name": m_b.name,
+                "overlap_area_km2": overlap_km2,
+            })
+            log.warning(
+                "Mission deconfliction — airspace conflict detected",
+                mission_a=m_a.id,
+                mission_b=m_b.id,
+                overlap_km2=overlap_km2,
+            )
+
+    return conflicts
 
 
 def _project_vessel_position(
@@ -333,6 +415,9 @@ class MissionPlanner:
         conn = mavlink_manager._connections.get(mission.drone_instance_id)
         if not conn or not conn.connected:
             raise HTTPException(503, "Assigned drone is not connected")
+
+        # Arm runtime geofence so breach detection fires during execution
+        geofence_store.set_geofence(mission.drone_instance_id, mission.geofence or None)
 
         # For ship-based missions, overwrite the home waypoint with current vessel position
         vessel = await self._get_home_vessel(mission)

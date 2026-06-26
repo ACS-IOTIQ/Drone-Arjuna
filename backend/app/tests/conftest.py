@@ -246,6 +246,35 @@ async def admin_user():
 
 
 @pytest_asyncio.fixture
+async def mission_commander_user():
+    """A mission_commander User persisted for the duration of a single test."""
+    from app.core.auth import hash_password
+
+    async with _TestSession() as session:
+        user = User(
+            username="mc_test",
+            email="mc_test@da.local",
+            hashed_password=hash_password("MissionCmd@99"),
+            full_name="Test MC",
+            role="mission_commander",
+            is_active=True,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        user_id = user.id
+
+    yield user
+
+    async with _TestSession() as session:
+        result = await session.execute(select(User).where(User.id == user_id))
+        u = result.scalar_one_or_none()
+        if u:
+            await session.delete(u)
+            await session.commit()
+
+
+@pytest_asyncio.fixture
 async def flight_controller_user():
     """A flight_controller User persisted for the duration of a single test."""
     from app.core.auth import hash_password

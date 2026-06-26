@@ -13,7 +13,8 @@ from app.database import get_db
 from app.models.user import User
 from app.models.mission import Mission, Waypoint
 from app.models.drone import DroneInstance
-from app.schemas.drone import ConnectRequest, CommandRequest, SimStartRequest, SimCommandRequest, AutoConnectRequest
+from app.schemas.drone import ConnectRequest, CommandRequest, SimStartRequest, SimCommandRequest, AutoConnectRequest, GeofenceSetRequest
+from app.utils.geofence import geofence_store
 from app.modules.drone_control.mavlink_manager import mavlink_manager
 from app.modules.drone_control.mission_simulator import mission_simulator
 
@@ -191,6 +192,25 @@ async def disconnect_drone(
     return {"detail": "Disconnected"}
 
 
+@router.post("/drones/{drone_id}/geofence", status_code=200)
+async def set_drone_geofence(
+    drone_id: int,
+    body: GeofenceSetRequest,
+    _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
+):
+    """
+    Register or clear a runtime geofence for a connected drone.
+    On breach the TelemetryProcessor automatically dispatches RTL.
+    Pass geofence: null to clear.
+    """
+    ok = geofence_store.set_geofence(drone_id, body.geofence)
+    if not ok:
+        raise HTTPException(status_code=422, detail="Invalid GeoJSON geometry — must be Polygon or MultiPolygon")
+    if body.geofence is None:
+        return {"detail": "Geofence cleared", "drone_id": drone_id}
+    return {"detail": "Geofence set", "drone_id": drone_id, "active": True}
+
+
 @router.post("/command")
 async def send_command(
     req: CommandRequest,
@@ -277,6 +297,10 @@ async def start_simulation(
 
     # Register virtual connection in mavlink_manager so the drone appears "connected"
     mavlink_manager.attach_simulation(drone_id, drone.call_sign)
+
+    # Arm runtime geofence so breach detection fires during simulation
+    if mission.geofence:
+        geofence_store.set_geofence(drone_id, mission.geofence)
 
     # Start the simulator (injects into the same StateManager)
     await mission_simulator.start(

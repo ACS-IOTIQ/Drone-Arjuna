@@ -296,6 +296,27 @@ class MAVLinkManager:
             return []
         return conn.controller.get_history(limit)
 
+    async def start_geofence_rtl_consumer(self):
+        """
+        Subscribe to geofence_breach events on RabbitMQ and dispatch RTL for each breach.
+        This is the authoritative path for auto-RTL — TelemetryProcessor only publishes
+        the event; command dispatch happens here via the event bus consumer.
+        """
+        from app.core.events import subscribe
+
+        async def _rtl_handler(payload: dict):
+            drone_id = payload.get("drone_id")
+            if drone_id is None:
+                return
+            log.warning("Geofence RTL consumer — dispatching auto-RTL", drone_id=drone_id)
+            await self.send_command(drone_id, "rtl", {})
+
+        await subscribe(
+            routing_key_pattern="drone_control.geofence_breach",
+            queue_name="geofence_rtl_queue",
+            handler=_rtl_handler,
+        )
+
     def get_all_connections(self) -> list[dict]:
         result = []
         for c in self._connections.values():

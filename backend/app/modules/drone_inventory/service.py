@@ -22,6 +22,7 @@ from sqlalchemy import select
 from fastapi import HTTPException
 
 from app.models.drone import DroneType, DroneInstance
+from app.models.payload import PayloadType
 
 log = structlog.get_logger()
 
@@ -145,14 +146,17 @@ class InventoryService:
 
     async def search(self, query: str, limit: int = 20) -> dict:
         """
-        V1: Simple SQL ILIKE search across name, manufacturer, model, notes.
-        V2: Replace this entire method body with an Elasticsearch query.
+        V1: SQL ILIKE search across DroneType and PayloadType tables.
+        Returns a unified list with a `type` field ("drone" | "payload").
+        V2: Replace this entire method body with an Elasticsearch query —
+        the response shape is intentionally stable so the frontend needs no changes.
         """
         if not query.strip():
             return {"results": [], "query": query, "total": 0}
 
         pattern = f"%{query.strip()}%"
-        q = (
+
+        drone_q = (
             select(DroneType)
             .where(DroneType.is_active == True)
             .where(
@@ -164,14 +168,36 @@ class InventoryService:
             )
             .limit(limit)
         )
-        result = await self.db.execute(q)
-        types = result.scalars().all()
+
+        payload_q = (
+            select(PayloadType)
+            .where(PayloadType.is_active == True)
+            .where(
+                PayloadType.name.ilike(pattern)
+                | PayloadType.manufacturer.ilike(pattern)
+                | PayloadType.model.ilike(pattern)
+                | PayloadType.notes.ilike(pattern)
+            )
+            .limit(limit)
+        )
+
+        drone_result, payload_result = (
+            await self.db.execute(drone_q),
+            await self.db.execute(payload_q),
+        )
+        drones   = drone_result.scalars().all()
+        payloads = payload_result.scalars().all()
+
+        results = (
+            [{"type": "drone",   **self._drone_card(dt)} for dt in drones]
+            + [{"type": "payload", **self._payload_card(pt)} for pt in payloads]
+        )
 
         return {
             "query":   query,
-            "total":   len(types),
-            "results": [self._drone_card(dt) for dt in types],
-            "note":    "V1 SQL search — full-text Elasticsearch search available in V2",
+            "total":   len(results),
+            "results": results,
+            "note":    "V1 SQL search — full-text Elasticsearch search available in V2 (P4-06)",
         }
 
     # ── Quick-reference card ──────────────────────────────────────
@@ -216,4 +242,18 @@ class InventoryService:
             "max_speed_ms": dt.max_speed_ms,
             "endurance_h":  dt.endurance_h,
             "range_km":     dt.range_km,
+        }
+
+    @staticmethod
+    def _payload_card(pt: PayloadType) -> dict:
+        """Minimal card dict for payload search results."""
+        return {
+            "id":           pt.id,
+            "name":         pt.name,
+            "manufacturer": pt.manufacturer,
+            "model":        pt.model,
+            "category":     pt.category,
+            "weight_kg":    pt.weight_kg,
+            "has_gimbal":   pt.has_gimbal,
+            "sensor_type":  pt.sensor_type,
         }

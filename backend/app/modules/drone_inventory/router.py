@@ -3,13 +3,24 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db
-from app.core.rbac import require_min_role, Role
+from app.core.rbac import require_min_role, require_role, Role
 from app.models.user import User
 from app.modules.drone_inventory.service import InventoryService
+from app.schemas.threat import ThreatSystemCreate, ThreatSystemUpdate, ThreatNotesPatch
 
 router = APIRouter()
 DbDep     = Annotated[AsyncSession, Depends(get_db)]
 ViewerDep = Annotated[User, Depends(require_min_role(Role.VIEWER))]
+AdminDep  = Annotated[User, Depends(require_min_role(Role.ADMIN))]
+
+# Threat read: intelligence_analyst, mission_commander, admin (and above)
+_ThreatReadDep = Depends(require_role(
+    Role.INTELLIGENCE_ANALYST, Role.MISSION_COMMANDER, Role.ADMIN,
+))
+# Threat write: admin only
+_ThreatWriteDep = Depends(require_min_role(Role.ADMIN))
+# Notes patch: intelligence_analyst OR admin
+_NotesDep = Depends(require_role(Role.INTELLIGENCE_ANALYST, Role.ADMIN))
 
 
 @router.get("/drones")
@@ -69,3 +80,40 @@ async def list_inventory_payloads(_: ViewerDep):
         "total": 0,
         "note": "Payload inventory with rich specs available in V2",
     }
+
+
+# ── Threat Systems ────────────────────────────────────────────────────────────
+
+@router.get("/threat-systems", dependencies=[_ThreatReadDep])
+async def list_threat_systems(
+    db: DbDep,
+    category: Optional[str] = Query(None, description="Filter by category: UAV/RADAR/SAM/EW"),
+    country:  Optional[str] = Query(None, description="Filter by country of origin"),
+):
+    items = await InventoryService(db).list_threats(category, country)
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/threat-systems/{threat_id}", dependencies=[_ThreatReadDep])
+async def get_threat_system(threat_id: int, db: DbDep):
+    return await InventoryService(db).get_threat(threat_id)
+
+
+@router.post("/threat-systems", status_code=201, dependencies=[_ThreatWriteDep])
+async def create_threat_system(body: ThreatSystemCreate, db: DbDep):
+    return await InventoryService(db).create_threat(body.model_dump())
+
+
+@router.put("/threat-systems/{threat_id}", dependencies=[_ThreatWriteDep])
+async def update_threat_system(threat_id: int, body: ThreatSystemUpdate, db: DbDep):
+    return await InventoryService(db).update_threat(threat_id, body.model_dump(exclude_none=True))
+
+
+@router.patch("/threat-systems/{threat_id}/notes", dependencies=[_NotesDep])
+async def patch_threat_notes(threat_id: int, body: ThreatNotesPatch, db: DbDep):
+    return await InventoryService(db).update_threat(threat_id, {"notes": body.notes})
+
+
+@router.delete("/threat-systems/{threat_id}", status_code=204, dependencies=[_ThreatWriteDep])
+async def delete_threat_system(threat_id: int, db: DbDep):
+    await InventoryService(db).delete_threat(threat_id)

@@ -23,6 +23,7 @@ from fastapi import HTTPException
 
 from app.models.drone import DroneType, DroneInstance
 from app.models.payload import PayloadType
+from app.models.threat import ThreatSystem
 
 log = structlog.get_logger()
 
@@ -225,6 +226,56 @@ class InventoryService:
             },
         }
 
+    # ── Threat system CRUD ────────────────────────────────────────
+
+    async def list_threats(
+        self,
+        category: str | None = None,
+        country: str | None = None,
+    ) -> list[dict]:
+        q = select(ThreatSystem).order_by(ThreatSystem.name)
+        if category:
+            q = q.where(ThreatSystem.category == category)
+        if country:
+            q = q.where(ThreatSystem.country == country)
+        result = await self.db.execute(q)
+        return [self._threat_card(t) for t in result.scalars().all()]
+
+    async def get_threat(self, threat_id: int) -> dict:
+        ts = await self.db.get(ThreatSystem, threat_id)
+        if not ts:
+            raise HTTPException(404, f"Threat system #{threat_id} not found")
+        return self._threat_card(ts)
+
+    async def create_threat(self, data: dict) -> dict:
+        existing = await self.db.execute(
+            select(ThreatSystem).where(ThreatSystem.name == data["name"])
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(409, f"Threat system '{data['name']}' already exists")
+        ts = ThreatSystem(**data)
+        self.db.add(ts)
+        await self.db.flush()
+        await self.db.refresh(ts)
+        return self._threat_card(ts)
+
+    async def update_threat(self, threat_id: int, data: dict) -> dict:
+        ts = await self.db.get(ThreatSystem, threat_id)
+        if not ts:
+            raise HTTPException(404, f"Threat system #{threat_id} not found")
+        for key, value in data.items():
+            setattr(ts, key, value)
+        await self.db.flush()
+        await self.db.refresh(ts)
+        return self._threat_card(ts)
+
+    async def delete_threat(self, threat_id: int) -> None:
+        ts = await self.db.get(ThreatSystem, threat_id)
+        if not ts:
+            raise HTTPException(404, f"Threat system #{threat_id} not found")
+        await self.db.delete(ts)
+        await self.db.flush()
+
     # ── Internal helpers ──────────────────────────────────────────
 
     @staticmethod
@@ -242,6 +293,23 @@ class InventoryService:
             "max_speed_ms": dt.max_speed_ms,
             "endurance_h":  dt.endurance_h,
             "range_km":     dt.range_km,
+        }
+
+    @staticmethod
+    def _threat_card(ts: ThreatSystem) -> dict:
+        return {
+            "id":                     ts.id,
+            "name":                   ts.name,
+            "category":               ts.category,
+            "manufacturer":           ts.manufacturer,
+            "country":                ts.country,
+            "max_range_km":           ts.max_range_km,
+            "max_altitude_m":         ts.max_altitude_m,
+            "max_speed_kmh":          ts.max_speed_kmh,
+            "radar_cross_section_m2": ts.radar_cross_section_m2,
+            "countermeasures":        ts.countermeasures,
+            "notes":                  ts.notes,
+            "classification":         ts.classification,
         }
 
     @staticmethod

@@ -6,13 +6,15 @@ from app.models.user import User
 
 
 class Role(StrEnum):
-    ADMIN            = "admin"
-    MISSION_COMMANDER = "mission_commander"
-    FLIGHT_CONTROLLER = "flight_controller"
-    VIEWER           = "viewer"
+    ADMIN                = "admin"
+    MISSION_COMMANDER    = "mission_commander"
+    FLIGHT_CONTROLLER    = "flight_controller"
+    INTELLIGENCE_ANALYST = "intelligence_analyst"
+    VIEWER               = "viewer"
 
 
-# Role hierarchy: higher index = more permissions
+# Hierarchical roles — higher index = more permissions.
+# INTELLIGENCE_ANALYST is a specialist role (not in hierarchy); use require_role() for it.
 _HIERARCHY = [Role.VIEWER, Role.FLIGHT_CONTROLLER, Role.MISSION_COMMANDER, Role.ADMIN]
 
 

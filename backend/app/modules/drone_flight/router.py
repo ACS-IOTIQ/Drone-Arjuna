@@ -12,7 +12,7 @@ from app.schemas.mission import (
     MissionStatusUpdate, WaypointOut,
 )
 from app.modules.drone_flight.geo_service import compute_mission_summary
-from app.modules.drone_flight.mission_planner import MissionPlanner
+from app.modules.drone_flight.mission_planner import MissionPlanner, deconflict_missions
 
 router = APIRouter()
 DbDep = Annotated[AsyncSession, Depends(get_db)]
@@ -101,6 +101,48 @@ async def update_mission_status(
     m = await db.get(Mission, mid)
     if not m:
         raise HTTPException(404, "Mission not found")
+
+    if body.status == "approved":
+        # Load waypoints for the mission being approved
+        wps_result = await db.execute(
+            select(Waypoint).where(Waypoint.mission_id == mid).order_by(Waypoint.sequence)
+        )
+        target_wps = wps_result.scalars().all()
+
+        # Load all currently active missions (approved or executing), excluding this one
+        active_result = await db.execute(
+            select(Mission).where(
+                Mission.status.in_(["approved", "executing"]),
+                Mission.id != mid,
+            )
+        )
+        active_missions = active_result.scalars().all()
+
+        # Load waypoints for each active mission
+        missions_with_waypoints: list[tuple[Mission, list[Waypoint]]] = [
+            (m, list(target_wps))
+        ]
+        for active in active_missions:
+            aw_result = await db.execute(
+                select(Waypoint)
+                .where(Waypoint.mission_id == active.id)
+                .order_by(Waypoint.sequence)
+            )
+            missions_with_waypoints.append((active, aw_result.scalars().all()))
+
+        conflicts = deconflict_missions(missions_with_waypoints)
+        if conflicts:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "Approval blocked — airspace conflict detected with "
+                        f"{len(conflicts)} active mission(s)"
+                    ),
+                    "conflicts": conflicts,
+                },
+            )
+
     m.status = body.status
     return {"detail": "Status updated", "status": body.status}
 

@@ -1,0 +1,26 @@
+{
+  "fingerprint": "8d73bb5767f8ddcc1cd170372727f974cbd68cd4cf3b0c330ce8c41d4da6aa04",
+  "nodeids": [
+    "app/tests/test_inventory_api.py::test_compare_not_found_404",
+    "app/tests/test_inventory_api.py::test_compare_one_drone_400",
+    "app/tests/test_inventory_api.py::test_compare_two_drones_200",
+    "app/tests/test_inventory_api.py::test_get_inventory_drone_detail_200",
+    "app/tests/test_inventory_api.py::test_get_inventory_drone_not_found_404",
+    "app/tests/test_inventory_api.py::test_inventory_search_unauthenticated_401",
+    "app/tests/test_inventory_api.py::test_inventory_unauthenticated_401",
+    "app/tests/test_inventory_api.py::test_list_inventory_drones_200",
+    "app/tests/test_inventory_api.py::test_list_inventory_drones_filter_size_class_200",
+    "app/tests/test_inventory_api.py::test_list_inventory_drones_unknown_filter_200",
+    "app/tests/test_inventory_api.py::test_list_inventory_payloads_stub_200",
+    "app/tests/test_inventory_api.py::test_quick_ref_200",
+    "app/tests/test_inventory_api.py::test_quick_ref_not_found_404",
+    "app/tests/test_inventory_api.py::test_search_by_manufacturer",
+    "app/tests/test_inventory_api.py::test_search_by_name_returns_match",
+    "app/tests/test_inventory_api.py::test_search_empty_query_200",
+    "app/tests/test_inventory_api.py::test_search_no_match_returns_empty",
+    "app/tests/test_inventory_api.py::test_search_payload_by_manufacturer",
+    "app/tests/test_inventory_api.py::test_search_returns_payload_results",
+    "app/tests/test_inventory_api.py::test_search_returns_type_field_on_drone",
+    "app/tests/test_inventory_api.py::test_search_unified_mixed_results"
+  ]
+}

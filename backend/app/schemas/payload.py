@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -7,68 +7,56 @@ from pydantic import BaseModel
 
 class PayloadTypeCreate(BaseModel):
     name: str
-    description: Optional[str] = None
+    manufacturer: str
+    model: str
+    category: Literal["sensor", "combat", "comms", "other"] = "sensor"
+    weight_kg: float = 0.0
+    voltage_v: float = 5.0
+    max_current_a: float = 2.0
+    has_gimbal: bool = False
+    sensor_type: Optional[str] = None
+    resolution: Optional[str] = None
+    frame_rate_fps: Optional[float] = None
+    payload_function: Optional[str] = None
+    effective_range_m: Optional[float] = None
+    notes: Optional[str] = None
 
 
 class PayloadTypeUpdate(BaseModel):
     name: Optional[str] = None
-    description: Optional[str] = None
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    category: Optional[Literal["sensor", "combat", "comms", "other"]] = None
+    weight_kg: Optional[float] = None
+    voltage_v: Optional[float] = None
+    max_current_a: Optional[float] = None
+    has_gimbal: Optional[bool] = None
+    sensor_type: Optional[str] = None
+    resolution: Optional[str] = None
+    frame_rate_fps: Optional[float] = None
+    payload_function: Optional[str] = None
+    effective_range_m: Optional[float] = None
+    notes: Optional[str] = None
 
 
 class PayloadTypeOut(BaseModel):
     id: int
     name: str
-    description: Optional[str] = None
+    manufacturer: str
+    model: str
+    category: str
+    weight_kg: float
+    voltage_v: float
+    max_current_a: float
+    has_gimbal: bool
+    sensor_type: Optional[str] = None
+    resolution: Optional[str] = None
+    frame_rate_fps: Optional[float] = None
+    payload_function: Optional[str] = None
+    effective_range_m: Optional[float] = None
+    notes: Optional[str] = None
+    is_active: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
 
-
-# ── Payload ────────────────────────────────────────────────────────────────────
-
-class PayloadCreate(BaseModel):
-    name: str
-    payload_type_id: int
-    drone_id: Optional[int] = None
-    weight: float
-    status: str = "available"
-    manufacturer: str
-    serial_number: str
-
-
-class PayloadUpdate(BaseModel):
-    name: Optional[str] = None
-    payload_type_id: Optional[int] = None
-    drone_id: Optional[int] = None
-    weight: Optional[float] = None
-    status: Optional[str] = None
-    manufacturer: Optional[str] = None
-    serial_number: Optional[str] = None
-
-
-class PayloadOut(BaseModel):
-    id: int
-    name: str
-    payload_type_id: int
-    drone_id: Optional[int] = None
-    weight: float
-    status: str
-    manufacturer: str
-    serial_number: str
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-# ── Compatibility (kept for schemas/__init__.py exports) ──────────────────────
-
-class CompatibilityCheckRequest(BaseModel):
-    drone_type_id: int
-    payload_type_id: int
-
-
-class CompatibilityCheckResult(BaseModel):
-    compatible: bool
-    reason: Optional[str] = None
-    weight_margin_kg: Optional[float] = None
-    power_margin_w: Optional[float] = None

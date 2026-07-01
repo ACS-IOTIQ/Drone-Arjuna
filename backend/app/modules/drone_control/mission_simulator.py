@@ -19,6 +19,9 @@ from enum import Enum
 from typing import Optional
 import structlog
 
+from app.utils.geofence import geofence_store
+from app.core.events import emit_geofence_breach, emit_geofence_recovered
+
 log = structlog.get_logger()
 
 EARTH_R = 6_371_000.0  # metres
@@ -98,6 +101,7 @@ class MissionSimulator:
         self._sm   = None   # StateManager injected on start()
         self._task: Optional[asyncio.Task] = None
         self._cmds: asyncio.Queue = asyncio.Queue()
+        self._breaching: dict[int, bool] = {}   # per-drone breach state for edge detection
 
         self.phase      = SimPhase.IDLE
         self.drone_id:  Optional[int] = None
@@ -428,6 +432,51 @@ class MissionSimulator:
             "sim_waypoint_idx":      self.wp_idx,
             "sim_waypoint_count":    len(self.waypoints),
         })
+        await self._check_geofence()
+
+    async def _check_geofence(self):
+        """
+        Edge-triggered geofence breach detection for the simulator.
+        Mirrors TelemetryProcessor._check_geofence() but runs inside the
+        simulator loop since simulated positions never go through MAVLink parsing.
+
+        On breach  : injects geofence_breach=True into state (→ WebSocket),
+                     publishes to RabbitMQ, and transitions to RTL phase.
+        On recovery: injects geofence_breach=False into state, publishes recovery event.
+        """
+        if self.drone_id is None or self._sm is None:
+            return
+        inside = geofence_store.is_inside(self.drone_id, self.lat, self.lon)
+        if inside is None:
+            return  # no fence registered for this drone
+
+        was_breaching = self._breaching.get(self.drone_id, False)
+        now_breaching = not inside
+
+        if now_breaching and not was_breaching:
+            self._breaching[self.drone_id] = True
+            log.warning(
+                "Sim geofence breach",
+                drone_id=self.drone_id,
+                lat=self.lat,
+                lon=self.lon,
+            )
+            await self._sm.update(self.drone_id, {
+                "geofence_breach": True,
+                "breach_lat":      self.lat,
+                "breach_lon":      self.lon,
+            })
+            await emit_geofence_breach(self.drone_id, self.lat, self.lon)
+            # Auto-RTL: transition the simulated drone back to home
+            if self.phase == SimPhase.FLYING:
+                self.phase = SimPhase.RTL
+                log.warning("Auto-RTL triggered — sim geofence breach", drone_id=self.drone_id)
+
+        elif not now_breaching and was_breaching:
+            self._breaching[self.drone_id] = False
+            log.info("Sim drone recovered inside geofence", drone_id=self.drone_id)
+            await self._sm.update(self.drone_id, {"geofence_breach": False})
+            await emit_geofence_recovered(self.drone_id)
 
 
 # Module-level singleton

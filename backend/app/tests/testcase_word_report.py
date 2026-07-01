@@ -8,7 +8,9 @@ test command does not need extra packages.
 """
 from __future__ import annotations
 
+import hashlib
 import inspect
+import json
 import re
 import zipfile
 from dataclasses import dataclass, field
@@ -18,7 +20,10 @@ from typing import Any
 from xml.sax.saxutils import escape
 
 
-REPORT_PATH = Path("app/tests/reports/testcase_documentation.docx")
+REPORTS_DIR = Path("app/tests/reports")
+COMBINED_REPORT_PATH = REPORTS_DIR / "testcase_documentation.docx"
+COMBINED_MANIFEST_PATH = REPORTS_DIR / "testcase_documentation.manifest.json"
+MODULES_DIR = REPORTS_DIR / "modules"
 _DOCS: dict[str, "TestCaseDoc"] = {}
 
 
@@ -88,17 +93,124 @@ def pytest_runtest_logreport(report: Any) -> None:
         doc.failure_summary = _clean_failure(str(getattr(report, "longrepr", "")))
 
 
+def _compute_fingerprint(docs: dict[str, "TestCaseDoc"]) -> str:
+    entries = sorted(
+        f"{d.nodeid}|{d.purpose}|{','.join(d.markers)}"
+        for d in docs.values()
+    )
+    return hashlib.sha256("\n".join(entries).encode()).hexdigest()
+
+
+def _load_manifest(manifest_path: Path) -> dict:
+    if manifest_path.exists():
+        try:
+            return json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_manifest(manifest_path: Path, fingerprint: str, nodeids: list[str]) -> None:
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps({"fingerprint": fingerprint, "nodeids": sorted(nodeids)}, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _diff_reason(manifest: dict, curr_ids: set[str]) -> str:
+    prev_ids = set(manifest.get("nodeids", []))
+    added = curr_ids - prev_ids
+    removed = prev_ids - curr_ids
+    parts = []
+    if added:
+        parts.append(f"{len(added)} new test(s)")
+    if removed:
+        parts.append(f"{len(removed)} removed test(s)")
+    if not parts:
+        parts.append("test(s) updated")
+    return ", ".join(parts)
+
+
+def _maybe_write_report(
+    output_path: Path,
+    manifest_path: Path,
+    docs: dict[str, "TestCaseDoc"],
+    started_at: Any,
+    exitstatus: int,
+    label: str,
+    terminal: Any,
+) -> None:
+    fingerprint = _compute_fingerprint(docs)
+    manifest = _load_manifest(manifest_path)
+
+    if output_path.exists() and manifest.get("fingerprint") == fingerprint:
+        if terminal:
+            terminal.write_line(f"  [unchanged] {label}: {output_path}")
+        return
+
+    doc_title = f"DroneArjuna — {label} Test Case Documentation"
+    _write_docx(output_path, list(docs.values()), started_at, exitstatus, title=doc_title)
+    _save_manifest(manifest_path, fingerprint, list(docs.keys()))
+
+    if terminal:
+        if manifest.get("fingerprint"):
+            reason = _diff_reason(manifest, set(docs.keys()))
+            terminal.write_line(f"  [updated — {reason}] {label}: {output_path}")
+        else:
+            terminal.write_line(f"  [generated] {label}: {output_path}")
+
+
 def pytest_sessionfinish(session: Any, exitstatus: int) -> None:
     terminal = session.config.pluginmanager.get_plugin("terminalreporter")
-    if REPORT_PATH.exists():
-        if terminal:
-            terminal.write_line(f"Test case Word document already exists, skipping: {REPORT_PATH}")
-        return
     docs: dict[str, TestCaseDoc] = getattr(session.config, "_da_testcase_docs", {})
     started_at = getattr(session.config, "_da_report_started_at", None)
-    _write_docx(REPORT_PATH, list(docs.values()), started_at, exitstatus)
+
+    if not docs:
+        return
+
+    # Group tests by source file
+    grouped: dict[str, dict[str, TestCaseDoc]] = {}
+    for nodeid, doc in docs.items():
+        grouped.setdefault(doc.file_path, {})[nodeid] = doc
+
     if terminal:
-        terminal.write_line(f"Test case Word document generated: {REPORT_PATH}")
+        terminal.write_line("\n--- DroneArjuna test case documentation ---")
+
+    # Per-module individual reports
+    MODULES_DIR.mkdir(parents=True, exist_ok=True)
+    for file_path, module_docs in sorted(grouped.items()):
+        stem = Path(file_path).stem  # e.g. "test_auth"
+        module_title = next(iter(module_docs.values())).module_title
+        out = MODULES_DIR / f"{stem}_documentation.docx"
+        mf = MODULES_DIR / f"{stem}_documentation.manifest.json"
+        _maybe_write_report(out, mf, module_docs, started_at, exitstatus, module_title, terminal)
+
+    # Combined report: only regenerate when running more than one module.
+    # Single-file runs leave the existing combined report untouched so it
+    # always reflects the last full test suite run.
+    if len(grouped) > 1:
+        _maybe_write_report(
+            COMBINED_REPORT_PATH,
+            COMBINED_MANIFEST_PATH,
+            docs,
+            started_at,
+            exitstatus,
+            "Combined (all modules)",
+            terminal,
+        )
+    elif terminal:
+        if COMBINED_REPORT_PATH.exists():
+            terminal.write_line(
+                f"  [untouched] Combined (all modules): {COMBINED_REPORT_PATH}"
+            )
+        else:
+            terminal.write_line(
+                "  [skipped] Combined report not yet created — run the full test suite to generate it."
+            )
+
+    if terminal:
+        terminal.write_line("-------------------------------------------")
 
 
 def _result_label(report: Any) -> str:
@@ -137,6 +249,7 @@ def _write_docx(
     tests: list[TestCaseDoc],
     started_at: datetime | None,
     exitstatus: int,
+    title: str = "DroneArjuna Backend Test Case Documentation",
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tests = sorted(tests, key=lambda t: (t.file_path, t.nodeid))
@@ -150,7 +263,7 @@ def _write_docx(
     not_run = sum(1 for t in tests if t.result == "Not run")
 
     body: list[str] = []
-    body.append(_paragraph("DroneArjuna Backend Test Case Documentation", "Title"))
+    body.append(_paragraph(title, "Title"))
     body.append(_paragraph(f"Generated at: {generated_at.isoformat(timespec='seconds')}"))
     body.append(_paragraph(f"Test session started: {started_text}"))
     body.append(_paragraph(f"Pytest exit status: {exitstatus}"))

@@ -221,6 +221,36 @@ class DroneInstanceService:
         return await type_svc.get_by_id(inst.drone_type_id)
 
 
+# ── Config Template helpers ───────────────────────────────────────
+
+def _validate_settings_vs_type(settings: dict, drone_type: DroneType) -> None:
+    """
+    Raise 422 if any setting exceeds the drone type's physical limits.
+    Called on both create and update so limits are always enforced.
+    """
+    errors: list[str] = []
+    m  = settings.get("mavlink", {})
+    g  = settings.get("geofence", {})
+    ms = settings.get("mission", {})
+
+    ceiling = drone_type.max_altitude_m
+    top_spd = drone_type.max_speed_ms
+
+    if (v := m.get("rtl_altitude_m")) and v > ceiling:
+        errors.append(f"mavlink.rtl_altitude_m {v} m exceeds type ceiling {ceiling} m")
+    if (v := m.get("wpnav_speed_ms")) and v > top_spd:
+        errors.append(f"mavlink.wpnav_speed_ms {v} m/s exceeds type max {top_spd} m/s")
+    if (v := g.get("alt_max_m")) and v > ceiling:
+        errors.append(f"geofence.alt_max_m {v} m exceeds type ceiling {ceiling} m")
+    if (v := ms.get("max_waypoint_alt_m")) and v > ceiling:
+        errors.append(f"mission.max_waypoint_alt_m {v} m exceeds type ceiling {ceiling} m")
+    if (v := ms.get("default_cruise_speed_ms")) and v > top_spd:
+        errors.append(f"mission.default_cruise_speed_ms {v} m/s exceeds type max {top_spd} m/s")
+
+    if errors:
+        raise HTTPException(422, "; ".join(errors))
+
+
 # ── Config Templates ──────────────────────────────────────────────
 
 class DroneConfigTemplateService:
@@ -258,6 +288,10 @@ class DroneConfigTemplateService:
         if not dt or not dt.is_active:
             raise HTTPException(404, f"Drone type #{body.drone_type_id} not found")
 
+        # Compact serialise (exclude None values) then validate against type limits
+        settings_dict = body.settings.model_dump(exclude_none=True)
+        _validate_settings_vs_type(settings_dict, dt)
+
         # Unique name (active templates only — allows reuse of archived names)
         existing = await self.db.execute(
             select(DroneConfigTemplate).where(
@@ -268,7 +302,9 @@ class DroneConfigTemplateService:
         if existing.scalar_one_or_none():
             raise HTTPException(409, f"Config template '{body.name}' already exists")
 
-        t = DroneConfigTemplate(**body.model_dump())
+        dump = body.model_dump()
+        dump["settings"] = settings_dict
+        t = DroneConfigTemplate(**dump)
         self.db.add(t)
         await self.db.flush()
         await self.db.refresh(t)
@@ -282,13 +318,17 @@ class DroneConfigTemplateService:
         t = await self.get_by_id(tid)
         update_data = body.model_dump(exclude_unset=True)
 
-        # If changing drone type, verify the new type exists
-        if "drone_type_id" in update_data:
-            dt = await self.db.get(DroneType, update_data["drone_type_id"])
+        # Resolve the drone type that will apply after the update and validate
+        if "drone_type_id" in update_data or "settings" in update_data:
+            effective_type_id = update_data.get("drone_type_id", t.drone_type_id)
+            dt = await self.db.get(DroneType, effective_type_id)
             if not dt or not dt.is_active:
-                raise HTTPException(
-                    404, f"Drone type #{update_data['drone_type_id']} not found"
-                )
+                raise HTTPException(404, f"Drone type #{effective_type_id} not found")
+
+            if "settings" in update_data and body.settings is not None:
+                settings_dict = body.settings.model_dump(exclude_none=True)
+                _validate_settings_vs_type(settings_dict, dt)
+                update_data["settings"] = settings_dict
 
         for field, value in update_data.items():
             setattr(t, field, value)

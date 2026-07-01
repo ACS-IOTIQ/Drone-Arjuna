@@ -1,13 +1,8 @@
 import { useState } from 'react'
 import { CheckCircle2, Lock, Mail, Phone, ShieldCheck, User, UserPlus } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
-import {
-  createAccessRequest,
-  requestMailto,
-  requestSms,
-  REQUEST_ROLES,
-  type AccessRequest,
-} from '@/store/accessRequestStore'
+import { REQUEST_ROLES, requestMailto, requestSms, type AccessRequest } from '@/store/accessRequestStore'
+import { api } from '@/api/client'
 import { notify } from '@/store/notificationStore'
 
 type Mode = 'signin' | 'request'
@@ -38,25 +33,39 @@ export default function LoginScreen() {
     login(username.trim(), password)
   }
 
-  const submitRequest = (e?: React.FormEvent) => {
+  const submitRequest = async (e?: React.FormEvent) => {
     e?.preventDefault()
     setRequestError('')
     if (!request.username.trim() || !request.full_name.trim() || !request.email.trim()) {
       setRequestError('Name, username, and email are required.')
       return
     }
-
-    const saved = createAccessRequest({
-      ...request,
-      username: request.username.trim(),
-      full_name: request.full_name.trim(),
-      email: request.email.trim(),
-      mobile: request.mobile.trim(),
-      reason: request.reason.trim(),
-    })
-    notify.info('Access request submitted', `${saved.full_name} requested ${saved.requested_role} access`)
-    setSubmitted(saved)
-    setRequest(EMPTY_REQUEST)
+    try {
+      await api.post('/api/auth/request-access', {
+        username:       request.username.trim(),
+        full_name:      request.full_name.trim(),
+        email:          request.email.trim(),
+        mobile:         request.mobile.trim() || undefined,
+        requested_role: request.requested_role,
+        reason:         request.reason.trim() || undefined,
+      })
+      const preview: AccessRequest = {
+        id:             '',
+        username:       request.username.trim(),
+        full_name:      request.full_name.trim(),
+        email:          request.email.trim(),
+        mobile:         request.mobile.trim(),
+        requested_role: request.requested_role,
+        reason:         request.reason.trim(),
+        status:         'pending',
+        created_at:     new Date().toISOString(),
+      }
+      notify.info('Access request submitted', `${preview.full_name} requested ${preview.requested_role} access`)
+      setSubmitted(preview)
+      setRequest(EMPTY_REQUEST)
+    } catch (err: any) {
+      setRequestError(err.response?.data?.detail ?? 'Failed to submit request. Please try again.')
+    }
   }
 
   const requestField = (

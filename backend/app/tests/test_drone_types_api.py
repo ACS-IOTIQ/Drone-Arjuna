@@ -93,6 +93,36 @@ async def test_create_drone_type_cruise_exceeds_max_422(
     assert resp.status_code == 422
 
 
+async def test_create_drone_type_payload_exceeds_mtow_422(
+    client: AsyncClient, admin_user, make_token
+):
+    """max_payload_weight_kg > max_takeoff_weight_kg must be rejected → 422."""
+    token = make_token(admin_user.id, admin_user.role)
+    bad   = {**_DT_BODY, "name": "Bad Payload Drone",
+             "max_takeoff_weight_kg": 10.0, "max_payload_weight_kg": 12.0}
+    resp  = await client.post(
+        "/api/master/drone-types",
+        json=bad,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_drone_type_payload_equals_mtow_422(
+    client: AsyncClient, admin_user, make_token
+):
+    """max_payload_weight_kg == max_takeoff_weight_kg must also be rejected → 422."""
+    token = make_token(admin_user.id, admin_user.role)
+    bad   = {**_DT_BODY, "name": "Equal Weight Drone",
+             "max_takeoff_weight_kg": 10.0, "max_payload_weight_kg": 10.0}
+    resp  = await client.post(
+        "/api/master/drone-types",
+        json=bad,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
 # ══════════════════════════════════════════════════════════════════════
 # Read
 # ══════════════════════════════════════════════════════════════════════
@@ -270,3 +300,56 @@ async def test_viewer_blocked_from_archive_drone_type_403(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
+
+
+# ══════════════════════════════════════════════════════════════════════
+# DB Persistence — verify all fields round-trip through POST → GET
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_drone_type_all_fields_persisted(
+    client: AsyncClient, admin_user, make_token
+):
+    """Every field submitted on POST must be retrievable unchanged via GET."""
+    token  = make_token(admin_user.id, admin_user.role)
+    hdrs   = {"Authorization": f"Bearer {token}"}
+    body   = {
+        "name":                   "Persist-Test Eagle",
+        "manufacturer":           "ACS Systems",
+        "model":                  "Eagle-PT-1",
+        "size_class":             "large",
+        "mission_type":           "Strike",
+        "is_vtol":                False,
+        "max_speed_ms":           50.0,
+        "cruise_speed_ms":        35.0,
+        "max_altitude_m":         5000.0,
+        "endurance_h":            6.0,
+        "range_km":               150.0,
+        "max_takeoff_weight_kg":  25.0,
+        "max_payload_weight_kg":  8.0,
+        "autopilot_type":         "PX4",
+        "notes":                  "persistence check",
+    }
+    create = await client.post("/api/master/drone-types", json=body, headers=hdrs)
+    assert create.status_code == 201
+    tid = create.json()["id"]
+    try:
+        get  = await client.get(f"/api/master/drone-types/{tid}", headers=hdrs)
+        assert get.status_code == 200
+        stored = get.json()
+        assert stored["name"]                   == body["name"]
+        assert stored["manufacturer"]           == body["manufacturer"]
+        assert stored["model"]                  == body["model"]
+        assert stored["size_class"]             == body["size_class"]
+        assert stored["mission_type"]           == body["mission_type"]
+        assert stored["is_vtol"]                == body["is_vtol"]
+        assert stored["max_speed_ms"]           == body["max_speed_ms"]
+        assert stored["cruise_speed_ms"]        == body["cruise_speed_ms"]
+        assert stored["max_altitude_m"]         == body["max_altitude_m"]
+        assert stored["endurance_h"]            == body["endurance_h"]
+        assert stored["range_km"]               == body["range_km"]
+        assert stored["max_takeoff_weight_kg"]  == body["max_takeoff_weight_kg"]
+        assert stored["max_payload_weight_kg"]  == body["max_payload_weight_kg"]
+        assert stored["autopilot_type"]         == body["autopilot_type"]
+        assert stored["notes"]                  == body["notes"]
+    finally:
+        await client.delete(f"/api/master/drone-types/{tid}", headers=hdrs)

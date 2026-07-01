@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, Literal
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ── Drone Types ───────────────────────────────────────────────────
@@ -99,13 +99,99 @@ class DroneInstanceUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+# ── Config Template Settings sub-models ──────────────────────────
+
+class MavlinkParams(BaseModel):
+    """ArduPilot parameter values stored in human units (m, m/s, degrees)."""
+    wpnav_speed_ms:     Optional[float] = None   # WPNAV_SPEED
+    wpnav_speed_up_ms:  Optional[float] = None   # WPNAV_SPEED_UP
+    wpnav_speed_dn_ms:  Optional[float] = None   # WPNAV_SPEED_DN
+    wpnav_accel_ms2:    Optional[float] = None   # WPNAV_ACCEL
+    rtl_altitude_m:     Optional[float] = None   # RTL_ALTITUDE
+    rtl_speed_ms:       Optional[float] = None   # RTL_SPEED
+    land_speed_ms:      Optional[float] = None   # LAND_SPEED
+    angle_max_deg:      Optional[float] = None   # ANGLE_MAX
+    pilot_speed_up_ms:  Optional[float] = None   # PILOT_SPEED_UP
+    arming_check_mask:  Optional[int]   = None   # ARMING_CHECK bitmask
+
+
+class FailsafeSettings(BaseModel):
+    battery_enable:    bool = True
+    battery_voltage_v: Optional[float] = None
+    battery_mah:       Optional[int]   = None
+    battery_action:    Literal["RTL", "LAND", "HOLD", "CONTINUE"] = "RTL"
+    gcs_enable:        bool = True
+    gcs_action:        Literal["RTL", "LAND", "HOLD", "CONTINUE"] = "RTL"
+    rc_enable:         bool = True
+    rc_action:         Literal["RTL", "LAND", "HOLD"] = "RTL"
+    ekf_action:        Literal["RTL", "LAND", "HOLD"] = "LAND"
+
+
+class GeofenceDefaults(BaseModel):
+    fence_type:    Literal["circle", "polygon", "altitude", "composite"] = "composite"
+    radius_m:      Optional[float] = None
+    alt_max_m:     Optional[float] = None
+    alt_min_m:     float = 10.0
+    breach_action: Literal["RTL", "LAND", "HOLD"] = "RTL"
+
+
+class BatteryThresholds(BaseModel):
+    capacity_mah:   Optional[int] = None
+    low_pct:        int = 30
+    rtl_pct:        int = 20
+    land_pct:       int = 10
+    min_to_arm_pct: int = 50
+
+    @model_validator(mode="after")
+    def rtl_above_land(self) -> "BatteryThresholds":
+        if self.rtl_pct <= self.land_pct:
+            raise ValueError(
+                f"battery.rtl_pct ({self.rtl_pct}%) must be greater than "
+                f"land_pct ({self.land_pct}%)"
+            )
+        return self
+
+
+class PreflightChecks(BaseModel):
+    required_gps_fix:     Literal["3D", "DGPS", "RTK"] = "3D"
+    min_satellites:       int   = 6
+    max_hdop:             float = 2.0
+    min_voltage_to_arm_v: Optional[float] = None
+
+
+class MissionConstraints(BaseModel):
+    max_waypoints:            int   = 100
+    min_waypoint_alt_m:       float = 10.0
+    max_waypoint_alt_m:       Optional[float] = None
+    default_cruise_speed_ms:  Optional[float] = None
+    default_loiter_radius_m:  float = 20.0
+    default_photo_interval_s: Optional[float] = None
+    max_wind_speed_ms:        Optional[float] = None
+
+
+class TelemetrySettings(BaseModel):
+    telemetry_rate_hz:   int   = 4
+    heartbeat_timeout_s: float = 5.0
+    hf_message_filter:   list[str] = Field(default_factory=list)
+
+
+class ConfigSettings(BaseModel):
+    mavlink:   MavlinkParams      = Field(default_factory=MavlinkParams)
+    failsafe:  FailsafeSettings   = Field(default_factory=FailsafeSettings)
+    geofence:  GeofenceDefaults   = Field(default_factory=GeofenceDefaults)
+    battery:   BatteryThresholds  = Field(default_factory=BatteryThresholds)
+    preflight: PreflightChecks    = Field(default_factory=PreflightChecks)
+    mission:   MissionConstraints = Field(default_factory=MissionConstraints)
+    telemetry: TelemetrySettings  = Field(default_factory=TelemetrySettings)
+
+
 # ── Config Templates ──────────────────────────────────────────────
 
 class DroneConfigTemplateCreate(BaseModel):
     name: str
     description: Optional[str] = None
     drone_type_id: int
-    settings: dict = {}
+    settings: ConfigSettings = Field(default_factory=ConfigSettings)
 
     @field_validator("name")
     @classmethod
@@ -119,7 +205,7 @@ class DroneConfigTemplateUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     drone_type_id: Optional[int] = None
-    settings: Optional[dict] = None
+    settings: Optional[ConfigSettings] = None
 
 
 class DroneConfigTemplateOut(BaseModel):
@@ -127,7 +213,7 @@ class DroneConfigTemplateOut(BaseModel):
     name: str
     description: Optional[str] = None
     drone_type_id: int
-    settings: dict
+    settings: dict   # raw pass-through — DB stores the serialized form
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -177,3 +263,7 @@ class SimStartRequest(BaseModel):
 class SimCommandRequest(BaseModel):
     action: str          # arm | disarm | takeoff | set_mode | rtl | land | emergency_stop
     params: dict = {}
+
+
+class GeofenceSetRequest(BaseModel):
+    geofence: Optional[dict] = None   # GeoJSON Polygon/MultiPolygon; None clears the fence

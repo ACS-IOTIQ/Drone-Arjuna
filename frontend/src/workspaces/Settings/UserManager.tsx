@@ -1,16 +1,30 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Mail, Phone, Plus, Save, UserCheck, UserX, X } from 'lucide-react'
+import { Mail, Phone, Plus, Save, UserCheck, UserX, X } from 'lucide-react'
 import { api } from '@/api/client'
 import {
   listAccessRequests,
   makeTempPassword,
   requestMailto,
   requestSms,
-  openNotificationChannels,
   updateAccessRequest,
   type AccessRequest,
 } from '@/store/accessRequestStore'
 import { notify } from '@/store/notificationStore'
+
+interface AccessRequestOut {
+  id: number
+  username: string
+  full_name: string
+  email: string
+  mobile?: string
+  requested_role: string
+  reason?: string
+  status: 'pending' | 'approved' | 'rejected'
+  admin_note?: string
+  temp_password?: string
+  created_at: string
+  reviewed_at?: string
+}
 
 interface UserRecord {
   id?: number
@@ -35,10 +49,10 @@ const ROLES = ['admin', 'mission_commander', 'flight_controller', 'viewer']
 
 export function UserManager() {
   const [users, setUsers] = useState<UserRecord[]>([])
-  const [requests, setRequests] = useState<AccessRequest[]>([])
+  const [requests, setRequests] = useState<AccessRequestOut[]>([])
   const [editing, setEditing] = useState<UserRecord | null>(null)
   const [saving, setSaving] = useState(false)
-  const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [approvingId, setApprovingId] = useState<number | null>(null)
   const [err, setErr] = useState('')
   const [requestErr, setRequestErr] = useState('')
 
@@ -56,13 +70,18 @@ export function UserManager() {
     }
   }
 
-  const loadRequests = () => setRequests(listAccessRequests())
+  const loadRequests = async () => {
+    try {
+      const { data } = await api.get('/api/auth/access-requests')
+      setRequests(data)
+    } catch {
+      setRequests([])
+    }
+  }
 
   useEffect(() => {
     loadUsers()
     loadRequests()
-    window.addEventListener('da_access_requests_changed', loadRequests)
-    return () => window.removeEventListener('da_access_requests_changed', loadRequests)
   }, [])
 
   const save = async () => {
@@ -82,32 +101,19 @@ export function UserManager() {
     }
   }
 
-  const approveRequest = async (req: AccessRequest) => {
+  const approveRequest = async (req: AccessRequestOut) => {
     setRequestErr('')
-    const tempPassword = makeTempPassword(req.username)
-    const body = {
-      username: req.username,
-      email: req.email,
-      full_name: req.full_name,
-      role: req.requested_role,
-      password: tempPassword,
-      is_active: true,
-    }
-
     try {
       setApprovingId(req.id)
       await api.post('/api/auth/register', body)
       await loadUsers()
-      const updated = updateAccessRequest(req.id, {
+      updateAccessRequest(req.id, {
         status: 'approved',
         reviewed_at: new Date().toISOString(),
         temp_password: tempPassword,
-        admin_note: 'Account created. Notification drafts opened for the requester.',
+        admin_note: 'Account created. Send credentials through the approved channel.',
       })
       notify.success('Access approved', `${req.username} account created`)
-      if (updated) {
-        openNotificationChannels(updated)
-      }
       loadRequests()
     } catch (e: any) {
       setRequestErr(e.response?.data?.detail ?? 'Approval failed. Confirm you are logged in as admin.')
@@ -117,15 +123,12 @@ export function UserManager() {
   }
 
   const rejectRequest = (req: AccessRequest) => {
-    const updated = updateAccessRequest(req.id, {
+    updateAccessRequest(req.id, {
       status: 'rejected',
       reviewed_at: new Date().toISOString(),
       admin_note: 'Request rejected by administrator.',
     })
     notify.warning('Access rejected', `${req.username} request rejected`)
-    if (updated) {
-      openNotificationChannels(updated)
-    }
     loadRequests()
   }
 
@@ -184,11 +187,11 @@ export function UserManager() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                  <a className="da-btn da-btn-ghost text-xs" href={requestMailto(req)}>
+                  <a className="da-btn da-btn-ghost text-xs" href={requestMailto(req as any)}>
                     <Mail size={13} /> Email
                   </a>
                   {req.mobile && (
-                    <a className="da-btn da-btn-ghost text-xs" href={requestSms(req)}>
+                    <a className="da-btn da-btn-ghost text-xs" href={requestSms(req as any)}>
                       <Phone size={13} /> SMS
                     </a>
                   )}

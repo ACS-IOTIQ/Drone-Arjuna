@@ -2,7 +2,8 @@
 # app/models/user.py
 # ═══════════════════════════════════════════
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, DateTime
+from typing import Optional
+from sqlalchemy import String, Boolean, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -21,6 +22,27 @@ class User(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
+
+
+class AccessRequest(Base):
+    """Account creation requests submitted from the login screen."""
+    __tablename__ = "access_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(String(64), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    email: Mapped[str] = mapped_column(String(128), nullable=False)
+    mobile: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    requested_role: Mapped[str] = mapped_column(String(32), nullable=False, default="viewer")
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # pending | approved | rejected
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    admin_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    temp_password: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # ═══════════════════════════════════════════

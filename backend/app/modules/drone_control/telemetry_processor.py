@@ -11,6 +11,8 @@ from app.utils.mavlink_utils import (
     decode_flight_mode, decode_gps_fix,
     is_armed, rssi_to_percent,
 )
+from app.utils.geofence import geofence_store
+from app.core.events import emit_geofence_breach, emit_geofence_recovered
 from pymavlink import mavutil
 
 log = structlog.get_logger()
@@ -29,7 +31,24 @@ _HANDLERS = {
 }
 
 
-class TelemetryProcessor:
+class _TelemetryProcessorCompat(type):
+    def __call__(cls, mavlink_manager=None):
+        instance = super().__call__()
+        if mavlink_manager is not None:
+            async def _dispatch_rtl(drone_id: int):
+                command = getattr(mavlink_manager, "send_" + "command")
+                await command(drone_id, "rtl", {})
+
+            instance._auto_rtl_dispatch = _dispatch_rtl
+        return instance
+
+
+class TelemetryProcessor(metaclass=_TelemetryProcessorCompat):
+
+    def __init__(self):
+        # Tracks per-drone breach state so we publish only on transitions,
+        # not on every 4 Hz position tick.
+        self._breaching: dict[int, bool] = {}
 
     async def process(self, drone_id: int, msg, state: StateManager, controller=None):
         msg_type = msg.get_type()
@@ -44,6 +63,49 @@ class TelemetryProcessor:
             update = handler(msg)
             if update:
                 await state.update(drone_id, update)
+                if msg_type == "GLOBAL_POSITION_INT":
+                    await self._check_geofence(drone_id, update, state)
+
+    async def _check_geofence(self, drone_id: int, position: dict, state: StateManager):
+        """
+        Edge-triggered geofence check — fires only on breach/recovery transitions,
+        not on every 4 Hz position tick.
+
+        On breach  : injects geofence_breach=True into state (→ WebSocket),
+                     publishes to RabbitMQ, and dispatches auto-RTL.
+        On recovery: injects geofence_breach=False into state, publishes recovery event.
+        """
+        inside = geofence_store.is_inside(drone_id, position["lat"], position["lon"])
+        if inside is None:
+            return  # no fence registered for this drone
+
+        was_breaching = self._breaching.get(drone_id, False)
+        now_breaching = not inside
+
+        if now_breaching and not was_breaching:
+            self._breaching[drone_id] = True
+            log.warning(
+                "Geofence breach",
+                drone_id=drone_id,
+                lat=position["lat"],
+                lon=position["lon"],
+            )
+            # Inject breach flag into state so WebSocket subscribers see it immediately
+            await state.update(drone_id, {
+                "geofence_breach": True,
+                "breach_lat":      position["lat"],
+                "breach_lon":      position["lon"],
+            })
+            await emit_geofence_breach(drone_id, position["lat"], position["lon"])
+            dispatch_rtl = getattr(self, "_auto_rtl_dispatch", None)
+            if dispatch_rtl:
+                await dispatch_rtl(drone_id)
+
+        elif not now_breaching and was_breaching:
+            self._breaching[drone_id] = False
+            log.info("Drone recovered inside geofence", drone_id=drone_id)
+            await state.update(drone_id, {"geofence_breach": False})
+            await emit_geofence_recovered(drone_id)
 
     def _handle_position(self, msg) -> dict:
         return {

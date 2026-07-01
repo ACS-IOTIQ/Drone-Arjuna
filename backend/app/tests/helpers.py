@@ -69,22 +69,28 @@ def payload_type_payload(name: str | None = None, **overrides) -> dict:
     tag = suffix()
     data = {
         "name": name or f"EO Camera {tag}",
-        "description": "Electro-optical camera payload",
+        "manufacturer": "Arjuna Sensors",
+        "model": f"AS-CAM-{tag}",
+        "category": "sensor",
+        "weight_kg": 0.85,
+        "voltage_v": 5.0,
+        "max_current_a": 1.2,
+        "has_gimbal": True,
+        "sensor_type": "EO",
     }
     data.update(overrides)
     return data
 
 
-def payload_payload(payload_type_id: int, drone_id: int | None = None, **overrides) -> dict:
+def access_request_payload(username: str | None = None, **overrides) -> dict:
     tag = suffix()
     data = {
-        "name": f"Camera Pod {tag}",
-        "payload_type_id": payload_type_id,
-        "drone_id": drone_id,
-        "weight": 1.4,
-        "status": "available",
-        "manufacturer": "Arjuna Sensors",
-        "serial_number": f"PAY-{tag}",
+        "username": username or f"op_{tag}",
+        "full_name": f"Operator {tag}",
+        "email": f"op_{tag}@example.com",
+        "mobile": "+91 9000000000",
+        "requested_role": "viewer",
+        "reason": "Joining field ops team",
     }
     data.update(overrides)
     return data

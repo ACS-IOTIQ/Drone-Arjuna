@@ -17,11 +17,8 @@ from app.modules.drone_master.service import (
     DroneTypeService, DroneInstanceService, DroneConfigTemplateService,
 )
 from app.modules.drone_master.vessel_service import NavalVesselService
-from app.modules.drone_master.payload_service import PayloadTypeService, PayloadService
-from app.schemas.payload import (
-    PayloadTypeCreate, PayloadTypeUpdate, PayloadTypeOut,
-    PayloadCreate, PayloadUpdate, PayloadOut,
-)
+from app.modules.drone_master.payload_service import PayloadTypeService
+from app.schemas.payload import PayloadTypeCreate, PayloadTypeUpdate, PayloadTypeOut
 
 router = APIRouter()
 DbDep     = Annotated[AsyncSession, Depends(get_db)]
@@ -172,33 +169,6 @@ async def update_payload_type(pt_id: int, body: PayloadTypeUpdate, db: DbDep, _:
 @router.delete("/payload-types/{pt_id}", status_code=204)
 async def delete_payload_type(pt_id: int, db: DbDep, _: AdminDep):
     await PayloadTypeService(db).delete(pt_id)
-
-
-# ── Payloads ──────────────────────────────────────────────────────
-
-@router.get("/payloads", response_model=list[PayloadOut])
-async def list_payloads(db: DbDep, _: ViewerDep):
-    return await PayloadService(db).list_all()
-
-
-@router.get("/payloads/{pid}", response_model=PayloadOut)
-async def get_payload(pid: int, db: DbDep, _: ViewerDep):
-    return await PayloadService(db).get_by_id(pid)
-
-
-@router.post("/payloads", response_model=PayloadOut, status_code=201)
-async def create_payload(body: PayloadCreate, db: DbDep, _: AdminDep):
-    return await PayloadService(db).create(body)
-
-
-@router.put("/payloads/{pid}", response_model=PayloadOut)
-async def update_payload(pid: int, body: PayloadUpdate, db: DbDep, _: AdminDep):
-    return await PayloadService(db).update(pid, body)
-
-
-@router.delete("/payloads/{pid}", status_code=204)
-async def delete_payload(pid: int, db: DbDep, _: AdminDep):
-    await PayloadService(db).delete(pid)
 
 
 # ── Config Templates ──────────────────────────────────────────────

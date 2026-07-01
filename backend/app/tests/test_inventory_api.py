@@ -230,6 +230,29 @@ async def test_compare_not_found_404(
 # Search
 # ══════════════════════════════════════════════════════════════════════
 
+@pytest_asyncio.fixture
+async def inv_payload_type(client: AsyncClient, admin_user, make_token):
+    """Payload type for unified search tests."""
+    token = make_token(admin_user.id, admin_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    body  = {
+        "name":         "InvSearch-EO-Gimbal",
+        "manufacturer": "OptiSearch Ltd",
+        "model":        "OS-EO-1",
+        "category":     "sensor",
+        "weight_kg":    0.8,
+        "voltage_v":    12.0,
+        "max_current_a": 1.5,
+        "has_gimbal":   True,
+        "sensor_type":  "EO",
+    }
+    resp = await client.post("/api/master/payload-types", json=body, headers=hdrs)
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    yield data
+    await client.delete(f"/api/master/payload-types/{data['id']}", headers=hdrs)
+
+
 async def test_search_by_name_returns_match(
     client: AsyncClient, viewer_user, inv_drone_type, make_token
 ):
@@ -242,7 +265,8 @@ async def test_search_by_name_returns_match(
     body = resp.json()
     assert "results" in body
     assert body["total"] >= 1
-    assert any(r["id"] == inv_drone_type["id"] for r in body["results"])
+    drone_results = [r for r in body["results"] if r["type"] == "drone"]
+    assert any(r["id"] == inv_drone_type["id"] for r in drone_results)
 
 
 async def test_search_by_manufacturer(
@@ -280,6 +304,67 @@ async def test_search_empty_query_200(
     )
     assert resp.status_code == 200
     assert resp.json()["total"] == 0
+
+
+async def test_search_returns_type_field_on_drone(
+    client: AsyncClient, viewer_user, inv_drone_type, make_token
+):
+    """Every drone result must carry type='drone'."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.get(
+        "/api/inventory/search?q=Inv-Eagle",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    for r in resp.json()["results"]:
+        assert "type" in r
+    drone_hits = [r for r in resp.json()["results"] if r["type"] == "drone"]
+    assert len(drone_hits) >= 1
+
+
+async def test_search_returns_payload_results(
+    client: AsyncClient, viewer_user, inv_payload_type, make_token
+):
+    """Search hitting a PayloadType name returns type='payload' results."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.get(
+        "/api/inventory/search?q=InvSearch-EO",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    payload_hits = [r for r in body["results"] if r["type"] == "payload"]
+    assert len(payload_hits) >= 1
+    assert any(r["id"] == inv_payload_type["id"] for r in payload_hits)
+
+
+async def test_search_payload_by_manufacturer(
+    client: AsyncClient, viewer_user, inv_payload_type, make_token
+):
+    """Search by payload manufacturer returns type='payload' result."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.get(
+        "/api/inventory/search?q=OptiSearch",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    hits = [r for r in resp.json()["results"] if r["type"] == "payload"]
+    assert len(hits) >= 1
+
+
+async def test_search_unified_mixed_results(
+    client: AsyncClient, viewer_user, inv_drone_type, inv_payload_type, make_token
+):
+    """A broad query returns both drone and payload results in one response."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.get(
+        "/api/inventory/search?q=Inventory+Corp",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    # All results carry a type field
+    for r in resp.json()["results"]:
+        assert r["type"] in ("drone", "payload")
 
 
 # ══════════════════════════════════════════════════════════════════════

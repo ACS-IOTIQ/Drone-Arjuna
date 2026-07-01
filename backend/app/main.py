@@ -51,6 +51,10 @@ async def lifespan(app: FastAPI):
     # Connect to RabbitMQ event bus
     await init_rabbitmq()
 
+    # Start geofence → RTL consumer (spec 3-45: RTL via RabbitMQ consumer, not direct call)
+    from app.modules.drone_control.mavlink_manager import mavlink_manager
+    await mavlink_manager.start_geofence_rtl_consumer()
+
     # Start telemetry recorder (creates TimescaleDB hypertable if needed)
     await data_recorder.start()
 

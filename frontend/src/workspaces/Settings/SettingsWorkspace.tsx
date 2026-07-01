@@ -6,7 +6,7 @@ import VesselManager        from './VesselManager'
 import UserManager          from './UserManager'
 import SystemLogViewer      from '@/components/common/SystemLogViewer'
 import { Database, Cpu, Users, Info, Anchor, Package, BookOpen } from 'lucide-react'
-import { pendingAccessRequestCount } from '@/store/accessRequestStore'
+import { api } from '@/api/client'
 
 type Tab = 'types' | 'instances' | 'payloads' | 'vessels' | 'users' | 'logs' | 'about'
 
@@ -22,13 +22,16 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode; group?: string }[] 
 
 export default function SettingsWorkspace() {
   const [tab, setTab] = useState<Tab>('types')
-  const [pendingRequests, setPendingRequests] = useState(pendingAccessRequestCount())
+  const [pendingRequests, setPendingRequests] = useState(0)
 
   useEffect(() => {
-    const refresh = () => setPendingRequests(pendingAccessRequestCount())
-    window.addEventListener('da_access_requests_changed', refresh)
-    return () => window.removeEventListener('da_access_requests_changed', refresh)
-  }, [])
+    api.get('/api/auth/access-requests')
+      .then(({ data }) => {
+        const count = Array.isArray(data) ? data.filter((r: any) => r.status === 'pending').length : 0
+        setPendingRequests(count)
+      })
+      .catch(() => setPendingRequests(0))
+  }, [tab])  // re-check whenever the user switches tabs
 
   const groups = [...new Set(TABS.map(t => t.group!))]
 

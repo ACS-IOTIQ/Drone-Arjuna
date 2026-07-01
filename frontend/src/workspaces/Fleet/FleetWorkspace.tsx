@@ -2,7 +2,8 @@
 // FleetWorkspace.tsx
 // ═══════════════════════════════════════════
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Anchor, Package } from 'lucide-react'
+import { droneControlApi } from '@/api/droneControl'
+import { Plus, RefreshCw, Anchor, Package, Cloud, Droplets, Thermometer, Wind, MapPin, CloudRain } from 'lucide-react'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import { useVesselStore } from '@/store/vesselStore'
@@ -12,6 +13,16 @@ import ConnectModal from './ConnectModal'
 
 const PAYLOAD_CACHE_KEY = 'da_payload_types_fallback'
 const PAYLOAD_ASSIGNMENT_KEY = 'da_payload_assignments'
+const INITIAL_DRONE_LIMIT = 6
+
+interface WeatherSnapshot {
+  temperatureC: number
+  humidity: number
+  rainfallChance: number
+  windSpeedKph: number
+  label: string
+  icon: string
+}
 
 function readCachedPayloads(): PayloadType[] {
   try {
@@ -35,13 +46,29 @@ export default function FleetWorkspace() {
   const { vessels, fetchVessels } = useVesselStore()
   const [showConnect, setShowConnect] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [showAllDrones, setShowAllDrones] = useState(false)
   const [payloads, setPayloads] = useState<PayloadType[]>([])
   const [payloadAssignments, setPayloadAssignments] = useState<Record<number, number | null>>({})
   const [payloadErr, setPayloadErr] = useState('')
+  const [weather, setWeather] = useState<WeatherSnapshot | null>(null)
+  const [weatherNote, setWeatherNote] = useState('Checking local weather...')
+  const [weatherLocation, setWeatherLocation] = useState<{ lat: number; lon: number } | null>(null)
 
   const refresh = async () => {
     setRefreshing(true)
     await Promise.all([fetchInstances(), fetchConnections(), fetchVessels(), fetchPayloads()])
+    // If there are registered instances but none are connected, attempt a backend auto-connect
+    try {
+      const state = useFleetStore.getState()
+      const anyConnected = Object.values(state.connections || {}).filter(Boolean).length > 0
+      if (!anyConnected && state.instances.length > 0) {
+        // Try auto-connecting the first registered instance (non-destructive)
+        await droneControlApi.autoconnect({ drone_instance_id: state.instances[0].id })
+        await fetchConnections()
+      }
+    } catch {
+      // silent fail — keep manual connect UI available
+    }
     setRefreshing(false)
   }
 
@@ -59,6 +86,70 @@ export default function FleetWorkspace() {
   useEffect(() => {
     setPayloadAssignments(readAssignments())
     refresh()
+  }, [])
+
+  useEffect(() => {
+    let active = true
+
+    const mapWeatherCode = (code: number) => {
+      if (code === 0) return { label: 'Clear sky', icon: '☀️' }
+      if (code <= 2) return { label: 'Mostly clear', icon: '🌤️' }
+      if (code === 3) return { label: 'Overcast', icon: '☁️' }
+      if ([45, 48].includes(code)) return { label: 'Fog', icon: '🌫️' }
+      if ([51, 53, 55].includes(code)) return { label: 'Drizzle', icon: '🌦️' }
+      if ([61, 63, 65].includes(code)) return { label: 'Rain', icon: '🌧️' }
+      if ([71, 73, 75].includes(code)) return { label: 'Snow', icon: '❄️' }
+      if ([80, 81, 82].includes(code)) return { label: 'Showers', icon: '🌦️' }
+      if ([95, 96, 99].includes(code)) return { label: 'Storm risk', icon: '⛈️' }
+      return { label: 'Variable', icon: '🌤️' }
+    }
+
+    const fetchWeather = async (lat: number, lon: number) => {
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,relative_humidity_2m,precipitation_probability,wind_speed_10m,weather_code&timezone=auto`
+        const res = await fetch(url)
+        if (!res.ok) throw new Error('Weather unavailable')
+        const data = await res.json()
+        if (!active) return
+        const current = data.current
+        const meta = mapWeatherCode(current.weather_code)
+        setWeather({
+          temperatureC: current.temperature_2m,
+          humidity: current.relative_humidity_2m,
+          rainfallChance: current.precipitation_probability,
+          windSpeedKph: current.wind_speed_10m,
+          label: meta.label,
+          icon: meta.icon,
+        })
+        setWeatherNote('Live weather for your current position')
+      } catch {
+        if (active) {
+          setWeather(null)
+          setWeatherNote('Weather service unavailable right now')
+        }
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const nextLocation = { lat: position.coords.latitude, lon: position.coords.longitude }
+          setWeatherLocation(nextLocation)
+          void fetchWeather(nextLocation.lat, nextLocation.lon)
+        },
+        () => {
+          if (active) {
+            setWeatherLocation(null)
+            setWeatherNote('Enable location to view live weather')
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000 },
+      )
+    } else {
+      setWeatherNote('Location unavailable in this browser')
+    }
+
+    return () => { active = false }
   }, [])
 
   // Subscribe to telemetry for connected drones
@@ -106,6 +197,45 @@ export default function FleetWorkspace() {
           <button onClick={() => setShowConnect(true)} className="da-btn da-btn-primary">
             <Plus size={14} /> Connect Drone
           </button>
+        </div>
+      </div>
+
+      {/* Local weather card */}
+      <div className="mb-5 rounded-2xl border border-sky-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 p-4 text-white shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-200">
+              <Cloud size={14} /> Local ops weather
+            </div>
+            <div className="mt-2 flex flex-wrap items-end gap-3">
+              <div className="text-3xl font-semibold">
+                {weather ? `${weather.temperatureC.toFixed(0)}°C` : '—'}
+              </div>
+              <div>
+                <div className="text-sm font-medium text-slate-100">{weather ? `${weather.icon} ${weather.label}` : 'Checking local conditions'}</div>
+                <div className="flex items-center gap-1 text-xs text-slate-300">
+                  <MapPin size={12} />
+                  {weatherLocation ? `${weatherLocation.lat.toFixed(2)}, ${weatherLocation.lon.toFixed(2)}` : 'Location access pending'}
+                </div>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-slate-300">{weatherNote}</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Rain chance', value: weather ? `${weather.rainfallChance}%` : '—', icon: <CloudRain size={13} /> },
+              { label: 'Humidity', value: weather ? `${weather.humidity}%` : '—', icon: <Droplets size={13} /> },
+              { label: 'Wind', value: weather ? `${weather.windSpeedKph.toFixed(0)} kph` : '—', icon: <Wind size={13} /> },
+              { label: 'Feels like', value: weather ? `${(weather.temperatureC + 1.5).toFixed(0)}°C` : '—', icon: <Thermometer size={13} /> },
+            ].map(item => (
+              <div key={item.label} className="rounded-xl border border-white/10 bg-white/10 px-3 py-2">
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-slate-300">
+                  {item.icon} {item.label}
+                </div>
+                <div className="mt-1 text-sm font-semibold text-white">{item.value}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -214,22 +344,37 @@ export default function FleetWorkspace() {
           <p className="text-sm">No drones registered. Add one in Settings → Master Data.</p>
         </div>
       ) : (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-          {instances.map(d => (
-            <DroneCard
-              key={d.id}
-              drone={d}
-              connected={!!connections[d.id]?.connected}
-              homeVessel={d.home_vessel_id != null ? vesselById[d.home_vessel_id] : undefined}
-              connectionInfo={connections[d.id]}
-              payloadName={
-                payloadAssignments[d.id] && payloadById[payloadAssignments[d.id]!]
-                  ? payloadById[payloadAssignments[d.id]!]!.name
-                  : undefined
-              }
-            />
-          ))}
-        </div>
+        <>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">
+              Showing {showAllDrones ? instances.length : Math.min(INITIAL_DRONE_LIMIT, instances.length)} of {instances.length} drones
+            </p>
+            {instances.length > INITIAL_DRONE_LIMIT && (
+              <button
+                onClick={() => setShowAllDrones(v => !v)}
+                className="da-btn da-btn-ghost text-xs"
+              >
+                {showAllDrones ? 'Show less' : 'Show all'}
+              </button>
+            )}
+          </div>
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+            {instances.slice(0, showAllDrones ? instances.length : INITIAL_DRONE_LIMIT).map(d => (
+              <DroneCard
+                key={d.id}
+                drone={d}
+                connected={!!connections[d.id]?.connected}
+                homeVessel={d.home_vessel_id != null ? vesselById[d.home_vessel_id] : undefined}
+                connectionInfo={connections[d.id]}
+                payloadName={
+                  payloadAssignments[d.id] && payloadById[payloadAssignments[d.id]!]
+                    ? payloadById[payloadAssignments[d.id]!]!.name
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {showConnect && <ConnectModal onClose={() => setShowConnect(false)} />}

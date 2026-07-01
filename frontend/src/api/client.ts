@@ -36,3 +36,10 @@ export function makeTelemetryWS(droneId: number): WebSocket {
   // Route through the /api proxy (ws: true) — backend endpoint is /api/drone-control/stream/{id}
   return new WebSocket(`${proto}//${host}/api/drone-control/stream/${droneId}?token=${token}`)
 }
+
+export function makeTelemetryUrl(droneId: number): string {
+  const token = localStorage.getItem('da_token') ?? ''
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const host  = window.location.host
+  return `${proto}//${host}/api/drone-control/stream/${droneId}?token=${token}`
+}

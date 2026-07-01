@@ -1,5 +1,6 @@
 import { AlertCircle, CheckCircle2, Clock, Download, Filter, Info, Trash2, TriangleAlert } from 'lucide-react'
 import { useEventLogStore, type EventCategory, type EventLevel } from '@/store/eventLogStore'
+import { formatLocalDateTime } from '@/store/timezoneStore'
 import { useState } from 'react'
 
 export default function SystemLogViewer() {
@@ -176,7 +177,7 @@ export default function SystemLogViewer() {
                     <div className="flex flex-wrap gap-4 mt-2 text-xs text-slate-500">
                       <div className="flex items-center gap-1">
                         <Clock size={12} />
-                        {event.timestamp.toLocaleString()}
+                        {formatLocalDateTime(new Date(event.timestamp))}
                       </div>
                       {event.userId && (
                         <div className="px-2 py-0.5 bg-white border border-slate-200 rounded">

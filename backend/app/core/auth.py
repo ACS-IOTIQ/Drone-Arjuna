@@ -17,12 +17,18 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.user import TokenOut, UserOut, UserCreate
 from app.core.security import PasswordPolicy, AuditLogger
+from pydantic import BaseModel
 
 cfg = get_settings()
 router = APIRouter()
 
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+
+
+class PasswordSetupBody(BaseModel):
+    current_password: str
+    new_password: str
 
 
 # ── Helpers ───────────────────────────────────────────────────────
@@ -88,6 +94,23 @@ async def me(current: Annotated[User, Depends(get_current_user)]):
     return current
 
 
+@router.post("/setup-password")
+async def setup_password(
+    body: PasswordSetupBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[User, Depends(get_current_user)],
+):
+    if not verify_password(body.current_password, current.hashed_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    PasswordPolicy.enforce(body.new_password)
+    current.hashed_password = hash_password(body.new_password)
+    db.add(current)
+    await db.commit()
+    await AuditLogger(db).user_password_changed(current.id)
+    return {"message": "Password updated"}
+
+
 @router.post("/register", response_model=UserOut, status_code=201)
 async def register(
     body: UserCreate,
@@ -101,9 +124,11 @@ async def register(
     # Enforce password policy before hashing
     PasswordPolicy.enforce(body.password)
 
-    exists = await db.execute(select(User).where(User.username == body.username))
+    exists = await db.execute(
+        select(User).where((User.username == body.username) | (User.email == body.email))
+    )
     if exists.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Username already exists")
+        raise HTTPException(status_code=409, detail="Username or email already exists")
 
     user = User(
         username=body.username,
@@ -111,7 +136,7 @@ async def register(
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
         role=body.role,
-        is_active=True,
+        is_active=body.is_active,
     )
     db.add(user)
     await db.flush()

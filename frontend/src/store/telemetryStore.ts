@@ -2,7 +2,9 @@
 // src/store/telemetryStore.ts
 // ═══════════════════════════════════════════
 import { create } from 'zustand'
-import { makeTelemetryWS } from '@/api/client'
+import { makeTelemetryUrl } from '@/api/client'
+import { RobustWebSocket } from '@/store/connectionHealthStore'
+import { eventLog } from './eventLogStore'
 
 // ── Core flight state (always present) ─────────────────────────
 export interface TelemetryFrame {
@@ -145,7 +147,7 @@ const DEFAULT_FRAME: TelemetryFrame = {
 
 interface TelemetryState {
   frames:  Record<number, TelemetryFrame>
-  sockets: Record<number, WebSocket>
+  sockets: Record<number, RobustWebSocket>
   history: Record<number, TelemetryFrame[]>   // last 300 frames per drone
   subscribe:   (droneId: number) => void
   unsubscribe: (droneId: number) => void
@@ -161,43 +163,46 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
       console.log('[Telemetry] already subscribed to drone', droneId)
       return
     }
-    const ws = makeTelemetryWS(droneId)
-    console.log('[Telemetry] WebSocket opening:', ws.url)
-    ws.onopen  = () => console.log('[Telemetry] WebSocket OPEN  drone', droneId)
-    ws.onerror = (e) => console.error('[Telemetry] WebSocket ERROR drone', droneId, e)
 
-    ws.onmessage = ({ data }) => {
+    const url = makeTelemetryUrl(droneId)
+    const rws = new RobustWebSocket(url, `telemetry-${droneId}`)
+
+    rws.onOpen(() => console.log('[Telemetry] RobustWebSocket OPEN drone', droneId))
+    rws.onError((e) => console.error('[Telemetry] RobustWebSocket ERROR drone', droneId, e))
+
+    rws.onMessage((data) => {
       try {
         const frame: TelemetryFrame = JSON.parse(data)
         if ((frame as any).type === 'pong') return
         set(s => {
           const prev = s.history[droneId] ?? []
           const next = [...prev.slice(-299), frame]
+          // Log a lightweight telemetry event on first frame and periodically
+          if (prev.length === 0) {
+            eventLog.telemetry('Telemetry Stream Started', String(droneId), { call_sign: frame.call_sign })
+          } else if (next.length % 300 === 0) {
+            eventLog.telemetry('Telemetry Update (sampled)', String(droneId), { call_sign: frame.call_sign })
+          }
           return {
             frames:  { ...s.frames,  [droneId]: frame },
             history: { ...s.history, [droneId]: next },
           }
         })
       } catch { /* ignore parse errors */ }
-    }
+    })
 
-    // Keepalive ping every 20s
-    const pingInterval = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN)
-        ws.send(JSON.stringify({ type: 'ping' }))
-    }, 20_000)
-
-    ws.onclose = (e) => {
-      console.warn('[Telemetry] WebSocket CLOSE drone', droneId, 'code', e.code, e.reason)
-      clearInterval(pingInterval)
+    rws.onClose(() => {
+      console.warn('[Telemetry] RobustWebSocket CLOSE drone', droneId)
       set(s => {
         const { [droneId]: _, ...socks } = s.sockets
         return { sockets: socks }
       })
-    }
+    })
+
+    rws.connect()
 
     set(s => ({
-      sockets: { ...s.sockets, [droneId]: ws },
+      sockets: { ...s.sockets, [droneId]: rws },
       frames:  { ...s.frames,  [droneId]: DEFAULT_FRAME },
     }))
   },

@@ -16,11 +16,52 @@ export interface AccessRequest {
 }
 
 const KEY = 'da_access_requests'
+const PW_SETUP_KEY = 'da_password_setup_pending'
 
 export const REQUEST_ROLES = ['viewer', 'flight_controller', 'mission_commander', 'admin']
 
 function uid() {
   return `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+interface PasswordSetupState {
+  username: string
+  tempPassword: string
+  email?: string
+  mobile?: string
+}
+
+export function getPasswordSetupState(): PasswordSetupState | null {
+  try {
+    const raw = localStorage.getItem(PW_SETUP_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (parsed?.username && parsed?.tempPassword) return parsed
+  } catch {
+    // ignore invalid cache
+  }
+  return null
+}
+
+export function setPasswordSetupState(state: PasswordSetupState) {
+  localStorage.setItem(PW_SETUP_KEY, JSON.stringify(state))
+}
+
+export function clearPasswordSetupState() {
+  localStorage.removeItem(PW_SETUP_KEY)
+}
+
+export function findApprovedAccessRequest(username: string, password: string) {
+  const normalized = username.trim().toLowerCase()
+  return listAccessRequests().find(req =>
+    req.username.toLowerCase() === normalized &&
+    req.status === 'approved' &&
+    req.temp_password === password,
+  ) ?? null
+}
+
+export function isTempPasswordLogin(username: string, password: string) {
+  return Boolean(findApprovedAccessRequest(username, password))
 }
 
 export function listAccessRequests(): AccessRequest[] {
@@ -80,12 +121,83 @@ export function requestMailto(req: AccessRequest, subjectPrefix = 'DroneArjuna a
 }
 
 export function requestSms(req: AccessRequest) {
-  const text = encodeURIComponent(
-    req.status === 'approved'
-      ? `DroneArjuna access approved for ${req.username}. Check email/admin for temporary password.`
-      : req.status === 'rejected'
-      ? `DroneArjuna access request for ${req.username} was rejected. Contact administrator.`
-      : `DroneArjuna access request received for ${req.username}. Awaiting admin approval.`,
-  )
-  return req.mobile ? `sms:${req.mobile}?body=${text}` : ''
+  if (!req.mobile) return ''
+
+  const message = req.status === 'approved'
+    ? `DroneArjuna access approved for ${req.username}. Temporary password: ${req.temp_password}. Please log in and set a new password.`
+    : req.status === 'rejected'
+    ? `DroneArjuna access request for ${req.username} was rejected. Contact your administrator for details.`
+    : `DroneArjuna access request received for ${req.username}. Awaiting admin approval.`
+
+  return `sms:${req.mobile}?body=${encodeURIComponent(message)}`
+}
+
+function composeEmailLink(to: string, subject: string, body: string, useGmail = false) {
+  const encodedSubject = encodeURIComponent(subject)
+  const encodedBody = encodeURIComponent(body)
+  if (useGmail) {
+    return `https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${encodedSubject}&body=${encodedBody}`
+  }
+  return `mailto:${to}?subject=${encodedSubject}&body=${encodedBody}`
+}
+
+function openLink(url: string) {
+  if (typeof window === 'undefined' || !url) return
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.target = '_blank'
+  anchor.rel = 'noopener noreferrer'
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
+}
+
+export function requestGmailLink(req: AccessRequest, subjectPrefix = 'DroneArjuna access request') {
+  const subject = `${subjectPrefix}: ${req.username}`
+  const body = [
+    `Name: ${req.full_name}`,
+    `Username: ${req.username}`,
+    `Email: ${req.email}`,
+    `Mobile: ${req.mobile || 'Not provided'}`,
+    `Requested role: ${req.requested_role}`,
+    `Status: ${req.status}`,
+    req.temp_password ? `Temporary password: ${req.temp_password}` : '',
+    req.admin_note ? `Admin note: ${req.admin_note}` : '',
+    '',
+    req.reason ? `Reason:\n${req.reason}` : '',
+  ].filter(Boolean).join('\n')
+  return composeEmailLink(req.email, subject, body, true)
+}
+
+export function openNotificationChannels(req: AccessRequest) {
+  openLink(requestGmailLink(req))
+  const sms = requestSms(req)
+  if (sms) {
+    openLink(sms)
+  }
+}
+
+export function requestPasswordChangeMailto(email: string, username: string) {
+  const subject = `DroneArjuna password changed for ${username}`
+  const body = [
+    `Hello ${username},`,
+    '',
+    'Your DroneArjuna password has been successfully updated.',
+    'If you did not request this change, contact your administrator immediately.',
+    '',
+    'Regards,',
+    'DroneArjuna Security Team',
+  ].join('\n')
+  return composeEmailLink(email, subject, body, true)
+}
+
+export function requestPasswordChangeSms(mobile: string, username: string) {
+  const message = `Your DroneArjuna password for ${username} has been updated. If this was not you, contact your administrator.`
+  return `sms:${mobile}?body=${encodeURIComponent(message)}`
+}
+
+export function openPasswordChangeNotifications(email: string | undefined, mobile: string | undefined, username: string) {
+  if (!email && !mobile) return
+  if (email) openLink(requestPasswordChangeMailto(email, username))
+  if (mobile) openLink(requestPasswordChangeSms(mobile, username))
 }

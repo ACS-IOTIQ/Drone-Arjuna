@@ -172,6 +172,7 @@ def _mock_audit_logger():
         inst.login_success = AsyncMock()
         inst.login_failed = AsyncMock()
         inst.user_created = AsyncMock()
+        inst.user_password_changed = AsyncMock()
         yield
 
 

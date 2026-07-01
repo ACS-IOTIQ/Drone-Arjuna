@@ -5,7 +5,17 @@ import LoginScreen from '@/components/layout/LoginScreen'
 import PasswordSetupScreen from '@/components/layout/PasswordSetupScreen'
 
 export default function App() {
-  const { token, hydrate, logout } = useAuthStore()
+  const {
+    token,
+    hydrate,
+    logout,
+    setupPending,
+    pendingUsername,
+    pendingTempPassword,
+    pendingEmail,
+    pendingMobile,
+    completePasswordSetup,
+  } = useAuthStore()
 
   useEffect(() => {
     if (token) hydrate()
@@ -16,8 +26,17 @@ export default function App() {
     return () => window.removeEventListener('da_auth_expired', logout)
   }, [logout])
 
-  // TODO: Check user.needs_password_setup from your auth store when implemented
-  // For now, only show LoginScreen or AppShell
   if (!token) return <LoginScreen />
+  if (setupPending && pendingUsername && pendingTempPassword) {
+    return (
+      <PasswordSetupScreen
+        username={pendingUsername}
+        tempPassword={pendingTempPassword}
+        email={pendingEmail ?? ''}
+        mobile={pendingMobile ?? ''}
+        onSetupComplete={completePasswordSetup}
+      />
+    )
+  }
   return <AppShell />
 }

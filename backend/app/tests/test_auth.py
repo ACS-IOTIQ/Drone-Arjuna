@@ -186,7 +186,35 @@ async def test_inactive_user_token_is_401_on_me(client: AsyncClient):
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# 3. Token expiry
+# 3. Password setup
+# ═══════════════════════════════════════════════════════════════════════
+
+async def test_setup_password_updates_credentials(
+    client: AsyncClient, admin_user, make_token
+):
+    """A user should be able to replace a temporary password with a permanent one."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp = await client.post(
+        "/api/auth/setup-password",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "current_password": "Admin@1234",
+            "new_password": "NewPass@1234!",
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "Password updated"
+
+    login = await client.post(
+        "/api/auth/token",
+        data={"username": "admin_test", "password": "NewPass@1234!"},
+    )
+    assert login.status_code == 200
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 4. Token expiry
 # ═══════════════════════════════════════════════════════════════════════
 
 async def test_expired_token_is_401(

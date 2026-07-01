@@ -384,6 +384,13 @@ class AuditLogger:
             severity="WARNING",
         )
 
+    async def user_password_changed(self, user_id: int):
+        await self.log(
+            self.USER, "password_changed",
+            user_id=user_id,
+            severity="WARNING",
+        )
+
 
 # ══════════════════════════════════════════════════════════════════
 # Input Sanitiser

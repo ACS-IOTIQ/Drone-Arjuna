@@ -6,6 +6,7 @@ import { Bell } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
+import { useTimezoneStore } from '@/store/timezoneStore'
 import { droneControlApi } from '@/api/droneControl'
 import type { Workspace } from './AppShell'
 
@@ -46,6 +47,8 @@ export function TopBar({ workspace, onNotifClick }: Props) {
 
   const [time, setTime]       = useState(new Date())
   const [connected, setConnected] = useState(0)
+  const timezone = useTimezoneStore(s => s.timezone)
+  const formatTime = useTimezoneStore(s => s.formatTime)
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000)
@@ -64,7 +67,7 @@ export function TopBar({ workspace, onNotifClick }: Props) {
     return () => clearInterval(t)
   }, [])
 
-  const utc = time.toISOString().slice(11, 19)
+  const localTime = formatTime(time)
 
   // ── chip state derivations ──
   const linkTone   = connected > 0 ? 'ok' : 'danger'
@@ -128,8 +131,11 @@ export function TopBar({ workspace, onNotifClick }: Props) {
         )}
       </div>
 
-      {/* UTC clock */}
-      <span className="mono text-xs shrink-0" style={{ color: '#475569' }}>{utc} UTC</span>
+      {/* Local clock */}
+      <div className="text-right shrink-0" style={{ color: '#475569' }}>
+        <div className="mono text-xs">{localTime}</div>
+        <div className="text-[10px] uppercase tracking-[0.2em]">{timezone}</div>
+      </div>
 
       {/* Notification bell */}
       <button

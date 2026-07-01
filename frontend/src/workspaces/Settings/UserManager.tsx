@@ -6,6 +6,7 @@ import {
   makeTempPassword,
   requestMailto,
   requestSms,
+  openNotificationChannels,
   updateAccessRequest,
   type AccessRequest,
 } from '@/store/accessRequestStore'
@@ -97,13 +98,16 @@ export function UserManager() {
       setApprovingId(req.id)
       await api.post('/api/auth/register', body)
       await loadUsers()
-      updateAccessRequest(req.id, {
+      const updated = updateAccessRequest(req.id, {
         status: 'approved',
         reviewed_at: new Date().toISOString(),
         temp_password: tempPassword,
-        admin_note: 'Account created. Send credentials through the approved channel.',
+        admin_note: 'Account created. Notification drafts opened for the requester.',
       })
       notify.success('Access approved', `${req.username} account created`)
+      if (updated) {
+        openNotificationChannels(updated)
+      }
       loadRequests()
     } catch (e: any) {
       setRequestErr(e.response?.data?.detail ?? 'Approval failed. Confirm you are logged in as admin.')
@@ -113,12 +117,15 @@ export function UserManager() {
   }
 
   const rejectRequest = (req: AccessRequest) => {
-    updateAccessRequest(req.id, {
+    const updated = updateAccessRequest(req.id, {
       status: 'rejected',
       reviewed_at: new Date().toISOString(),
       admin_note: 'Request rejected by administrator.',
     })
     notify.warning('Access rejected', `${req.username} request rejected`)
+    if (updated) {
+      openNotificationChannels(updated)
+    }
     loadRequests()
   }
 

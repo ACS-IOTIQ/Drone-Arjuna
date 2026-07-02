@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     sitl_host: str = "host.docker.internal"
     sitl_port: int = 14550
 
+    # SMTP — email notifications
+    smtp_enabled: bool = False
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "DroneArjuna GCS <noreply@dronearjuna.local>"
+
 
 @lru_cache
 def get_settings() -> Settings:

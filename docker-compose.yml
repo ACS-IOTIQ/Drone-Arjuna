@@ -106,6 +106,15 @@ services:
       - "9000:9000"
       - "9001:9001"   # Console UI
 
+  # ── Mailhog (dev email inbox) ─────────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: da_mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP — backend sends here
+      - "8025:8025"   # Web UI — open http://localhost:8025 to read emails
+
   # ── FastAPI Backend ───────────────────────────────────────────────
   backend:
     build:

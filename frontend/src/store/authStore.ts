@@ -5,7 +5,6 @@ import { create } from 'zustand'
 import { login as apiLogin, getMe } from '@/api/auth'
 import {
   getPasswordSetupState,
-  findApprovedAccessRequest,
   clearPasswordSetupState,
   setPasswordSetupState,
 } from '@/store/accessRequestStore'
@@ -47,15 +46,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       const res = await apiLogin(username, password)
       localStorage.setItem('da_token', res.access_token)
 
-      const approved = findApprovedAccessRequest(username, password)
-      const isTemp = Boolean(approved)
-      if (isTemp && approved) {
-        setPasswordSetupState({
-          username,
-          tempPassword: password,
-          email: approved.email,
-          mobile: approved.mobile,
-        })
+      const isTemp = Boolean(res.must_change_password)
+      let pendingEmail: string | null = null
+      if (isTemp) {
+        // Fetch user profile to get email for the PasswordSetupScreen greeting
+        try {
+          const me = await getMe()
+          pendingEmail = me.email ?? null
+        } catch { /* non-critical — screen still works without email */ }
+        setPasswordSetupState({ username, tempPassword: password, email: pendingEmail ?? '', mobile: '' })
       } else {
         clearPasswordSetupState()
       }
@@ -67,8 +66,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         setupPending: isTemp,
         pendingUsername: isTemp ? username : null,
         pendingTempPassword: isTemp ? password : null,
-        pendingEmail: isTemp ? approved?.email ?? null : null,
-        pendingMobile: isTemp ? approved?.mobile ?? null : null,
+        pendingEmail,
+        pendingMobile: null,
       })
     } catch (e: any) {
       const status = e?.response?.status

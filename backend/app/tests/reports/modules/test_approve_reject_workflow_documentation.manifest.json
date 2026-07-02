@@ -1,0 +1,26 @@
+{
+  "fingerprint": "a8dd409db84d50470cb5f7cdceee0bac4fba7daed1f9fdd99ef2d1b302effd53",
+  "nodeids": [
+    "app/tests/test_approve_reject_workflow.py::test_ar01_accept_returns_200",
+    "app/tests/test_approve_reject_workflow.py::test_ar02_accept_response_contains_temp_password",
+    "app/tests/test_approve_reject_workflow.py::test_ar03_accept_response_shape_for_frontend_state_merge",
+    "app/tests/test_approve_reject_workflow.py::test_ar04_accepted_user_appears_in_users_list",
+    "app/tests/test_approve_reject_workflow.py::test_ar05_role_override_applied",
+    "app/tests/test_approve_reject_workflow.py::test_ar06_admin_note_persisted_on_accept",
+    "app/tests/test_approve_reject_workflow.py::test_ar07_reject_returns_200",
+    "app/tests/test_approve_reject_workflow.py::test_ar08_reject_response_shape_for_frontend_state_merge",
+    "app/tests/test_approve_reject_workflow.py::test_ar09_reject_does_not_create_user",
+    "app/tests/test_approve_reject_workflow.py::test_ar10_admin_note_persisted_on_reject",
+    "app/tests/test_approve_reject_workflow.py::test_ar11_rejected_row_visible_in_list",
+    "app/tests/test_approve_reject_workflow.py::test_ar12_double_accept_is_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar13_double_reject_is_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar14_accept_after_reject_is_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar15_reject_after_accept_is_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar16_viewer_cannot_accept",
+    "app/tests/test_approve_reject_workflow.py::test_ar17_viewer_cannot_reject",
+    "app/tests/test_approve_reject_workflow.py::test_ar18_unauthenticated_accept_is_401",
+    "app/tests/test_approve_reject_workflow.py::test_ar19_unauthenticated_reject_is_401",
+    "app/tests/test_approve_reject_workflow.py::test_ar20_accept_nonexistent_is_404",
+    "app/tests/test_approve_reject_workflow.py::test_ar21_reject_nonexistent_is_404"
+  ]
+}

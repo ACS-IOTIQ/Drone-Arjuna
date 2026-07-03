@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     sitl_host: str = "host.docker.internal"
     sitl_port: int = 14550
 
+    # Elasticsearch
+    elasticsearch_url: str = "http://localhost:9200"
+
     # SMTP — email notifications
     smtp_enabled: bool = False
     smtp_host: str = "smtp.gmail.com"

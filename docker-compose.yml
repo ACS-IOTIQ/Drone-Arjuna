@@ -13,6 +13,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    networks:
+      - da_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-da_admin} -d ${POSTGRES_DB:-dronearjuna}"]
       interval: 10s
@@ -32,13 +34,15 @@ services:
       - timescale_data:/home/postgres/pgdata/data
     ports:
       - "5433:5432"
+    networks:
+      - da_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-da_admin} -d ${TIMESCALE_DB:-da_telemetry}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-# ── PG Admin (Web UI For DB) ───────────────────────────────────────
+  # ── PG Admin (Web UI For DB) ───────────────────────────────────────
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: da_pgadmin
@@ -50,6 +54,8 @@ services:
       - pgadmin_data:/var/lib/pgadmin
     ports:
       - "5050:80"
+    networks:
+      - da_network
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,6 +72,8 @@ services:
       - redis_data:/data
     ports:
       - "6379:6379"
+    networks:
+      - da_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -85,6 +93,8 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"   # Management UI
+    networks:
+      - da_network
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 15s
@@ -105,6 +115,30 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"   # Console UI
+    networks:
+      - da_network
+
+
+  # ── Elasticsearch (full-text search — P4-06) ─────────────────────
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    container_name: da_elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - da_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
 
   # ── Mailhog (dev email inbox) ─────────────────────────────────────
   mailhog:
@@ -114,6 +148,8 @@ services:
     ports:
       - "1025:1025"   # SMTP — backend sends here
       - "8025:8025"   # Web UI — open http://localhost:8025 to read emails
+    networks:
+      - da_network
 
   # ── FastAPI Backend ───────────────────────────────────────────────
   backend:
@@ -129,6 +165,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-da_mq}:${RABBITMQ_PASSWORD:-changeme}@rabbitmq:5672/
       SECRET_KEY: ${SECRET_KEY:-please-change-this-secret-key-in-production}
+      ELASTICSEARCH_URL: http://elasticsearch:9200
     ports:
       - "8000:8000"
       - "14550:14550/udp"   # ArduPilot SITL / MAVLink UDP inbound
@@ -143,6 +180,9 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app   # Hot reload in dev
+    privileged: true   # allows access to USB serial devices passed in via usbipd-win
+    networks:
+      - da_network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   # ── React Frontend ────────────────────────────────────────────────
@@ -159,6 +199,8 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    networks:
+      - da_network
     environment:
       VITE_API_URL: http://localhost:8000
       VITE_WS_URL: ws://localhost:8000
@@ -171,3 +213,8 @@ volumes:
   redis_data:
   rabbitmq_data:
   minio_data:
+  es_data:
+
+networks:
+  da_network:
+    driver: bridge

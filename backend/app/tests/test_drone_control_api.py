@@ -20,6 +20,7 @@ Covers:
 """
 import pytest_asyncio
 from httpx import AsyncClient
+from unittest.mock import patch
 
 
 _DT_BODY = {
@@ -91,6 +92,36 @@ async def test_list_ports_viewer_200(client: AsyncClient, viewer_user, make_toke
 async def test_list_ports_unauthenticated_401(client: AsyncClient):
     resp = await client.get("/api/drone-control/ports")
     assert resp.status_code == 401
+
+
+async def test_list_ports_includes_connected_windows_bridge(
+    client: AsyncClient, viewer_user, make_token
+):
+    token = make_token(viewer_user.id, viewer_user.role)
+    bridge = {
+        "connected": True,
+        "active_port": "COM7",
+        "description": "ArduPilot Mega",
+        "baud": 115200,
+        "tcp_port": 5760,
+    }
+    with patch(
+        "app.modules.drone_control.router._host_bridge_status",
+        return_value=bridge,
+    ):
+        resp = await client.get(
+            "/api/drone-control/ports",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 200
+    bridged = [p for p in resp.json() if "COM7" in p["desc"]]
+    assert bridged == [{
+        "port": "tcp:host.docker.internal:5760",
+        "type": "tcp",
+        "desc": "COM7 - ArduPilot Mega (Windows COM bridge)",
+        "baud": 115200,
+    }]
 
 
 # ══════════════════════════════════════════════════════════════════════

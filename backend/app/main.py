@@ -10,6 +10,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.config import get_settings
 from app.database import engine, ts_engine, Base, AsyncSessionLocal
 from app.core.events import init_rabbitmq, close_rabbitmq
+from app.core.search import bulk_index_all, close_client as close_es
 from app.core.auth import ensure_default_admin
 
 # Module routers
@@ -62,6 +63,10 @@ async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as db:
         await ensure_default_admin(db)
 
+    # Bulk-index all inventory records into Elasticsearch
+    async with AsyncSessionLocal() as db:
+        await bulk_index_all(db)
+
     log.info("All services initialised — ready to accept connections")
     yield
 
@@ -69,6 +74,7 @@ async def lifespan(app: FastAPI):
     log.info("DroneArjuna shutting down")
     await data_recorder.stop()
     await close_rabbitmq()
+    await close_es()
     await engine.dispose()
     await ts_engine.dispose()
 

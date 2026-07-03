@@ -155,11 +155,21 @@ class MAVLinkManager:
         except asyncio.TimeoutError:
             log.error("Heartbeat timeout", drone_id=drone_id, conn_str=conn_str,
                       timeout_s=heartbeat_timeout)
+            if conn.mav:
+                try:
+                    conn.mav.close()
+                except Exception:
+                    pass
             if conn.hf_adapter:
                 hf_link_adapter.remove(drone_id)
             return False
         except Exception as e:
             log.error("Connection failed", drone_id=drone_id, error=str(e))
+            if conn.mav:
+                try:
+                    conn.mav.close()
+                except Exception:
+                    pass
             if conn.hf_adapter:
                 hf_link_adapter.remove(drone_id)
             return False

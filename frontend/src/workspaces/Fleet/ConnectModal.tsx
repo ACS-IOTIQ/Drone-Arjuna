@@ -30,7 +30,8 @@ interface ConnectionPreset {
 const BUILT_IN_PRESETS: ConnectionPreset[] = [
   { id: 'udp-sitl-14550', name: 'SITL UDP 14550', transport: 'udp', host: '0.0.0.0', port: 14550 },
   { id: 'tcp-sitl-5760', name: 'SITL TCP 5760', transport: 'tcp', host: 'host.docker.internal', port: 5760 },
-  { id: 'serial-usb-57600', name: 'USB Serial 57600', transport: 'serial', serial_port: '/dev/ttyUSB0', baud_rate: 57600 },
+  { id: 'serial-usb-115200', name: 'Pixhawk USB Direct 115200', transport: 'serial', serial_port: '/dev/ttyUSB0', baud_rate: 115200 },
+  { id: 'serial-radio-57600', name: 'SiK Telemetry Radio 57600', transport: 'serial', serial_port: '/dev/ttyUSB0', baud_rate: 57600 },
   { id: 'hf-harris-serial', name: 'HF Harris Serial', transport: 'hf_serial', serial_port: '/dev/ttyUSB0', baud_rate: 9600, hf_modem_type: 'harris' },
 ]
 

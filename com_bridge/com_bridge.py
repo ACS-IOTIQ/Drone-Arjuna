@@ -1,9 +1,10 @@
 """Forward a Windows serial MAVLink device to the Docker backend.
 
 Usage: python com_bridge.py [COM_PORT|auto] [BAUD] [TCP_PORT]
-Default: auto, 115200, 5760
+Default: auto, 115200, 5762
 """
 import json
+import os
 import socket
 import sys
 import threading
@@ -16,9 +17,32 @@ import serial.tools.list_ports
 
 REQUESTED_PORT = sys.argv[1] if len(sys.argv) > 1 else "auto"
 BAUD = int(sys.argv[2]) if len(sys.argv) > 2 else 115200
-TCP_PORT = int(sys.argv[3]) if len(sys.argv) > 3 else 5760
+TCP_PORT = int(sys.argv[3]) if len(sys.argv) > 3 else 5762
 DISCOVERY_PORT = 5761
-TCP_PORT_CANDIDATES = [TCP_PORT, 5762, 5764, 5770, 0]
+TCP_PORT_CANDIDATES = [TCP_PORT, 5764, 5770, 5760, 0]
+
+_LOCK_FILE = None
+
+
+def acquire_single_instance_lock():
+    """Prevent multiple bridge processes from fighting over the same COM port."""
+    global _LOCK_FILE
+    lock_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bridge.lock")
+    _LOCK_FILE = open(lock_path, "w")
+    if os.name == "nt":
+        import msvcrt
+        try:
+            msvcrt.locking(_LOCK_FILE.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            print("[bridge] another com_bridge instance is already running; exiting")
+            sys.exit(0)
+    else:
+        import fcntl
+        try:
+            fcntl.flock(_LOCK_FILE.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            print("[bridge] another com_bridge instance is already running; exiting")
+            sys.exit(0)
 
 
 class SerialDevice:
@@ -28,6 +52,8 @@ class SerialDevice:
         self.description = None
         self.tcp_port = None
         self.lock = threading.Lock()
+        self.client_lock = threading.Lock()
+        self.active_client = False
 
     def status(self):
         ports = [
@@ -121,9 +147,11 @@ def pipe_serial_to_tcp(ser, sock, stop):
             data = ser.read(512)
             if data:
                 sock.sendall(data)
-    except (OSError, serial.SerialException) as exc:
+    except serial.SerialException as exc:
         print(f"[bridge] serial connection lost: {exc}")
         device.mark_disconnected()
+    except OSError as exc:
+        print(f"[bridge] client socket closed while sending serial data: {exc}")
     finally:
         stop.set()
 
@@ -135,30 +163,47 @@ def pipe_tcp_to_serial(sock, ser, stop):
             if not data:
                 break
             ser.write(data)
-    except (OSError, serial.SerialException) as exc:
+    except serial.SerialException as exc:
+        print(f"[bridge] serial connection lost while writing: {exc}")
+        device.mark_disconnected()
+    except OSError as exc:
         print(f"[bridge] client connection closed: {exc}")
     finally:
         stop.set()
 
 
 def handle_client(conn, addr):
+    with device.client_lock:
+        if device.active_client:
+            print(f"[bridge] rejected {addr}: another MAVLink client is already connected")
+            conn.close()
+            return
+        device.active_client = True
+
     with device.lock:
         ser = device.serial
     if not ser or not ser.is_open:
         print(f"[bridge] rejected {addr}: no serial device connected")
+        with device.client_lock:
+            device.active_client = False
         conn.close()
         return
 
-    print(f"[bridge] client connected from {addr} -> {device.port}")
-    stop = threading.Event()
-    threading.Thread(target=pipe_serial_to_tcp, args=(ser, conn, stop), daemon=True).start()
-    threading.Thread(target=pipe_tcp_to_serial, args=(conn, ser, stop), daemon=True).start()
-    stop.wait()
-    conn.close()
-    print(f"[bridge] client disconnected from {addr}")
+    try:
+        print(f"[bridge] client connected from {addr} -> {device.port}")
+        stop = threading.Event()
+        threading.Thread(target=pipe_serial_to_tcp, args=(ser, conn, stop), daemon=True).start()
+        threading.Thread(target=pipe_tcp_to_serial, args=(conn, ser, stop), daemon=True).start()
+        stop.wait()
+        conn.close()
+        print(f"[bridge] client disconnected from {addr}")
+    finally:
+        with device.client_lock:
+            device.active_client = False
 
 
 def main():
+    acquire_single_instance_lock()
     threading.Thread(target=device.connect_forever, daemon=True).start()
     discovery = ThreadingHTTPServer(("0.0.0.0", DISCOVERY_PORT), DiscoveryHandler)
     threading.Thread(target=discovery.serve_forever, daemon=True).start()

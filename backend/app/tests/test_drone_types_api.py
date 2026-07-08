@@ -8,7 +8,7 @@ Covers:
   - Happy-path create / list / get / update / archive
   - Duplicate name → 409
   - cruise_speed_ms > max_speed_ms → 422 (schema validator)
-  - Archive blocked while drone instance references the type → 409
+  - Deleting a type also deletes registered drones that reference it
   - Archived type no longer appears in list or GET → 404
   - RBAC: VIEWER blocked from all write operations
 """
@@ -227,10 +227,10 @@ async def test_archive_drone_type_204(client: AsyncClient, admin_user, make_toke
     assert get.status_code == 404
 
 
-async def test_archive_drone_type_blocked_by_instance_409(
+async def test_delete_drone_type_cascades_to_registered_instances(
     client: AsyncClient, admin_user, drone_type, make_token
 ):
-    """Cannot archive a type while a DroneInstance still references it."""
+    """Deleting a type permanently deletes its registered drone instances."""
     token = make_token(admin_user.id, admin_user.role)
     hdrs  = {"Authorization": f"Bearer {token}"}
 
@@ -246,16 +246,16 @@ async def test_archive_drone_type_blocked_by_instance_409(
     )
     assert inst_resp.status_code == 201
 
-    # Attempt to archive the type — must be blocked
+    # Delete the type and its registered instance.
     resp = await client.delete(
         f"/api/master/drone-types/{drone_type['id']}", headers=hdrs
     )
-    assert resp.status_code == 409
+    assert resp.status_code == 204
 
-    # Cleanup the instance
-    await client.delete(
+    deleted_instance = await client.get(
         f"/api/master/drones/{inst_resp.json()['id']}", headers=hdrs
     )
+    assert deleted_instance.status_code == 404
 
 
 # ══════════════════════════════════════════════════════════════════════

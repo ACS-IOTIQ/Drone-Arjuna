@@ -2,7 +2,7 @@
 // DroneInstanceManager.tsx
 // ═══════════════════════════════════════════
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, X, Save, Anchor } from 'lucide-react'
+import { Plus, Pencil, X, Save, Anchor } from 'lucide-react'
 import { droneMasterApi } from '@/api/droneMaster'
 import { payloadApi, type PayloadType } from '@/api/payload'
 import { vesselApi } from '@/api/vessel'
@@ -30,6 +30,7 @@ export default function DroneInstanceManager() {
   const [types, setTypes]     = useState<any[]>([])
   const [payloadTypes, setPayloadTypes] = useState<PayloadType[]>([])
   const [editing, setEditing] = useState<DroneInst | null>(null)
+  const [isNew, setIsNew]     = useState(false)
   const [saving, setSaving]   = useState(false)
   const [err, setErr]         = useState('')
   const { vessels, fetchVessels } = useVesselStore()
@@ -52,6 +53,21 @@ export default function DroneInstanceManager() {
 
   const openNew = () => {
     setEditing({ ...BLANK, drone_type_id: types[0]?.id ?? 0 })
+    setIsNew(true)
+    setErr('')
+  }
+
+  const openEdit = (drone: any) => {
+    setEditing({
+      id: drone.id,
+      call_sign: drone.call_sign,
+      drone_type_id: drone.drone_type_id,
+      serial_number: drone.serial_number,
+      mavlink_system_id: drone.mavlink_system_id,
+      home_vessel_id: drone.home_vessel_id ?? '',
+      notes: drone.notes ?? '',
+    })
+    setIsNew(false)
     setErr('')
   }
 
@@ -61,17 +77,20 @@ export default function DroneInstanceManager() {
     }
     setSaving(true); setErr('')
     try {
-      const created = await droneMasterApi.createDrone({
+      const payload = {
         call_sign:         editing.call_sign,
         drone_type_id:     editing.drone_type_id,
         serial_number:     editing.serial_number,
         mavlink_system_id: editing.mavlink_system_id,
         notes:             editing.notes,
-      })
+      }
+      const saved = isNew
+        ? await droneMasterApi.createDrone(payload)
+        : await droneMasterApi.updateDrone(editing.id!, payload)
 
       // Assign to vessel if selected
-      if (editing.home_vessel_id && created.data?.id) {
-        await vesselApi.assignDrone(Number(editing.home_vessel_id), created.data.id)
+      if (isNew && editing.home_vessel_id && saved.data?.id) {
+        await vesselApi.assignDrone(Number(editing.home_vessel_id), saved.data.id)
       }
 
       await load()
@@ -155,14 +174,14 @@ export default function DroneInstanceManager() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--da-border)', background: 'var(--da-surface)' }}>
-              {['Call Sign', 'Type', 'Serial No.', 'MAVLink ID', 'Home Vessel', 'Status', 'Flight Hrs'].map(h => (
+              {['Call Sign', 'Type', 'Serial No.', 'MAVLink ID', 'Home Vessel', 'Status', 'Flight Hrs', ''].map(h => (
                 <th key={h} className="px-3 py-2 text-left text-xs font-medium" style={{ color: '#4b5563' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {drones.length === 0 && (
-              <tr><td colSpan={7} className="text-center py-8 text-sm" style={{ color: '#374151' }}>
+              <tr><td colSpan={8} className="text-center py-8 text-sm" style={{ color: '#374151' }}>
                 No drones registered yet
               </td></tr>
             )}
@@ -189,19 +208,26 @@ export default function DroneInstanceManager() {
                   }}>{d.status}</span>
                 </td>
                 <td className="px-3 py-2 mono text-xs">{Number(d.total_flight_hours).toFixed(1)} h</td>
+                <td className="px-3 py-2">
+                  <button onClick={() => openEdit(d)} aria-label={`Edit ${d.call_sign}`}
+                    className="p-1.5 rounded transition-colors hover:bg-white/10"
+                    style={{ color: '#3b82f6' }}>
+                    <Pencil size={13} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      {/* Register drone modal */}
+      {/* Register / edit drone modal */}
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.75)' }} onClick={() => setEditing(null)}>
           <div className="da-card w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold">Register Drone</h3>
+              <h3 className="font-semibold">{isNew ? 'Register Drone' : 'Edit Drone'}</h3>
               <button onClick={() => setEditing(null)}><X size={16} style={{ color: '#6b7280' }} /></button>
             </div>
             <div className="flex flex-col gap-3">
@@ -240,7 +266,7 @@ export default function DroneInstanceManager() {
               )}
 
               {/* Vessel assignment */}
-              <label className="flex flex-col gap-1">
+              {isNew && <label className="flex flex-col gap-1">
                 <span className="text-[10px] font-medium" style={{ color: '#94a3b8' }}>HOME BASE</span>
                 <select className="da-input" value={editing.home_vessel_id}
                   onChange={e => setEditing(p => ({ ...p!, home_vessel_id: e.target.value ? Number(e.target.value) : '' }))}>
@@ -256,7 +282,7 @@ export default function DroneInstanceManager() {
                     Drone will use dynamic return-to-ship instead of fixed RTH
                   </p>
                 )}
-              </label>
+              </label>}
 
               <label className="flex flex-col gap-1">
                 <span className="text-[10px] font-medium" style={{ color: '#94a3b8' }}>NOTES</span>
@@ -270,7 +296,7 @@ export default function DroneInstanceManager() {
             <div className="flex gap-2 mt-4">
               <button onClick={() => setEditing(null)} className="da-btn da-btn-ghost flex-1">Cancel</button>
               <button onClick={save} disabled={saving} className="da-btn da-btn-primary flex-1">
-                <Save size={14} />{saving ? 'Saving…' : 'Register'}
+                <Save size={14} />{saving ? 'Saving…' : isNew ? 'Register' : 'Save Changes'}
               </button>
             </div>
           </div>

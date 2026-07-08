@@ -54,12 +54,12 @@ class TelemetryProcessor(metaclass=_TelemetryProcessorCompat):
         msg_type = msg.get_type()
         handler_name = _HANDLERS.get(msg_type)
         if handler_name:
-            handler = getattr(self, handler_name)
             if msg_type == "COMMAND_ACK":
                 # Route directly to CommandController — doesn't update state
                 if controller:
                     controller.handle_ack(msg.command, msg.result)
                 return
+            handler = getattr(self, handler_name)
             update = handler(msg)
             if update:
                 await state.update(drone_id, update)

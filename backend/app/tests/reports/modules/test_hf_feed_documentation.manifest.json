@@ -1,0 +1,11 @@
+{
+  "fingerprint": "f61f72f8f1b103d930c96d210141897ce9668f513e9e47c11ed5a7c09408da4d",
+  "nodeids": [
+    "app/tests/test_hf_feed.py::test_ingest_gga_converts_south_and_west_to_negative_coordinates",
+    "app/tests/test_hf_feed.py::test_ingest_gga_writes_position_with_ten_second_ttl",
+    "app/tests/test_hf_feed.py::test_ingest_ignores_non_gga_sentence",
+    "app/tests/test_hf_feed.py::test_ingest_rejects_bad_checksum_without_writing_redis",
+    "app/tests/test_hf_feed.py::test_udp_protocol_dispatches_gga_datagram_to_redis",
+    "app/tests/test_hf_feed.py::test_udp_protocol_drops_non_ascii_datagram"
+  ]
+}

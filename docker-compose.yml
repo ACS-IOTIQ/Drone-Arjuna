@@ -44,14 +44,19 @@ services:
 
   # ── PG Admin (Web UI For DB) ───────────────────────────────────────
   pgadmin:
-    image: dpage/pgadmin4:latest
+    # Pinned (not :latest) — a "latest" pull picked up a build shipping
+    # Python 3.14 whose first-run setup (password hashing / DB migration)
+    # spins forever instead of completing. 8.14 runs a stable Python 3.12.
+    image: dpage/pgadmin4:8.14
     container_name: da_pgadmin
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@dronearjuna.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-changeme}
+      PGADMIN_REPLACE_SERVERS_ON_STARTUP: "True"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+      - ./docs/pgadmin-servers.json:/pgadmin4/servers.json:ro
     ports:
       - "5050:80"
     networks:
@@ -169,6 +174,7 @@ services:
     ports:
       - "8000:8000"
       - "14550:14550/udp"   # ArduPilot SITL / MAVLink UDP inbound
+      - "10110:10110/udp"   # Vessel NMEA GGA feed
     extra_hosts:
       - "host.docker.internal:host-gateway"   # reach Windows host from container (SITL TCP)
     depends_on:
@@ -178,8 +184,11 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
     volumes:
       - ./backend:/app   # Hot reload in dev
+      - .:/project:ro    # project root (read-only) for infra tests
     privileged: true   # allows access to USB serial devices passed in via usbipd-win
     networks:
       - da_network

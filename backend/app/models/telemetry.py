@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import (
     BigInteger, Integer, Float, String,
-    Boolean, DateTime, Text, Index
+    Boolean, DateTime, Text
 )
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
 
@@ -24,26 +24,17 @@ class TSBase(DeclarativeBase):
 
 class TelemetryFrame(TSBase):
     """
-    Primary telemetry hypertable.
-    TimescaleDB partitions this automatically by `recorded_at`.
-
-    At 10 Hz per drone × 10 drones = 100 rows/sec.
-    TimescaleDB handles this trivially; default chunk interval is 7 days.
-
-    Retention policy (configured in data_recorder.py):
-      - Full resolution: 30 days
-      - Downsampled 1-min averages: 1 year
+    Current-state telemetry table — one row per drone_id, updated in place
+    on every change (UPSERT in data_recorder.py). No history is retained;
+    `recorded_at` reflects the timestamp of the last update, not a log entry.
     """
     __tablename__ = "telemetry"
 
-    # Primary key is (recorded_at, drone_id) — TimescaleDB requires
-    # the time column to be part of the PK for hypertable partitioning.
+    drone_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
-        primary_key=True,
     )
-    drone_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
     # ── Position ──────────────────────────────────────────────────
     lat: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
@@ -87,10 +78,27 @@ class TelemetryFrame(TSBase):
     mission_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     current_waypoint: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
-    __table_args__ = (
-        # TimescaleDB needs an index on the time column for fast range queries
-        Index("ix_telemetry_drone_time", "drone_id", "recorded_at"),
+
+class TelemetryGauge(TSBase):
+    """
+    Dashboard gauge table — Battery, Altitude, GND Speed, GPS Sats, RSSI, CPU Load.
+    One row per drone_id, updated in place (UPSERT) whenever a gauge value changes
+    (change-detection in DataRecorder.record()). No history is retained.
+    """
+    __tablename__ = "telemetry_gauges"
+
+    drone_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
+
+    battery_pct: Mapped[int] = mapped_column(Integer, default=-1)
+    altitude_m: Mapped[float] = mapped_column(Float, default=0.0)
+    ground_speed_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    gps_satellites: Mapped[int] = mapped_column(Integer, default=0)
+    rssi: Mapped[int] = mapped_column(Integer, default=0)
+    cpu_load_pct: Mapped[float] = mapped_column(Float, default=0.0)
 
 
 class SystemMetric(TSBase):

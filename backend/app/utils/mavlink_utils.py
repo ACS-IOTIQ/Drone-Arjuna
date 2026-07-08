@@ -152,8 +152,8 @@ def decode_flight_mode(
     # ArduPilot — choose map based on vehicle type
     if vehicle_type in (
         mavutil.mavlink.MAV_TYPE_FIXED_WING,
-        mavutil.mavlink.MAV_TYPE_VTOL_TAILSITTER_DUOROTOR,
-        mavutil.mavlink.MAV_TYPE_VTOL_TAILSITTER_QUADROTOR,
+        mavutil.mavlink.MAV_TYPE_VTOL_DUOROTOR,
+        mavutil.mavlink.MAV_TYPE_VTOL_QUADROTOR,
         mavutil.mavlink.MAV_TYPE_VTOL_TILTROTOR,
     ):
         return ARDUPLANE_MODES.get(custom_mode, f"MODE_{custom_mode}")

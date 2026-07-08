@@ -26,6 +26,8 @@ export default function DroneTypeManager() {
   const [editing, setEditing]   = useState<DroneType | null>(null)
   const [isNew, setIsNew]       = useState(false)
   const [saving, setSaving]     = useState(false)
+  const [archiving, setArchiving] = useState(false)
+  const [typeToArchive, setTypeToArchive] = useState<DroneType | null>(null)
   const [err, setErr]           = useState('')
 
   const load = async () => {
@@ -53,10 +55,18 @@ export default function DroneTypeManager() {
     } finally { setSaving(false) }
   }
 
-  const archive = async (id: number) => {
-    if (!confirm('Archive this drone type?')) return
-    await droneMasterApi.archiveType(id)
-    await load()
+  const archive = async () => {
+    if (!typeToArchive?.id) return
+    setArchiving(true); setErr('')
+    try {
+      await droneMasterApi.archiveType(typeToArchive.id)
+      await load()
+      setTypeToArchive(null)
+    } catch (e: any) {
+      setErr(e.response?.data?.detail ?? 'Unable to delete drone type')
+    } finally {
+      setArchiving(false)
+    }
   }
 
   const field = (k: keyof DroneType, label: string, type = 'text', opts?: string[]) => (
@@ -139,9 +149,9 @@ export default function DroneTypeManager() {
                       style={{ color: '#3b82f6' }}>
                       <Pencil size={13} />
                     </button>
-                    <button onClick={() => archive(t.id!)}
+                    <button onClick={() => { setTypeToArchive(t); setErr('') }}
                       className="p-1.5 rounded transition-colors hover:bg-white/10"
-                      style={{ color: '#ef4444' }}>
+                      style={{ color: '#ef4444' }} aria-label={`Delete ${t.name}`}>
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -151,6 +161,44 @@ export default function DroneTypeManager() {
           </tbody>
         </table>
       </div>
+
+      {/* Delete confirmation modal */}
+      {typeToArchive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(0,0,0,0.75)' }}
+          onClick={() => !archiving && setTypeToArchive(null)}>
+          <div className="da-card w-full max-w-md p-6" role="dialog" aria-modal="true"
+            aria-labelledby="archive-drone-type-title" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 id="archive-drone-type-title" className="font-semibold">Delete drone type?</h3>
+                <p className="mt-2 text-sm" style={{ color: '#6b7280' }}>
+                  <strong style={{ color: 'var(--da-text)' }}>{typeToArchive.name}</strong> and all registered drones using it will be permanently deleted from the database. This cannot be undone.
+                </p>
+              </div>
+              <button onClick={() => setTypeToArchive(null)} disabled={archiving}
+                aria-label="Close delete confirmation">
+                <X size={16} style={{ color: '#6b7280' }} />
+              </button>
+            </div>
+
+            {err && (
+              <p className="mt-4 text-xs px-3 py-2 rounded"
+                style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>{err}</p>
+            )}
+
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setTypeToArchive(null)} disabled={archiving}
+                className="da-btn da-btn-ghost flex-1">Cancel</button>
+              <button onClick={archive} disabled={archiving}
+                className="da-btn flex-1"
+                style={{ background: '#dc2626', color: '#fff' }}>
+                <Trash2 size={14} /> {archiving ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit / Create modal */}
       {editing && (

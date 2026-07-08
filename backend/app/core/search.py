@@ -11,7 +11,43 @@ raise, so an ES outage never breaks the primary HTTP endpoints.
 """
 import asyncio
 import structlog
-from elasticsearch import AsyncElasticsearch, NotFoundError
+
+try:
+    from elasticsearch import AsyncElasticsearch, NotFoundError
+except ModuleNotFoundError:
+    class NotFoundError(Exception):
+        pass
+
+    class _MissingElasticsearchIndices:
+        async def exists(self, *args, **kwargs):
+            raise RuntimeError("elasticsearch package is not installed")
+
+        async def create(self, *args, **kwargs):
+            raise RuntimeError("elasticsearch package is not installed")
+
+    class AsyncElasticsearch:
+        """
+        Fallback client used when the optional Elasticsearch package is absent.
+
+        The search helpers below already catch and log ES failures so API routes
+        continue to work without search.  Keeping import-time fallback behavior
+        also lets config tests patch this symbol without requiring the package.
+        """
+
+        def __init__(self, *args, **kwargs):
+            self.indices = _MissingElasticsearchIndices()
+
+        async def close(self):
+            return None
+
+        async def index(self, *args, **kwargs):
+            raise RuntimeError("elasticsearch package is not installed")
+
+        async def delete(self, *args, **kwargs):
+            raise RuntimeError("elasticsearch package is not installed")
+
+        async def search(self, *args, **kwargs):
+            raise RuntimeError("elasticsearch package is not installed")
 
 from app.config import get_settings
 

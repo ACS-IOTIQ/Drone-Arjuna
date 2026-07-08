@@ -115,6 +115,12 @@ class MAVLinkManager:
 
             # Request telemetry streams from ArduPilot.
             # Without this, ArduPilot only sends heartbeats — no position/attitude/etc.
+            #
+            # REQUEST_DATA_STREAM is the legacy mechanism — modern ArduPilot/PX4
+            # builds silently ignore it for several message types (notably
+            # GPS_RAW_INT and RC_CHANNELS), leaving GPS Sats / RSSI stuck at their
+            # defaults. MAV_CMD_SET_MESSAGE_INTERVAL is the mechanism both
+            # autopilots actually honor, so request each message explicitly too.
             def _request_streams(mav):
                 for stream_id, rate_hz in [
                     (mavutil.mavlink.MAV_DATA_STREAM_RAW_SENSORS,    2),   # GPS, IMU
@@ -131,6 +137,24 @@ class MAVLinkManager:
                         stream_id,
                         rate_hz,
                         1,   # 1 = start streaming
+                    )
+
+                for msg_id, rate_hz in [
+                    (mavutil.mavlink.MAVLINK_MSG_ID_GPS_RAW_INT,          2),
+                    (mavutil.mavlink.MAVLINK_MSG_ID_RC_CHANNELS,          2),
+                    (mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT,  4),
+                    (mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE,            10),
+                    (mavutil.mavlink.MAVLINK_MSG_ID_VFR_HUD,              4),
+                    (mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS,           2),
+                ]:
+                    mav.mav.command_long_send(
+                        mav.target_system,
+                        mav.target_component,
+                        mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+                        0,
+                        msg_id,
+                        int(1e6 / rate_hz),  # interval in microseconds
+                        0, 0, 0, 0, 0,
                     )
 
             await loop.run_in_executor(None, _request_streams, conn.mav)

@@ -31,10 +31,19 @@ export interface SimStartPayload {
 }
 
 export interface PortInfo {
-  port:   string          // e.g. "/dev/ttyUSB0" or "udp:0.0.0.0:14550"
-  type:   'serial' | 'usb' | 'udp' | 'tcp'
-  desc:   string
-  baud?:  number
+  port:    string          // e.g. "/dev/ttyUSB0" or "udp:0.0.0.0:14550"
+  type:    'serial' | 'usb' | 'udp' | 'tcp'
+  desc:    string
+  baud?:   number
+  source?: 'windows_bridge' | 'container' | 'network'
+  com?:    string          // Windows COM port name, e.g. "COM4"
+  ready?:  boolean         // true when com_bridge has this port open right now
+}
+
+export interface PortsResponse {
+  bridge_connected:   boolean
+  bridge_active_port: string | null
+  ports:              PortInfo[]
 }
 
 export interface AutoConnectPayload {
@@ -65,9 +74,9 @@ export const droneControlApi = {
   // ── Port discovery ──────────────────────────────────────────
   /**
    * Returns available serial/UDP/TCP ports the backend can reach.
-   * Response: PortInfo[]
+   * Response: PortsResponse  { bridge_connected, bridge_active_port, ports[] }
    */
-  ports: () => api.get<PortInfo[]>('/api/drone-control/ports'),
+  ports: () => api.get<PortsResponse>('/api/drone-control/ports'),
 
   /**
    * Starts an auto-connect scan on the backend.

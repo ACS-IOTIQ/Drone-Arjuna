@@ -1,0 +1,16 @@
+{
+  "fingerprint": "82ac800adca6b0b0cb89dca3f9dcc5e2b51b303f09e6d3b02ae8ac444341fd52",
+  "nodeids": [
+    "app/tests/test_payload_api.py::test_create_payload_type_201",
+    "app/tests/test_payload_api.py::test_create_payload_type_duplicate_409",
+    "app/tests/test_payload_api.py::test_delete_payload_type_204",
+    "app/tests/test_payload_api.py::test_get_payload_type_200",
+    "app/tests/test_payload_api.py::test_get_payload_type_not_found_404",
+    "app/tests/test_payload_api.py::test_list_payload_types_200",
+    "app/tests/test_payload_api.py::test_payload_type_all_fields_persisted",
+    "app/tests/test_payload_api.py::test_update_payload_type_200",
+    "app/tests/test_payload_api.py::test_viewer_blocked_from_create_payload_type_403",
+    "app/tests/test_payload_api.py::test_viewer_blocked_from_delete_payload_type_403",
+    "app/tests/test_payload_api.py::test_viewer_blocked_from_update_payload_type_403"
+  ]
+}

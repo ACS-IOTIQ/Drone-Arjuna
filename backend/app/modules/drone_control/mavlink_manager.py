@@ -17,7 +17,7 @@ from pymavlink import mavutil
 
 from app.utils.mavlink_utils import build_connection_string
 from app.modules.drone_control.telemetry_processor import TelemetryProcessor
-from app.modules.drone_control.state_manager import StateManager
+from app.modules.drone_control.state_manager import StateManager, home_point_updater
 from app.modules.drone_control.health_monitor import HealthMonitor
 from app.modules.drone_control.data_recorder import data_recorder
 from app.modules.drone_control.command_controller import CommandController, CommandRecord
@@ -54,6 +54,7 @@ class DroneConnection:
     connected: bool = False
     link_quality: int = 0
     hf_adapter: Optional[HFLinkAdapter] = None   # set when transport is HF
+    home_task: Optional[asyncio.Task] = None      # vessel home-point updater
     errors: list[str] = field(default_factory=list)
 
 
@@ -172,6 +173,16 @@ class MAVLinkManager:
                 self._read_loop(drone_id),
                 name=f"mavlink-reader-{call_sign}"
             )
+
+            # Start vessel home-point updater — tracks vessel:position in Redis
+            # and sends MAV_CMD_DO_SET_HOME every 5 s so RTL returns to the vessel
+            from app.dependencies import get_redis
+            redis = await get_redis()
+            conn.home_task = asyncio.create_task(
+                home_point_updater(drone_id, conn.mav, redis),
+                name=f"home-updater-{call_sign}"
+            )
+
             log.info("Drone connected", drone_id=drone_id, call_sign=call_sign,
                      transport=transport)
             return True
@@ -204,6 +215,8 @@ class MAVLinkManager:
             return
         if conn.task:
             conn.task.cancel()
+        if conn.home_task:
+            conn.home_task.cancel()
         if conn.mav:
             conn.mav.close()
         conn.connected = False

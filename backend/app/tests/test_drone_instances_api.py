@@ -308,3 +308,57 @@ async def test_drone_instance_all_fields_persisted(
         assert stored["status"]            == "offline"            # default on creation
     finally:
         await client.delete(f"/api/master/drones/{did}", headers=hdrs)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# DELETE /api/master/drones/{id}
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_delete_drone_204(
+    client: AsyncClient, admin_user, drone_type, make_token
+):
+    """DELETE removes the drone instance and returns 204."""
+    token = make_token(admin_user.id, admin_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    create = await client.post(
+        "/api/master/drones",
+        json={
+            "call_sign":     "DELETE-ME-01",
+            "drone_type_id": drone_type["id"],
+            "serial_number": "DEL-SN-001",
+        },
+        headers=hdrs,
+    )
+    assert create.status_code == 201
+    did = create.json()["id"]
+
+    resp = await client.delete(f"/api/master/drones/{did}", headers=hdrs)
+    assert resp.status_code == 204
+
+    # Verify it's gone
+    get = await client.get(f"/api/master/drones/{did}", headers=hdrs)
+    assert get.status_code == 404
+
+
+async def test_delete_drone_not_found_404(
+    client: AsyncClient, admin_user, make_token
+):
+    """DELETE on a non-existent drone ID must return 404."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp  = await client.delete(
+        "/api/master/drones/999999",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_delete_drone_viewer_403(
+    client: AsyncClient, viewer_user, drone_instance, make_token
+):
+    """VIEWER role must not be able to delete a drone instance → 403."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.delete(
+        f"/api/master/drones/{drone_instance['id']}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403

@@ -147,15 +147,51 @@ class InventoryService:
     # ── Search (V1 lightweight, V2 Elasticsearch) ─────────────────
 
     async def search(self, query: str, limit: int = 20) -> dict:
-        """
-        P4-06: Elasticsearch multi_match with fuzziness AUTO across
-        name^3, manufacturer^2, model, mission_type, category, country, notes.
-        Falls back to empty list on ES unavailability — response shape unchanged.
-        """
-        from app.core.search import search_inventory
         if not query.strip():
             return {"results": [], "query": query, "total": 0}
-        results = await search_inventory(query, limit)
+
+        # V2: Elasticsearch full-text search (P4-06)
+        try:
+            from app.core.search import search_inventory
+            results = await search_inventory(query, limit)
+            if results:
+                return {"query": query, "total": len(results), "results": results}
+        except Exception:
+            pass
+
+        # V1 SQL ILIKE fallback — used when ES unavailable or returns nothing
+        pattern = f"%{query.strip()}%"
+        drone_q = (
+            select(DroneType)
+            .where(DroneType.is_active == True)
+            .where(
+                DroneType.name.ilike(pattern)
+                | DroneType.manufacturer.ilike(pattern)
+                | DroneType.model.ilike(pattern)
+                | DroneType.mission_type.ilike(pattern)
+                | DroneType.notes.ilike(pattern)
+            )
+            .limit(limit)
+        )
+        payload_q = (
+            select(PayloadType)
+            .where(PayloadType.is_active == True)
+            .where(
+                PayloadType.name.ilike(pattern)
+                | PayloadType.manufacturer.ilike(pattern)
+                | PayloadType.model.ilike(pattern)
+                | PayloadType.notes.ilike(pattern)
+            )
+            .limit(limit)
+        )
+        drone_result = await self.db.execute(drone_q)
+        payload_result = await self.db.execute(payload_q)
+        drones = drone_result.scalars().all()
+        payloads = payload_result.scalars().all()
+        results = (
+            [{"type": "drone",   **self._drone_card(dt)} for dt in drones]
+            + [{"type": "payload", **self._payload_card(pt)} for pt in payloads]
+        )
         return {"query": query, "total": len(results), "results": results}
 
     # ── Quick-reference card ──────────────────────────────────────

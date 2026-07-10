@@ -2,6 +2,7 @@ import asyncio
 import json
 import structlog
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -267,13 +268,32 @@ async def get_fleet_status(
 ):
     """All connected drones + their current telemetry snapshot."""
     state = mavlink_manager.state.get_all()
-    connections = {c["drone_id"]: c for c in mavlink_manager.get_all_connections()}
+    connections = {
+        c["drone_id"]: c
+        for c in mavlink_manager.get_all_connections()
+        if c.get("connected")
+    }
     return {
         "drones": [
             {**state.get(did, {}), **connections.get(did, {})}
-            for did in set(list(state.keys()) + list(connections.keys()))
+            for did in connections.keys()
         ]
     }
+
+
+async def _require_live_drone(drone_id: int, db: AsyncSession):
+    drone = await db.get(DroneInstance, drone_id)
+    if not drone:
+        raise HTTPException(status_code=404, detail="Drone not found")
+
+    conn = mavlink_manager._connections.get(drone_id)
+    if not conn or not conn.connected:
+        raise HTTPException(status_code=404, detail="Drone not connected")
+
+    state = mavlink_manager.state.get(drone_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Drone telemetry not available")
+    return state
 
 
 @router.post("/connect", status_code=status.HTTP_201_CREATED)
@@ -348,24 +368,24 @@ async def send_command(
 async def get_telemetry(
     drone_id: int,
     _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
+    db: AsyncSession = Depends(get_db),
 ):
     """One-shot telemetry snapshot for a single drone."""
-    state = mavlink_manager.state.get(drone_id)
-    if state is None:
-        raise HTTPException(status_code=404, detail="Drone not connected")
-    return state
+    return await _require_live_drone(drone_id, db)
 
 
 @router.get("/telemetry/{drone_id}/gauges")
 async def get_telemetry_gauges(
     drone_id: int,
     _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
+    main_db: AsyncSession = Depends(get_db),
     db: AsyncSession = Depends(get_ts_db),
 ):
     """
     Current gauge telemetry (Battery, Altitude, GND Speed, GPS Sats,
     RSSI, CPU Load) for a drone — one row per drone_id, no history retained.
     """
+    await _require_live_drone(drone_id, main_db)
     result = await db.execute(
         text("""
             SELECT recorded_at, battery_pct, altitude_m, ground_speed_ms,
@@ -387,6 +407,49 @@ async def get_telemetry_gauges(
         "rssi": row["rssi"],
         "cpu_load_pct": row["cpu_load_pct"],
     }
+
+
+@router.get("/telemetry/{drone_id}/history")
+async def get_telemetry_history(
+    drone_id: int,
+    _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
+    db: AsyncSession = Depends(get_ts_db),
+    start: datetime | None = None,
+    end: datetime | None = None,
+):
+    """
+    Flight-path history for the Telemetry Replay Player, oldest first.
+
+    Reads `telemetry_history` — a narrow, append-only table retained for
+    1 day (see RETENTION_DAYS in data_recorder.py), separate from the
+    single-row-per-drone `telemetry`/`telemetry_gauges` tables used for
+    live/current state.
+
+    `start`/`end` default to the last hour if omitted.
+    """
+    end = end or datetime.now(timezone.utc)
+    start = start or (end - timedelta(hours=1))
+    result = await db.execute(
+        text("""
+            SELECT recorded_at, lat, lon, alt_agl, yaw_deg, pitch_deg, roll_deg
+            FROM telemetry_history
+            WHERE drone_id = :drone_id AND recorded_at BETWEEN :start AND :end
+            ORDER BY recorded_at ASC
+        """),
+        {"drone_id": drone_id, "start": start, "end": end},
+    )
+    return [
+        {
+            "timestamp": r["recorded_at"],
+            "lat":   r["lat"],
+            "lng":   r["lon"],
+            "alt":   r["alt_agl"],
+            "yaw":   r["yaw_deg"],
+            "pitch": r["pitch_deg"],
+            "roll":  r["roll_deg"],
+        }
+        for r in result.mappings().all()
+    ]
 
 
 # ── Mission simulation ────────────────────────────────────────────

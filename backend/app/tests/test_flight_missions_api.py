@@ -376,3 +376,106 @@ async def test_upload_mission_unauthenticated_401(
         assert resp.status_code == 401
     finally:
         await client.delete(f"/api/flight/missions/{m['id']}", headers=hdrs)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# GET /api/flight/missions/{id}
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_get_mission_by_id_200(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """GET by ID returns mission with waypoints list."""
+    hdrs = auth_headers(flight_controller_user, make_token)
+    m = await _make_mission(client, hdrs, name="GetById-Mission")
+    try:
+        resp = await client.get(
+            f"/api/flight/missions/{m['id']}",
+            headers=hdrs,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"]   == m["id"]
+        assert data["name"] == "GetById-Mission"
+        assert "waypoints"  in data
+        assert isinstance(data["waypoints"], list)
+    finally:
+        await client.delete(f"/api/flight/missions/{m['id']}", headers=hdrs)
+
+
+async def test_get_mission_by_id_not_found_404(
+    client: AsyncClient, viewer_user, make_token
+):
+    """GET on a non-existent mission ID must return 404."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.get(
+        "/api/flight/missions/999999",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_get_mission_by_id_unauthenticated_401(client: AsyncClient):
+    """GET without a token must return 401."""
+    resp = await client.get("/api/flight/missions/1")
+    assert resp.status_code == 401
+
+
+# ══════════════════════════════════════════════════════════════════════
+# POST /api/flight/missions/{id}/validate
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_validate_mission_200(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """
+    Valid mission → 200 with {valid, errors, warnings} shape.
+    No drone assigned so the validator skips drone-type checks
+    and returns valid=True with an empty errors list.
+    """
+    hdrs = auth_headers(flight_controller_user, make_token)
+    m = await _make_mission(client, hdrs, name="Validate-OK-Mission")
+    try:
+        resp = await client.post(
+            f"/api/flight/missions/{m['id']}/validate",
+            headers=hdrs,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "valid"    in body
+        assert "errors"   in body
+        assert "warnings" in body
+        assert isinstance(body["errors"],   list)
+        assert isinstance(body["warnings"], list)
+    finally:
+        await client.delete(f"/api/flight/missions/{m['id']}", headers=hdrs)
+
+
+async def test_validate_mission_not_found_404(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Non-existent mission ID → 404."""
+    hdrs = auth_headers(flight_controller_user, make_token)
+    resp = await client.post(
+        "/api/flight/missions/999999/validate",
+        headers=hdrs,
+    )
+    assert resp.status_code == 404
+
+
+async def test_validate_mission_viewer_403(
+    client: AsyncClient, viewer_user, make_token
+):
+    """VIEWER role cannot validate (requires FLIGHT_CONTROLLER+) → 403."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp = await client.post(
+        "/api/flight/missions/1/validate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_validate_mission_unauthenticated_401(client: AsyncClient):
+    """No token → 401."""
+    resp = await client.post("/api/flight/missions/1/validate")
+    assert resp.status_code == 401

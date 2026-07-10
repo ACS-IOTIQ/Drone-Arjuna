@@ -79,6 +79,30 @@ class TelemetryFrame(TSBase):
     current_waypoint: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
 
+class TelemetryHistory(TSBase):
+    """
+    Append-only flight-path history for the Telemetry Replay Player.
+    One row per state change per drone (TimescaleDB hypertable on
+    recorded_at). Deliberately narrow — only what the 3D replay needs.
+    Retention: 1 day (see RETENTION_DAYS in data_recorder.py).
+    """
+    __tablename__ = "telemetry_history"
+
+    drone_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        primary_key=True,
+    )
+
+    lat: Mapped[float] = mapped_column(Float, default=0.0)
+    lon: Mapped[float] = mapped_column(Float, default=0.0)
+    alt_agl: Mapped[float] = mapped_column(Float, default=0.0)
+    yaw_deg: Mapped[float] = mapped_column(Float, default=0.0)
+    pitch_deg: Mapped[float] = mapped_column(Float, default=0.0)
+    roll_deg: Mapped[float] = mapped_column(Float, default=0.0)
+
+
 class TelemetryGauge(TSBase):
     """
     Dashboard gauge table — Battery, Altitude, GND Speed, GPS Sats, RSSI, CPU Load.

@@ -1,5 +1,5 @@
 {
-  "fingerprint": "a8dd409db84d50470cb5f7cdceee0bac4fba7daed1f9fdd99ef2d1b302effd53",
+  "fingerprint": "a51e3c367ff2f2694fd088264453b3adf98526082053509ba75d92b01b18806d",
   "nodeids": [
     "app/tests/test_approve_reject_workflow.py::test_ar01_accept_returns_200",
     "app/tests/test_approve_reject_workflow.py::test_ar02_accept_response_contains_temp_password",
@@ -21,6 +21,12 @@
     "app/tests/test_approve_reject_workflow.py::test_ar18_unauthenticated_accept_is_401",
     "app/tests/test_approve_reject_workflow.py::test_ar19_unauthenticated_reject_is_401",
     "app/tests/test_approve_reject_workflow.py::test_ar20_accept_nonexistent_is_404",
-    "app/tests/test_approve_reject_workflow.py::test_ar21_reject_nonexistent_is_404"
+    "app/tests/test_approve_reject_workflow.py::test_ar21_reject_nonexistent_is_404",
+    "app/tests/test_approve_reject_workflow.py::test_ar22_resend_email_approved_request_200",
+    "app/tests/test_approve_reject_workflow.py::test_ar23_resend_email_pending_request_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar24_resend_email_rejected_request_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar25_resend_email_nonexistent_404",
+    "app/tests/test_approve_reject_workflow.py::test_ar26_resend_email_viewer_403",
+    "app/tests/test_approve_reject_workflow.py::test_ar27_resend_email_unauthenticated_401"
   ]
 }

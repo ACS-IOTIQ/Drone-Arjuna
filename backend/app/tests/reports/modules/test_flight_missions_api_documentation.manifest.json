@@ -1,0 +1,25 @@
+{
+  "fingerprint": "ae38e3adde433a026b16d7c2cd80bc2880bfcf675654c4de82c26cb086433f8b",
+  "nodeids": [
+    "app/tests/test_flight_missions_api.py::test_delete_executing_mission_409",
+    "app/tests/test_flight_missions_api.py::test_delete_mission_204",
+    "app/tests/test_flight_missions_api.py::test_delete_mission_not_found_404",
+    "app/tests/test_flight_missions_api.py::test_delete_mission_unauthenticated_401",
+    "app/tests/test_flight_missions_api.py::test_delete_mission_viewer_403",
+    "app/tests/test_flight_missions_api.py::test_get_mission_by_id_200",
+    "app/tests/test_flight_missions_api.py::test_get_mission_by_id_not_found_404",
+    "app/tests/test_flight_missions_api.py::test_get_mission_by_id_unauthenticated_401",
+    "app/tests/test_flight_missions_api.py::test_list_missions_empty_200",
+    "app/tests/test_flight_missions_api.py::test_list_missions_ordered_newest_first",
+    "app/tests/test_flight_missions_api.py::test_list_missions_returns_created_missions",
+    "app/tests/test_flight_missions_api.py::test_list_missions_unauthenticated_401",
+    "app/tests/test_flight_missions_api.py::test_list_missions_viewer_can_read",
+    "app/tests/test_flight_missions_api.py::test_upload_drone_not_connected_503",
+    "app/tests/test_flight_missions_api.py::test_upload_invalid_mission_422",
+    "app/tests/test_flight_missions_api.py::test_upload_mission_unauthenticated_401",
+    "app/tests/test_flight_missions_api.py::test_validate_mission_200",
+    "app/tests/test_flight_missions_api.py::test_validate_mission_not_found_404",
+    "app/tests/test_flight_missions_api.py::test_validate_mission_unauthenticated_401",
+    "app/tests/test_flight_missions_api.py::test_validate_mission_viewer_403"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "fingerprint": "8ddfc0a7454b4bd262ebe2e48958fd2c240e911e8843b75eb79fd239825c17b0",
+  "nodeids": [
+    "app/tests/test_geofence_rtl_consumer.py::TestArchitecturalInvariant::test_mavlink_manager_has_rtl_consumer_method",
+    "app/tests/test_geofence_rtl_consumer.py::TestArchitecturalInvariant::test_telemetry_processor_source_has_no_send_command_call",
+    "app/tests/test_geofence_rtl_consumer.py::TestArchitecturalInvariant::test_telemetry_processor_takes_no_mavlink_manager_arg",
+    "app/tests/test_geofence_rtl_consumer.py::TestGeofenceRtlConsumer::test_consumer_handler_dispatches_rtl",
+    "app/tests/test_geofence_rtl_consumer.py::TestGeofenceRtlConsumer::test_consumer_handler_dispatches_rtl_for_multiple_drones",
+    "app/tests/test_geofence_rtl_consumer.py::TestGeofenceRtlConsumer::test_consumer_handler_ignores_missing_drone_id",
+    "app/tests/test_geofence_rtl_consumer.py::TestGeofenceRtlConsumer::test_subscribe_called_with_correct_routing_key",
+    "app/tests/test_geofence_rtl_consumer.py::TestGeofenceRtlConsumer::test_subscribe_not_called_when_rabbitmq_unavailable",
+    "app/tests/test_geofence_rtl_consumer.py::TestTelemetryProcessorPublishesOnly::test_emit_called_once_across_multiple_ticks",
+    "app/tests/test_geofence_rtl_consumer.py::TestTelemetryProcessorPublishesOnly::test_emit_geofence_breach_called_on_breach",
+    "app/tests/test_geofence_rtl_consumer.py::TestTelemetryProcessorPublishesOnly::test_emit_geofence_recovered_on_re_entry",
+    "app/tests/test_geofence_rtl_consumer.py::TestTelemetryProcessorPublishesOnly::test_no_direct_rtl_on_breach",
+    "app/tests/test_geofence_rtl_consumer.py::TestTelemetryProcessorPublishesOnly::test_no_emit_when_inside",
+    "app/tests/test_geofence_rtl_consumer.py::TestTelemetryProcessorPublishesOnly::test_no_emit_when_no_fence_registered"
+  ]
+}

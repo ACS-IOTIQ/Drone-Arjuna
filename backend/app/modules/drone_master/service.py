@@ -223,6 +223,12 @@ class DroneInstanceService:
         type_svc = DroneTypeService(self.db)
         return await type_svc.get_by_id(inst.drone_type_id)
 
+    async def archive(self, drone_id: int) -> None:
+        inst = await self.get_by_id(drone_id)
+        await self.db.delete(inst)
+        await self.db.flush()
+        log.info("drone_instance.deleted", id=drone_id, call_sign=inst.call_sign)
+
 
 # ── Config Template helpers ───────────────────────────────────────
 

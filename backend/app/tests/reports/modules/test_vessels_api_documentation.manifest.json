@@ -1,0 +1,29 @@
+{
+  "fingerprint": "da34b0f2f654ee47d06ea4fc4ee49e67c3aca19c71b29c976ca53d79886bdebc",
+  "nodeids": [
+    "app/tests/test_vessels_api.py::test_archive_vessel_204",
+    "app/tests/test_vessels_api.py::test_archive_vessel_blocked_by_drone_409",
+    "app/tests/test_vessels_api.py::test_archive_vessel_not_found_404",
+    "app/tests/test_vessels_api.py::test_assign_drone_persists_vessel_id",
+    "app/tests/test_vessels_api.py::test_assign_drone_to_vessel_200",
+    "app/tests/test_vessels_api.py::test_assign_drone_viewer_403",
+    "app/tests/test_vessels_api.py::test_create_vessel_201",
+    "app/tests/test_vessels_api.py::test_create_vessel_duplicate_id_409",
+    "app/tests/test_vessels_api.py::test_create_vessel_uppercases_id",
+    "app/tests/test_vessels_api.py::test_get_vessel_200",
+    "app/tests/test_vessels_api.py::test_get_vessel_not_found_404",
+    "app/tests/test_vessels_api.py::test_list_vessels_200",
+    "app/tests/test_vessels_api.py::test_unassign_drone_clears_vessel_id",
+    "app/tests/test_vessels_api.py::test_unassign_drone_from_vessel_200",
+    "app/tests/test_vessels_api.py::test_unassign_drone_viewer_403",
+    "app/tests/test_vessels_api.py::test_update_vessel_200",
+    "app/tests/test_vessels_api.py::test_update_vessel_not_found_404",
+    "app/tests/test_vessels_api.py::test_update_vessel_position_200",
+    "app/tests/test_vessels_api.py::test_update_vessel_position_invalid_lat_422",
+    "app/tests/test_vessels_api.py::test_update_vessel_viewer_403",
+    "app/tests/test_vessels_api.py::test_vessels_unauthenticated_401",
+    "app/tests/test_vessels_api.py::test_viewer_blocked_from_archive_vessel_403",
+    "app/tests/test_vessels_api.py::test_viewer_blocked_from_create_vessel_403",
+    "app/tests/test_vessels_api.py::test_viewer_blocked_from_position_update_403"
+  ]
+}

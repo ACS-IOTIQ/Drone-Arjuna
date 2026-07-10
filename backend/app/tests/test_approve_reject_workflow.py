@@ -385,3 +385,90 @@ async def test_ar21_reject_nonexistent_is_404(
         "/api/auth/access-requests/99999/reject", json={}, headers=hdrs
     )
     assert resp.status_code == 404
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AR-22 … AR-27  Resend approval email
+# POST /api/auth/access-requests/{req_id}/resend-email
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def test_ar22_resend_email_approved_request_200(
+    client: AsyncClient, admin_user, make_token, pending
+):
+    """AR-22: Resend email for an approved request returns 200 with message."""
+    hdrs = auth_headers(admin_user, make_token)
+    # First approve the request so it has status=approved and a temp_password
+    await client.post(
+        f"/api/auth/access-requests/{pending['id']}/accept",
+        json={},
+        headers=hdrs,
+    )
+    resp = await client.post(
+        f"/api/auth/access-requests/{pending['id']}/resend-email",
+        headers=hdrs,
+    )
+    assert resp.status_code == 200
+    assert "message" in resp.json()
+
+
+async def test_ar23_resend_email_pending_request_409(
+    client: AsyncClient, admin_user, make_token, pending
+):
+    """AR-23: Resending email for a still-pending request → 409 (not yet approved)."""
+    hdrs  = auth_headers(admin_user, make_token)
+    resp  = await client.post(
+        f"/api/auth/access-requests/{pending['id']}/resend-email",
+        headers=hdrs,
+    )
+    assert resp.status_code == 409
+
+
+async def test_ar24_resend_email_rejected_request_409(
+    client: AsyncClient, admin_user, make_token, pending
+):
+    """AR-24: Resending email for a rejected request → 409."""
+    hdrs = auth_headers(admin_user, make_token)
+    await client.post(
+        f"/api/auth/access-requests/{pending['id']}/reject",
+        json={},
+        headers=hdrs,
+    )
+    resp = await client.post(
+        f"/api/auth/access-requests/{pending['id']}/resend-email",
+        headers=hdrs,
+    )
+    assert resp.status_code == 409
+
+
+async def test_ar25_resend_email_nonexistent_404(
+    client: AsyncClient, admin_user, make_token
+):
+    """AR-25: Non-existent request ID → 404."""
+    hdrs = auth_headers(admin_user, make_token)
+    resp = await client.post(
+        "/api/auth/access-requests/99999/resend-email",
+        headers=hdrs,
+    )
+    assert resp.status_code == 404
+
+
+async def test_ar26_resend_email_viewer_403(
+    client: AsyncClient, viewer_user, make_token, pending
+):
+    """AR-26: Non-admin role → 403."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.post(
+        f"/api/auth/access-requests/{pending['id']}/resend-email",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_ar27_resend_email_unauthenticated_401(
+    client: AsyncClient, pending
+):
+    """AR-27: No token → 401."""
+    resp = await client.post(
+        f"/api/auth/access-requests/{pending['id']}/resend-email"
+    )
+    assert resp.status_code == 401

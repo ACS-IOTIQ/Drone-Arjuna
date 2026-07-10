@@ -36,6 +36,10 @@ class GeofenceStore:
             # via the GEOS C layer — unlike shape() which trips on nested lists
             # for collections in Shapely 2.x.
             poly = shapely.from_geojson(json.dumps(geojson))
+            if poly.geom_type not in ("Polygon", "MultiPolygon"):
+                log.warning("Geofence rejected — must be Polygon or MultiPolygon",
+                            drone_id=drone_id, geom_type=poly.geom_type)
+                return False
             if not poly.is_valid:
                 poly = poly.buffer(0)
             self._fences[drone_id] = poly

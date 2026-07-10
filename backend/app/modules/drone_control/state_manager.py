@@ -8,8 +8,15 @@ the MAVLink reader and the WebSocket broadcaster.
 Thread-safe via asyncio locks.
 """
 import asyncio
+import json
+import structlog
 from datetime import datetime, timezone
 from typing import Optional, Callable
+from pymavlink import mavutil
+
+log = structlog.get_logger()
+
+HOME_POLL_INTERVAL_S = 5   # how often to read vessel:position from Redis
 
 _DEFAULT_STATE = {
     "lat": 0.0, "lon": 0.0,
@@ -63,3 +70,50 @@ class StateManager:
 
     def unsubscribe(self, fn: Callable):
         self._listeners.remove(fn)
+
+
+async def home_point_updater(drone_id: int, mav, redis) -> None:
+    """
+    Background task — runs once per connected drone.
+    Every HOME_POLL_INTERVAL_S seconds, reads `vessel:position` from Redis.
+    If a position is present, sends MAV_CMD_DO_SET_HOME so the drone's RTL
+    home point tracks the vessel as it moves.
+
+    Cancelled automatically by MAVLinkManager.disconnect().
+    """
+    loop = asyncio.get_event_loop()
+    log.info("home_point_updater started", drone_id=drone_id)
+
+    while True:
+        await asyncio.sleep(HOME_POLL_INTERVAL_S)
+        try:
+            raw = await redis.get("vessel:position")
+            if raw is None:
+                continue
+
+            pos = json.loads(raw)
+            lat: float = pos["lat"]
+            lon: float = pos["lon"]
+
+            def _send_set_home(m, lat, lon):
+                m.mav.command_long_send(
+                    m.target_system,
+                    m.target_component,
+                    mavutil.mavlink.MAV_CMD_DO_SET_HOME,
+                    0,       # confirmation
+                    0,       # param1: 0 = use specified location (not current)
+                    0, 0, 0, # params 2-4 unused
+                    lat,     # param5: latitude (degrees)
+                    lon,     # param6: longitude (degrees)
+                    0,       # param7: altitude (0 = keep current)
+                )
+
+            await loop.run_in_executor(None, _send_set_home, mav, lat, lon)
+            log.debug("Home point updated", drone_id=drone_id, lat=lat, lon=lon)
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            log.warning("home_point_updater error", drone_id=drone_id, error=str(e))
+
+    log.info("home_point_updater stopped", drone_id=drone_id)

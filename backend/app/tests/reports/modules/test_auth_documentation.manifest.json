@@ -1,0 +1,20 @@
+{
+  "fingerprint": "23a8e1e373d08ef74b6e2458f901201e1f64ce2296f74804cf0299cd1b6a96dc",
+  "nodeids": [
+    "app/tests/test_auth.py::test_expired_token_is_401",
+    "app/tests/test_auth.py::test_inactive_user_token_is_401_on_me",
+    "app/tests/test_auth.py::test_login_returns_access_token",
+    "app/tests/test_auth.py::test_login_returns_role_for_flight_controller",
+    "app/tests/test_auth.py::test_login_unknown_user_is_401",
+    "app/tests/test_auth.py::test_login_wrong_password_is_401",
+    "app/tests/test_auth.py::test_me_malformed_token_is_401",
+    "app/tests/test_auth.py::test_me_no_token_is_401",
+    "app/tests/test_auth.py::test_me_returns_user_profile",
+    "app/tests/test_auth.py::test_me_wrong_signature_is_401",
+    "app/tests/test_auth.py::test_nearly_expired_token_still_works",
+    "app/tests/test_auth.py::test_register_duplicate_email_409",
+    "app/tests/test_auth.py::test_register_duplicate_username_409",
+    "app/tests/test_auth.py::test_setup_password_updates_credentials",
+    "app/tests/test_auth.py::test_setup_password_weak_new_password_422"
+  ]
+}

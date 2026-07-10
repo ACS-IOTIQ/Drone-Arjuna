@@ -4,7 +4,11 @@ Data Recorder — persists current drone telemetry to Postgres.
 `telemetry` and `telemetry_gauges` each hold exactly one row per drone_id.
 Every StateManager update UPSERTs (INSERT ... ON CONFLICT (drone_id) DO
 UPDATE) that row immediately — no batching — so the DB always reflects the
-same values the UI is showing, with no queue lag. No history is retained.
+same values the UI is showing, with no queue lag. No history is retained
+in these two tables.
+
+`telemetry_history` is the exception: an append-only hypertable feeding
+the Telemetry Replay Player, holding RETENTION_DAYS of flight-path frames.
 """
 import asyncio
 import structlog
@@ -12,9 +16,11 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.database import TSSessionLocal, ts_engine
-from app.models.telemetry import TelemetryFrame, TelemetryGauge, TSBase
+from app.models.telemetry import TelemetryFrame, TelemetryGauge, TelemetryHistory, TSBase
 
 log = structlog.get_logger()
+
+RETENTION_DAYS = 1   # telemetry_history retention — replay covers recent flights only
 
 
 class DataRecorder:
@@ -113,6 +119,11 @@ class DataRecorder:
                 )
                 await session.execute(gauge_stmt)
 
+                # Always append — this is the one history table we keep.
+                await session.execute(
+                    pg_insert(TelemetryHistory).values(self._history_from_frame(frame))
+                )
+
                 await session.commit()
         except Exception as e:
             log.error("Telemetry upsert failed", error=str(e), drone_id=drone_id)
@@ -128,6 +139,19 @@ class DataRecorder:
             "gps_satellites": frame.get("gps_satellites", 0),
             "rssi":           frame.get("rssi", 0),
             "cpu_load_pct":   frame.get("cpu_load_pct", 0.0),
+        }
+
+    @staticmethod
+    def _history_from_frame(frame: dict) -> dict:
+        return {
+            "recorded_at": frame["recorded_at"],
+            "drone_id":    frame["drone_id"],
+            "lat":         frame.get("lat", 0.0),
+            "lon":         frame.get("lon", 0.0),
+            "alt_agl":     frame.get("alt_agl", 0.0),
+            "yaw_deg":     frame.get("yaw_deg", 0.0),
+            "pitch_deg":   frame.get("pitch_deg", 0.0),
+            "roll_deg":    frame.get("roll_deg", 0.0),
         }
 
     async def _ensure_schema(self):
@@ -176,7 +200,24 @@ class DataRecorder:
             # Create tables via ORM metadata if they don't exist yet (fresh install)
             await conn.run_sync(TSBase.metadata.create_all)
 
-        log.info("Telemetry schema verified — single row per drone_id")
+            # telemetry_history is append-only — make it a hypertable with retention.
+            await conn.execute(text("""
+                SELECT create_hypertable(
+                    'telemetry_history', 'recorded_at',
+                    if_not_exists => TRUE,
+                    migrate_data  => TRUE
+                )
+            """))
+            await conn.execute(text(f"""
+                SELECT add_retention_policy(
+                    'telemetry_history',
+                    INTERVAL '{RETENTION_DAYS} days',
+                    if_not_exists => TRUE
+                )
+            """))
+
+        log.info("Telemetry schema verified — single row per drone_id, "
+                 "history retained for replay", retention_days=RETENTION_DAYS)
 
 
 # Module-level singleton — imported by mavlink_manager

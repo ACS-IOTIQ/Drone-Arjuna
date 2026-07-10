@@ -226,7 +226,7 @@ async def admin_user():
     async with _TestSession() as session:
         user = User(
             username="admin_test",
-            email="admin_test@da.local",
+            email="admin_test@example.com",
             hashed_password=hash_password("Admin@1234"),
             full_name="Test Admin",
             role="admin",
@@ -255,7 +255,7 @@ async def mission_commander_user():
     async with _TestSession() as session:
         user = User(
             username="mc_test",
-            email="mc_test@da.local",
+            email="mc_test@example.com",
             hashed_password=hash_password("MissionCmd@99"),
             full_name="Test MC",
             role="mission_commander",
@@ -284,7 +284,7 @@ async def flight_controller_user():
     async with _TestSession() as session:
         user = User(
             username="fc_test",
-            email="fc_test@da.local",
+            email="fc_test@example.com",
             hashed_password=hash_password("FlightCtrl@99"),
             full_name="Test FC",
             role="flight_controller",
@@ -313,7 +313,7 @@ async def viewer_user():
     async with _TestSession() as session:
         user = User(
             username="viewer_test",
-            email="viewer_test@da.local",
+            email="viewer_test@example.com",
             hashed_password=hash_password("Viewer@9999"),
             full_name="Test Viewer",
             role="viewer",
@@ -342,7 +342,7 @@ async def intelligence_analyst_user():
     async with _TestSession() as session:
         user = User(
             username="ia_test",
-            email="ia_test@da.local",
+            email="ia_test@example.com",
             hashed_password=hash_password("Analyst@9999"),
             full_name="Test Analyst",
             role="intelligence_analyst",

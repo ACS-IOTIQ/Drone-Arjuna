@@ -2,7 +2,6 @@
 // FleetWorkspace.tsx
 // ═══════════════════════════════════════════
 import { useEffect, useState } from 'react'
-import { droneControlApi } from '@/api/droneControl'
 import { Plus, RefreshCw, Anchor, Package, Cloud, Droplets, Thermometer, Wind, MapPin, CloudRain } from 'lucide-react'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
@@ -56,20 +55,11 @@ export default function FleetWorkspace() {
 
   const refresh = async () => {
     setRefreshing(true)
-    await Promise.all([fetchInstances(), fetchConnections(), fetchVessels(), fetchPayloads()])
-    // If there are registered instances but none are connected, attempt a backend auto-connect
     try {
-      const state = useFleetStore.getState()
-      const anyConnected = Object.values(state.connections || {}).filter(Boolean).length > 0
-      if (!anyConnected && state.instances.length > 0) {
-        // Try auto-connecting the first registered instance (non-destructive)
-        await droneControlApi.autoconnect({ drone_instance_id: state.instances[0].id })
-        await fetchConnections()
-      }
-    } catch {
-      // silent fail — keep manual connect UI available
+      await Promise.all([fetchInstances(), fetchConnections(), fetchVessels(), fetchPayloads()])
+    } finally {
+      setRefreshing(false)
     }
-    setRefreshing(false)
   }
 
   const fetchPayloads = async () => {
@@ -87,6 +77,7 @@ export default function FleetWorkspace() {
     setPayloadAssignments(readAssignments())
     refresh()
   }, [])
+
 
   useEffect(() => {
     let active = true
@@ -201,38 +192,35 @@ export default function FleetWorkspace() {
       </div>
 
       {/* Local weather card */}
-      <div className="mb-5 rounded-2xl border border-sky-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 p-4 text-white shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-200">
-              <Cloud size={14} /> Local ops weather
+      <div className="mb-4 rounded-lg border border-sky-200 bg-slate-900 px-3 py-2 text-white shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-[210px] items-center gap-2">
+            <Cloud size={14} className="text-sky-200" />
+            <div className="text-2xl font-semibold leading-none">
+              {weather ? `${weather.temperatureC.toFixed(0)}C` : '--'}
             </div>
-            <div className="mt-2 flex flex-wrap items-end gap-3">
-              <div className="text-3xl font-semibold">
-                {weather ? `${weather.temperatureC.toFixed(0)}°C` : '—'}
+            <div className="min-w-0">
+              <div className="truncate text-xs font-semibold text-slate-100">
+                {weather ? `${weather.icon} ${weather.label}` : 'Checking local conditions'}
               </div>
-              <div>
-                <div className="text-sm font-medium text-slate-100">{weather ? `${weather.icon} ${weather.label}` : 'Checking local conditions'}</div>
-                <div className="flex items-center gap-1 text-xs text-slate-300">
-                  <MapPin size={12} />
-                  {weatherLocation ? `${weatherLocation.lat.toFixed(2)}, ${weatherLocation.lon.toFixed(2)}` : 'Location access pending'}
-                </div>
+              <div className="flex items-center gap-1 truncate text-[10px] text-slate-300">
+                <MapPin size={10} />
+                {weatherLocation ? `${weatherLocation.lat.toFixed(2)}, ${weatherLocation.lon.toFixed(2)}` : weatherNote}
               </div>
             </div>
-            <p className="mt-2 text-xs text-slate-300">{weatherNote}</p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid flex-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              { label: 'Rain chance', value: weather ? `${weather.rainfallChance}%` : '—', icon: <CloudRain size={13} /> },
-              { label: 'Humidity', value: weather ? `${weather.humidity}%` : '—', icon: <Droplets size={13} /> },
-              { label: 'Wind', value: weather ? `${weather.windSpeedKph.toFixed(0)} kph` : '—', icon: <Wind size={13} /> },
-              { label: 'Feels like', value: weather ? `${(weather.temperatureC + 1.5).toFixed(0)}°C` : '—', icon: <Thermometer size={13} /> },
+              { label: 'Rain', value: weather ? `${weather.rainfallChance}%` : '--', icon: <CloudRain size={12} /> },
+              { label: 'Humidity', value: weather ? `${weather.humidity}%` : '--', icon: <Droplets size={12} /> },
+              { label: 'Wind', value: weather ? `${weather.windSpeedKph.toFixed(0)} kph` : '--', icon: <Wind size={12} /> },
+              { label: 'Feels', value: weather ? `${(weather.temperatureC + 1.5).toFixed(0)}C` : '--', icon: <Thermometer size={12} /> },
             ].map(item => (
-              <div key={item.label} className="rounded-xl border border-white/10 bg-white/10 px-3 py-2">
-                <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-slate-300">
-                  {item.icon} {item.label}
+              <div key={item.label} className="rounded border border-white/10 bg-white/10 px-2 py-1">
+                <div className="flex items-center gap-1.5 text-[9px] uppercase text-slate-300">
+                  {item.icon} <span className="truncate">{item.label}</span>
                 </div>
-                <div className="mt-1 text-sm font-semibold text-white">{item.value}</div>
+                <div className="text-xs font-semibold text-white">{item.value}</div>
               </div>
             ))}
           </div>

@@ -5,6 +5,7 @@ import { create } from 'zustand'
 import { makeTelemetryUrl } from '@/api/client'
 import { RobustWebSocket } from '@/store/connectionHealthStore'
 import { eventLog } from './eventLogStore'
+import { notify } from './notificationStore'
 
 // ── Core flight state (always present) ─────────────────────────
 export interface TelemetryFrame {
@@ -48,6 +49,9 @@ export interface TelemetryFrame {
   rssi: number
   cpu_load_pct: number
   last_updated: string | null
+  geofence_breach?: boolean
+  breach_lat?: number
+  breach_lon?: number
 
   // Simulation metadata
   sim_phase?: string
@@ -174,6 +178,23 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
       try {
         const frame: TelemetryFrame = JSON.parse(data)
         if ((frame as any).type === 'pong') return
+
+        const wasBreach = Boolean((frame as any).geofence_breach)
+        const prevFrame = get().frames[droneId]
+        const wasPrevBreach = Boolean(prevFrame?.geofence_breach)
+
+        if (wasBreach && !wasPrevBreach) {
+          const title = 'Geofence breach detected'
+          const message = `Drone ${droneId} crossed the configured geofence boundary. Returning to safe state.`
+          notify.danger(title, message, droneId)
+          eventLog.drone(title, message, String(droneId), 'error')
+        } else if (!wasBreach && wasPrevBreach) {
+          const title = 'Geofence recovered'
+          const message = `Drone ${droneId} has returned inside the configured boundary.`
+          notify.warning(title, message, droneId)
+          eventLog.drone(title, message, String(droneId), 'warning')
+        }
+
         set(s => {
           const prev = s.history[droneId] ?? []
           const next = [...prev.slice(-299), frame]
@@ -193,10 +214,6 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
     rws.onClose(() => {
       console.warn('[Telemetry] RobustWebSocket CLOSE drone', droneId)
-      set(s => {
-        const { [droneId]: _, ...socks } = s.sockets
-        return { sockets: socks }
-      })
     })
 
     rws.connect()

@@ -77,6 +77,9 @@ export const droneControlApi = {
   autoconnect: (p: AutoConnectPayload) =>
     api.post('/api/drone-control/autoconnect', p),
 
+  // ── Geofence ───────────────────────────────────────────────
+  getGeofence:   (id: number)           => api.get(`/api/drone-control/drones/${id}/geofence`),
+
   // ── Simulation ──────────────────────────────────────────────
   simulateStart:  (p: SimStartPayload)  => api.post('/api/drone-control/simulate/start', p),
   simulateStop:   ()                    => api.delete('/api/drone-control/simulate/stop'),

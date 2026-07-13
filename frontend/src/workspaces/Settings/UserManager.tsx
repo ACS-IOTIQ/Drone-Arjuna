@@ -104,10 +104,19 @@ export function UserManager() {
   const approveRequest = async (req: AccessRequestOut) => {
     setRequestErr('')
     try {
+      const tempPassword = makeTempPassword(req.username)
+      const body = {
+        username: req.username,
+        email: req.email,
+        full_name: req.full_name,
+        role: req.requested_role,
+        password: tempPassword,
+        is_active: true,
+      }
       setApprovingId(req.id)
       await api.post('/api/auth/register', body)
       await loadUsers()
-      updateAccessRequest(req.id, {
+      updateAccessRequest(req.id.toString(), {
         status: 'approved',
         reviewed_at: new Date().toISOString(),
         temp_password: tempPassword,
@@ -122,8 +131,8 @@ export function UserManager() {
     }
   }
 
-  const rejectRequest = (req: AccessRequest) => {
-    updateAccessRequest(req.id, {
+  const rejectRequest = (req: AccessRequestOut) => {
+    updateAccessRequest(req.id.toString(), {
       status: 'rejected',
       reviewed_at: new Date().toISOString(),
       admin_note: 'Request rejected by administrator.',

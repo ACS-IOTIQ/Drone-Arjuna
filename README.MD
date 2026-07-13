@@ -854,7 +854,7 @@ docker compose restart pgadmin
 Explanation: Restarts the pgAdmin web UI container.
 
 Use when: pgAdmin is not loading, login settings changed, or database UI connections need a reset.
-
+ 
 ```powershell
 docker compose logs -f pgadmin
 ```
@@ -933,5 +933,6 @@ For full pgAdmin login and database registration steps, see [docs/PGADMIN.md](do
 
 # code push frontend
 git add .
+git pull
 git commit -m "Your commit message"
 git push origin master

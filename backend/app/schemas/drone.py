@@ -241,7 +241,8 @@ class CommandRequest(BaseModel):
     drone_id: int
     command: Literal[
         "arm", "disarm", "set_mode", "rtl",
-        "land", "takeoff", "emergency_stop"
+        "land", "takeoff", "emergency_stop",
+        "velocity", "goto"
     ]
     params: dict = {}
 

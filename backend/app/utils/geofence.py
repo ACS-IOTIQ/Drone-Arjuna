@@ -19,6 +19,7 @@ class GeofenceStore:
 
     def __init__(self):
         self._fences: dict[int, BaseGeometry] = {}
+        self._geojson: dict[int, dict] = {}
 
     def set_geofence(self, drone_id: int, geojson: dict | None) -> bool:
         """
@@ -28,6 +29,7 @@ class GeofenceStore:
         """
         if geojson is None:
             self._fences.pop(drone_id, None)
+            self._geojson.pop(drone_id, None)
             log.info("Geofence cleared", drone_id=drone_id)
             return True
         try:
@@ -39,6 +41,7 @@ class GeofenceStore:
             if not poly.is_valid:
                 poly = poly.buffer(0)
             self._fences[drone_id] = poly
+            self._geojson[drone_id] = geojson
             log.info("Geofence set", drone_id=drone_id, geom_type=poly.geom_type)
             return True
         except Exception as exc:
@@ -47,9 +50,16 @@ class GeofenceStore:
 
     def clear(self, drone_id: int):
         self._fences.pop(drone_id, None)
+        self._geojson.pop(drone_id, None)
 
     def has_fence(self, drone_id: int) -> bool:
         return drone_id in self._fences
+
+    def get_geofence(self, drone_id: int) -> dict | None:
+        geojson = self._geojson.get(drone_id)
+        if geojson is None:
+            return None
+        return json.loads(json.dumps(geojson))
 
     def is_inside(self, drone_id: int, lat: float, lon: float) -> bool | None:
         """

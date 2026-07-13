@@ -192,6 +192,16 @@ async def disconnect_drone(
     return {"detail": "Disconnected"}
 
 
+@router.get("/drones/{drone_id}/geofence")
+async def get_drone_geofence(
+    drone_id: int,
+    _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
+):
+    """Return the currently active runtime geofence for a drone, if any."""
+    fence = geofence_store.get_geofence(drone_id)
+    return {"drone_id": drone_id, "geofence": fence}
+
+
 @router.post("/drones/{drone_id}/geofence", status_code=200)
 async def set_drone_geofence(
     drone_id: int,

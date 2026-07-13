@@ -30,16 +30,38 @@ export default function ManualControlPanel({ droneId }: Props) {
   const loopRef    = useRef<ReturnType<typeof setInterval> | null>(null)
   const heldKeysRef = useRef<Set<string>>(new Set())
   const busyRef    = useRef(false)
+  const guidedReadyRef = useRef(false)
+
+  useEffect(() => {
+    guidedReadyRef.current = false
+  }, [droneId])
+
+  const ensureGuidedMode = useCallback(async () => {
+    if (guidedReadyRef.current) return
+    await droneControlApi.command({
+      drone_id: droneId,
+      command: 'set_mode',
+      params: { mode: 'GUIDED' },
+    })
+    guidedReadyRef.current = true
+  }, [droneId])
 
   // ── velocity sender ───────────────────────────────────────────
   const sendVel = useCallback(async (vx: number, vy: number, vz: number) => {
     if (busyRef.current) return
     busyRef.current = true
     try {
+      if (vx !== 0 || vy !== 0 || vz !== 0) {
+        try {
+          await ensureGuidedMode()
+        } catch {
+          guidedReadyRef.current = false
+        }
+      }
       await droneControlApi.velocity(droneId, vx, vy, vz)
     } catch { /* ignore — drone may be offline */ }
     finally { busyRef.current = false }
-  }, [droneId])
+  }, [droneId, ensureGuidedMode])
 
   const stopLoop = useCallback(() => {
     if (!loopRef.current) return

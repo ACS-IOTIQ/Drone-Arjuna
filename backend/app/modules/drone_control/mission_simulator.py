@@ -66,6 +66,7 @@ class SimPhase(str, Enum):
     ARMED   = "armed"
     TAKEOFF = "takeoff"
     FLYING  = "flying"
+    GUIDED  = "guided"
     PAUSED  = "paused"
     RTL     = "rtl"
     LANDING = "landing"
@@ -77,6 +78,7 @@ _PHASE_MODE = {
     SimPhase.ARMED:   "STABILIZE",
     SimPhase.TAKEOFF: "GUIDED",
     SimPhase.FLYING:  "AUTO",
+    SimPhase.GUIDED:  "GUIDED",
     SimPhase.PAUSED:  "LOITER",
     SimPhase.RTL:     "RTL",
     SimPhase.LANDING: "LAND",
@@ -126,6 +128,10 @@ class MissionSimulator:
         self._home_lat   = 0.0
         self._home_lon   = 0.0
         self._target_alt = 30.0
+        self._manual_vx  = 0.0
+        self._manual_vy  = 0.0
+        self._manual_vz  = 0.0
+        self._manual_until = 0.0
 
     # ── Public API ────────────────────────────────────────────────
 
@@ -175,6 +181,10 @@ class MissionSimulator:
         self.is_armed   = False
         self.phase      = SimPhase.IDLE
         self.wp_idx     = 0
+        self._manual_vx = 0.0
+        self._manual_vy = 0.0
+        self._manual_vz = 0.0
+        self._manual_until = 0.0
 
         self._sm.init_drone(drone_id, call_sign)
 
@@ -254,9 +264,11 @@ class MissionSimulator:
                 self.phase = SimPhase.RTL
             elif mode == "LAND":
                 self.phase = SimPhase.LANDING
+            elif mode == "GUIDED" and self.phase not in (SimPhase.IDLE, SimPhase.LANDED, SimPhase.LANDING):
+                self.phase = SimPhase.GUIDED
             elif mode == "LOITER" and self.phase == SimPhase.FLYING:
                 self.phase = SimPhase.PAUSED
-            elif mode in ("AUTO", "STABILIZE") and self.phase == SimPhase.PAUSED:
+            elif mode in ("AUTO", "STABILIZE") and self.phase in (SimPhase.GUIDED, SimPhase.PAUSED):
                 self.phase = SimPhase.FLYING
 
         elif action == "rtl":
@@ -264,6 +276,38 @@ class MissionSimulator:
 
         elif action == "land":
             self.phase = SimPhase.LANDING
+
+        elif action == "velocity":
+            if self.phase not in (SimPhase.IDLE, SimPhase.LANDED, SimPhase.LANDING):
+                self._manual_vx = float(params.get("vx", 0.0))
+                self._manual_vy = float(params.get("vy", 0.0))
+                self._manual_vz = float(params.get("vz", 0.0))
+                if self._manual_vx == 0.0 and self._manual_vy == 0.0 and self._manual_vz == 0.0:
+                    self._manual_until = 0.0
+                else:
+                    self._manual_until = time.monotonic() + float(params.get("duration_s", 0.35))
+                    if self.phase == SimPhase.RTL:
+                        self.phase = SimPhase.GUIDED
+
+        elif action == "goto":
+            lat = params.get("latitude", params.get("lat"))
+            lon = params.get("longitude", params.get("lon"))
+            if lat is not None and lon is not None:
+                target = {
+                    "sequence": 0,
+                    "latitude": float(lat),
+                    "longitude": float(lon),
+                    "altitude_m": float(params.get("altitude_m", self.alt)),
+                    "speed_ms": float(params.get("speed_ms", self.CRUISE_MS)),
+                    "action": "none",
+                }
+                if self.waypoints and self.wp_idx < len(self.waypoints):
+                    self.waypoints[self.wp_idx] = target
+                else:
+                    self.waypoints = [target]
+                    self.wp_idx = 0
+                if self.phase not in (SimPhase.IDLE, SimPhase.LANDED, SimPhase.LANDING):
+                    self.phase = SimPhase.FLYING
 
         elif action == "emergency_stop":
             self.is_armed    = False
@@ -276,7 +320,36 @@ class MissionSimulator:
 
     # ── Physics tick ──────────────────────────────────────────────
 
+    def _apply_manual_velocity(self, dt: float) -> bool:
+        if time.monotonic() > self._manual_until:
+            self._manual_vx = 0.0
+            self._manual_vy = 0.0
+            self._manual_vz = 0.0
+            return False
+
+        north = self._manual_vx * dt
+        east = self._manual_vy * dt
+        horizontal = math.hypot(north, east)
+        if horizontal > 0.0:
+            bearing = (math.degrees(math.atan2(east, north)) + 360) % 360
+            self.lat, self.lon = _move_toward(self.lat, self.lon, bearing, horizontal)
+            self.heading = bearing
+
+        # NED frame: positive z is down.
+        self.alt = max(0.0, self.alt - self._manual_vz * dt)
+        self.groundspeed = horizontal / dt if dt > 0 else 0.0
+        self.airspeed = self.groundspeed
+        self.climb_rate = -self._manual_vz
+        self.throttle = 55.0 if self.is_armed else 0.0
+        self.pitch = max(min(self._manual_vx * 2.0, 12.0), -12.0)
+        self.roll = max(min(self._manual_vy * 4.0, 25.0), -25.0)
+        self.battery_pct = max(0.0, self.battery_pct - self.BATT_DRAIN * dt)
+        return True
+
     def _tick(self, dt: float):
+        if self._apply_manual_velocity(dt):
+            return
+
         if self.phase == SimPhase.IDLE:
             self.throttle = 0.0; self.groundspeed = 0.0
             self.airspeed = 0.0; self.climb_rate  = 0.0
@@ -346,7 +419,7 @@ class MissionSimulator:
                 if self.wp_idx >= len(self.waypoints):
                     self.phase = SimPhase.LANDING
 
-        elif self.phase == SimPhase.PAUSED:
+        elif self.phase in (SimPhase.GUIDED, SimPhase.PAUSED):
             self.heading     = (self.heading + 3.0 * dt * self.speed_mult) % 360
             self.groundspeed = 4.0
             self.airspeed    = 4.0

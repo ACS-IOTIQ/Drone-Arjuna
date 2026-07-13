@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Mail, Phone, Plus, Save, UserCheck, UserX, X } from 'lucide-react'
 import { api } from '@/api/client'
 import {
-  listAccessRequests,
-  makeTempPassword,
   requestMailto,
   requestSms,
 } from '@/store/accessRequestStore'
@@ -195,7 +193,7 @@ export function UserManager() {
                           await api.post(`/api/auth/access-requests/${req.id}/resend-email`)
                           notify.success('Email sent', `Approval email resent to ${req.email}`)
                         } catch (e: any) {
-                          notify.error('Email failed', e?.response?.data?.detail ?? 'Could not send email')
+                          notify.danger('Email failed', e?.response?.data?.detail ?? 'Could not send email')
                         }
                       }}
                     >

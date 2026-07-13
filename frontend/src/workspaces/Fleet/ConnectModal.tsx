@@ -83,6 +83,10 @@ export default function ConnectModal({ onClose }: Props) {
   const isHF     = HF_TRANSPORTS.includes(transport)
   const isSerial = transport === 'serial' || transport === 'hf_serial'
 
+  useEffect(() => {
+    if (!droneId && instances[0]?.id) setDroneId(instances[0].id)
+  }, [droneId, instances])
+
   const applyPreset = (id: string) => {
     setPresetId(id)
     const preset = presets.find(p => p.id === id)
@@ -96,6 +100,7 @@ export default function ConnectModal({ onClose }: Props) {
   }
 
   const connect = async () => {
+    if (!droneId) { setErr('Select a drone before connecting'); return }
     setLoading(true); setErr('')
     try {
       await droneControlApi.connect({
@@ -143,6 +148,7 @@ export default function ConnectModal({ onClose }: Props) {
   }, [])
 
   const autoConnect = async () => {
+    if (!droneId) { setErr('Select a drone before auto-connect'); return }
     setAutoConnecting(true); setErr('')
     try {
       await droneControlApi.autoconnect({ drone_instance_id: droneId })
@@ -400,14 +406,14 @@ export default function ConnectModal({ onClose }: Props) {
               opacity: loading ? 0.5 : 1,
             }}
             onClick={autoConnect}
-            disabled={loading || autoConnecting}>
+            disabled={loading || autoConnecting || !droneId}>
             <Zap size={14} className={autoConnecting ? 'animate-pulse' : ''} />
             {autoConnecting ? 'Scanning all ports…' : 'Auto Connect'}
           </button>
 
           <div className="flex gap-2">
             <button className="da-btn da-btn-ghost flex-1" onClick={onClose}>Cancel</button>
-            <button className="da-btn da-btn-primary flex-1" onClick={connect} disabled={loading || autoConnecting}>
+            <button className="da-btn da-btn-primary flex-1" onClick={connect} disabled={loading || autoConnecting || !droneId}>
               {loading ? 'Connecting…' : 'Connect'}
             </button>
           </div>

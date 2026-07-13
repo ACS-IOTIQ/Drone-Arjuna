@@ -161,7 +161,10 @@ class CommandController:
         elif command == "takeoff":
             if not armed:
                 return "Drone must be armed before takeoff"
-            alt = params.get("altitude_m", 0)
+            try:
+                alt = float(params.get("altitude_m", params.get("altitude", 0)))
+            except (TypeError, ValueError):
+                return "takeoff altitude must be numeric"
             if alt <= 0 or alt > 500:
                 return f"Takeoff altitude must be between 1 and 500 m (got {alt})"
 
@@ -177,6 +180,27 @@ class CommandController:
         elif command == "emergency_stop":
             # Always allowed — no validation blocks an emergency
             pass
+
+        elif command == "velocity":
+            for key in ("vx", "vy", "vz"):
+                if key not in params:
+                    return f"velocity requires '{key}' parameter"
+                try:
+                    float(params[key])
+                except (TypeError, ValueError):
+                    return f"velocity parameter '{key}' must be numeric"
+
+        elif command == "goto":
+            if "latitude" not in params and "lat" not in params:
+                return "goto requires 'latitude' or 'lat' parameter"
+            if "longitude" not in params and "lon" not in params:
+                return "goto requires 'longitude' or 'lon' parameter"
+            try:
+                float(params.get("latitude", params.get("lat")))
+                float(params.get("longitude", params.get("lon")))
+                float(params.get("altitude_m", params.get("altitude", 50)))
+            except (TypeError, ValueError):
+                return "goto latitude, longitude, and altitude must be numeric"
 
         return None   # Passed all checks
 
@@ -239,7 +263,7 @@ class CommandController:
             )
 
         elif command == "takeoff":
-            alt = params.get("altitude_m", 30)
+            alt = params.get("altitude_m", params.get("altitude", 30))
             mav.mav.command_long_send(
                 mav.target_system, mav.target_component,
                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
@@ -249,9 +273,11 @@ class CommandController:
             )
 
         elif command == "goto":
-            lat = int(params["latitude"]  * 1e7)
-            lon = int(params["longitude"] * 1e7)
-            alt = params.get("altitude_m", 50)
+            lat_value = params.get("latitude", params.get("lat"))
+            lon_value = params.get("longitude", params.get("lon"))
+            lat = int(float(lat_value) * 1e7)
+            lon = int(float(lon_value) * 1e7)
+            alt = float(params.get("altitude_m", params.get("altitude", 50)))
             mav.mav.mission_item_int_send(
                 mav.target_system, mav.target_component,
                 0,
@@ -259,6 +285,22 @@ class CommandController:
                 mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
                 2,   # current=2 → guided-mode goto
                 0, 0, 0, 0, 0, lat, lon, alt,
+            )
+
+        elif command == "velocity":
+            vx = float(params.get("vx", 0.0))
+            vy = float(params.get("vy", 0.0))
+            vz = float(params.get("vz", 0.0))
+            mav.mav.set_position_target_local_ned_send(
+                0,
+                mav.target_system,
+                mav.target_component,
+                mavutil.mavlink.MAV_FRAME_LOCAL_NED,
+                0b0000111111000111,
+                0, 0, 0,
+                vx, vy, vz,
+                0, 0, 0,
+                0, 0,
             )
 
         else:
@@ -273,7 +315,7 @@ class CommandController:
         SET_MODE message) resolve immediately as ACCEPTED after a short
         grace period — the mode change is confirmed via HEARTBEAT instead.
         """
-        no_ack_commands = {"set_mode", "rtl", "land"}
+        no_ack_commands = {"set_mode", "rtl", "land", "goto", "velocity"}
         if command in no_ack_commands:
             await asyncio.sleep(0.2)
             return CommandResult.ACCEPTED

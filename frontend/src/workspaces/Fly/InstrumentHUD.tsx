@@ -2,11 +2,25 @@
 // ═══════════════════════════════════════════
 // InstrumentHUD.tsx
 // ═══════════════════════════════════════════
+import { useMemo } from 'react'
 import { useTelemetryStore } from '@/store/telemetryStore'
-import { Battery, Satellite, Wifi, Wind } from 'lucide-react'
+import { useMissionStore } from '@/store/missionStore'
+import { getZoneRule } from '@/utils/geofenceZones'
+import { findRegulatoryZone } from '@/utils/regulatoryZones'
+import { Battery, Compass, Satellite, Wifi } from 'lucide-react'
 
 export function InstrumentHUD({ droneId }: { droneId: number }) {
   const frame = useTelemetryStore(s => s.frames[droneId])
+  const geofence = useMissionStore(s => s.geofence)
+  const zoneRule = useMemo(() => {
+    if (!frame) return null
+    return getZoneRule(frame.lat, frame.lon, geofence)
+  }, [frame, geofence])
+  const regulatoryZone = useMemo(() => {
+    if (!frame) return null
+    return findRegulatoryZone(frame.lat, frame.lon)
+  }, [frame])
+
   if (!frame) return null
 
   const battColor = frame.battery_remaining_pct > 50 ? '#22c55e'
@@ -19,10 +33,10 @@ export function InstrumentHUD({ droneId }: { droneId: number }) {
 
   return (
     <div className="flex flex-col gap-2" style={{ minWidth: 220 }}>
-      {/* Attitude indicator */}
+      {/* Compass indicator */}
       <div className="da-card p-3"
         style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}>
-        <ArtificialHorizon roll={frame.roll_deg} pitch={frame.pitch_deg} />
+        <CompassInstrument heading={frame.heading} roll={frame.roll_deg} pitch={frame.pitch_deg} />
         {isSimulated && (
           <div className="mt-1.5 text-center text-[9px] font-bold tracking-widest"
             style={{ color: '#22c55e', opacity: 0.7 }}>
@@ -69,6 +83,23 @@ export function InstrumentHUD({ droneId }: { droneId: number }) {
           <div className="text-center py-0.5 rounded text-[10px] font-bold tracking-widest animate-pulse"
             style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>ARMED</div>
         )}
+
+        {zoneRule && (
+          <div className="rounded border px-2 py-1.5 text-[10px]" style={{
+            background: frame.geofence_breach ? 'rgba(254,242,242,0.95)' : 'rgba(248,250,252,0.95)',
+            borderColor: frame.geofence_breach ? '#fda4af' : '#e2e8f0',
+            color: frame.geofence_breach ? '#b91c1c' : '#334155',
+          }}>
+            <div className="font-semibold">{zoneRule.label}</div>
+            <div className="mt-0.5">Alt: ≤ {zoneRule.maxAltitudeM} m · Speed: ≤ {zoneRule.maxSpeedMs} m/s</div>
+            <div className="mt-0.5 text-[9px] uppercase tracking-wide">Recommended: {zoneRule.recommendedAltitudeM} m / {zoneRule.recommendedSpeedMs} m/s</div>
+            {regulatoryZone && (
+              <div className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[9px] text-amber-800">
+                Govt zone: {regulatoryZone.name}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -86,50 +117,103 @@ function HUDRow({ label, val, secondary, color }: {
   )
 }
 
-function ArtificialHorizon({ roll, pitch }: { roll: number; pitch: number }) {
-  const W = 160, H = 90, cx = W / 2, cy = H / 2
-  const pitchOffset = pitch * 1.5   // px per degree
-  const sky = '#1a3a5c', ground = '#3d2b1a'
+function CompassInstrument({ heading, roll, pitch }: { heading: number; roll: number; pitch: number }) {
+  const normalized = ((heading % 360) + 360) % 360
+  const cardinal = normalized < 45 || normalized >= 315 ? 'N'
+    : normalized < 135 ? 'E'
+    : normalized < 225 ? 'S'
+    : 'W'
 
   return (
-    <div style={{ position: 'relative', width: W, height: H, borderRadius: 6, overflow: 'hidden',
-      border: '1px solid var(--da-border)' }}>
-      <svg width={W} height={H} style={{ display: 'block' }}>
-        <defs>
-          <clipPath id="horizon-clip">
-            <rect width={W} height={H} rx="6" />
-          </clipPath>
-        </defs>
-        <g clipPath="url(#horizon-clip)"
-          transform={`rotate(${-roll}, ${cx}, ${cy})`}>
-          {/* Ground */}
-          <rect x={-W} y={cy - pitchOffset} width={W * 3} height={H * 3}
-            fill={ground} />
-          {/* Sky */}
-          <rect x={-W} y={-H * 2} width={W * 3} height={H * 2 + cy - pitchOffset + 1}
-            fill={sky} />
-          {/* Horizon line */}
-          <line x1={-W} y1={cy - pitchOffset} x2={W * 2} y2={cy - pitchOffset}
-            stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
-          {/* Pitch ladder */}
-          {[-10, -5, 5, 10].map(deg => {
-            const y = cy - pitchOffset + deg * 1.5
-            const len = deg % 10 === 0 ? 30 : 16
-            return (
-              <g key={deg}>
-                <line x1={cx - len} y1={y} x2={cx + len} y2={y}
-                  stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" />
-                <text x={cx + len + 3} y={y + 3} fill="rgba(255,255,255,0.4)"
-                  fontSize="7">{Math.abs(deg)}</text>
-              </g>
-            )
-          })}
-        </g>
-        {/* Fixed aircraft reference */}
-        <line x1={cx - 35} y1={cy} x2={cx - 8} y2={cy} stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" />
-        <line x1={cx + 8}  y1={cy} x2={cx + 35} y2={cy} stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" />
-        <circle cx={cx} cy={cy} r="2.5" fill="#f59e0b" />
-      </svg>
+    <div className="flex items-center gap-3">
+      <div
+        style={{
+          width: 96,
+          height: 96,
+          borderRadius: '50%',
+          position: 'relative',
+          background: 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
+          border: '1px solid rgba(15,23,42,0.16)',
+          boxShadow: 'inset 0 0 0 7px rgba(255,255,255,0.75)',
+          flexShrink: 0,
+        }}>
+        {[
+          ['N', 0, '#dc2626'],
+          ['E', 90, '#475569'],
+          ['S', 180, '#475569'],
+          ['W', 270, '#475569'],
+        ].map(([label, deg, color]) => (
+          <span
+            key={label}
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: `translate(-50%, -50%) rotate(${deg}deg) translateY(-37px) rotate(${-deg}deg)`,
+              fontSize: 11,
+              fontWeight: 800,
+              color: String(color),
+            }}>
+            {label}
+          </span>
+        ))}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 12,
+            borderRadius: '50%',
+            border: '1px dashed rgba(71,85,105,0.28)',
+            transform: `rotate(${normalized}deg)`,
+            transition: 'transform 0.15s linear',
+          }}>
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: 5,
+              transform: 'translateX(-50%)',
+              width: 0,
+              height: 0,
+              borderLeft: '7px solid transparent',
+              borderRight: '7px solid transparent',
+              borderBottom: '30px solid #2563eb',
+            }}
+          />
+        </div>
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: '#0f172a',
+            border: '2px solid #ffffff',
+          }}
+        />
+      </div>
+
+      <div className="flex flex-1 flex-col gap-1">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#64748b' }}>
+          <Compass size={12} /> Heading
+        </div>
+        <div className="mono text-2xl font-bold leading-none" style={{ color: '#0f172a' }}>
+          {normalized.toFixed(0)} deg
+        </div>
+        <div className="text-xs font-semibold" style={{ color: '#2563eb' }}>{cardinal}</div>
+        <div className="mt-1 grid grid-cols-2 gap-1 text-[10px]">
+          <div className="rounded border border-slate-200 bg-white/70 px-1.5 py-1">
+            <span style={{ color: '#64748b' }}>Roll</span>
+            <span className="mono ml-1" style={{ color: '#0f172a' }}>{roll.toFixed(0)} deg</span>
+          </div>
+          <div className="rounded border border-slate-200 bg-white/70 px-1.5 py-1">
+            <span style={{ color: '#64748b' }}>Pitch</span>
+            <span className="mono ml-1" style={{ color: '#0f172a' }}>{pitch.toFixed(0)} deg</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -2,12 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Mail, Phone, Plus, Save, UserCheck, UserX, X } from 'lucide-react'
 import { api } from '@/api/client'
 import {
-  listAccessRequests,
-  makeTempPassword,
   requestMailto,
   requestSms,
-  updateAccessRequest,
-  type AccessRequest,
 } from '@/store/accessRequestStore'
 import { notify } from '@/store/notificationStore'
 
@@ -103,27 +99,15 @@ export function UserManager() {
 
   const approveRequest = async (req: AccessRequestOut) => {
     setRequestErr('')
+    setApprovingId(req.id)
     try {
-      const tempPassword = makeTempPassword(req.username)
-      const body = {
-        username: req.username,
-        email: req.email,
-        full_name: req.full_name,
-        role: req.requested_role,
-        password: tempPassword,
-        is_active: true,
-      }
-      setApprovingId(req.id)
-      await api.post('/api/auth/register', body)
+      const { data } = await api.post(
+        `/api/auth/access-requests/${req.id}/accept`,
+        { admin_note: null, role_override: null },
+      )
+      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, ...data } : r))
       await loadUsers()
-      updateAccessRequest(req.id.toString(), {
-        status: 'approved',
-        reviewed_at: new Date().toISOString(),
-        temp_password: tempPassword,
-        admin_note: 'Account created. Send credentials through the approved channel.',
-      })
       notify.success('Access approved', `${req.username} account created`)
-      loadRequests()
     } catch (e: any) {
       setRequestErr(e.response?.data?.detail ?? 'Approval failed. Confirm you are logged in as admin.')
     } finally {
@@ -131,14 +115,18 @@ export function UserManager() {
     }
   }
 
-  const rejectRequest = (req: AccessRequestOut) => {
-    updateAccessRequest(req.id.toString(), {
-      status: 'rejected',
-      reviewed_at: new Date().toISOString(),
-      admin_note: 'Request rejected by administrator.',
-    })
-    notify.warning('Access rejected', `${req.username} request rejected`)
-    loadRequests()
+  const rejectRequest = async (req: AccessRequestOut) => {
+    setRequestErr('')
+    try {
+      const { data } = await api.post(
+        `/api/auth/access-requests/${req.id}/reject`,
+        { admin_note: 'Request rejected by administrator.' },
+      )
+      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, ...data } : r))
+      notify.warning('Access rejected', `${req.username} request rejected`)
+    } catch (e: any) {
+      setRequestErr(e.response?.data?.detail ?? 'Reject failed.')
+    }
   }
 
   return (
@@ -196,9 +184,26 @@ export function UserManager() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                  <a className="da-btn da-btn-ghost text-xs" href={requestMailto(req as any)}>
-                    <Mail size={13} /> Email
-                  </a>
+                  {req.status === 'approved' ? (
+                    <button
+                      type="button"
+                      className="da-btn da-btn-ghost text-xs"
+                      onClick={async () => {
+                        try {
+                          await api.post(`/api/auth/access-requests/${req.id}/resend-email`)
+                          notify.success('Email sent', `Approval email resent to ${req.email}`)
+                        } catch (e: any) {
+                          notify.danger('Email failed', e?.response?.data?.detail ?? 'Could not send email')
+                        }
+                      }}
+                    >
+                      <Mail size={13} /> Email
+                    </button>
+                  ) : (
+                    <a className="da-btn da-btn-ghost text-xs" href={requestMailto(req as any)}>
+                      <Mail size={13} /> Email
+                    </a>
+                  )}
                   {req.mobile && (
                     <a className="da-btn da-btn-ghost text-xs" href={requestSms(req as any)}>
                       <Phone size={13} /> SMS

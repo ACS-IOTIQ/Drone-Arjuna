@@ -1,0 +1,20 @@
+{
+  "fingerprint": "09b300648f29a331c611dd809d8c28fa6154a584a824a2ff2c4cd999c72366d7",
+  "nodeids": [
+    "app/tests/test_rbac.py::test_autoconnect_flight_controller_passes_role_check",
+    "app/tests/test_rbac.py::test_autoconnect_unauthenticated_is_401",
+    "app/tests/test_rbac.py::test_autoconnect_viewer_is_403",
+    "app/tests/test_rbac.py::test_list_users_admin_is_200",
+    "app/tests/test_rbac.py::test_list_users_flight_controller_is_403",
+    "app/tests/test_rbac.py::test_list_users_unauthenticated_is_401",
+    "app/tests/test_rbac.py::test_list_users_viewer_is_403",
+    "app/tests/test_rbac.py::test_ports_admin_is_200",
+    "app/tests/test_rbac.py::test_ports_flight_controller_is_200",
+    "app/tests/test_rbac.py::test_ports_unauthenticated_is_401",
+    "app/tests/test_rbac.py::test_ports_viewer_is_200",
+    "app/tests/test_rbac.py::test_register_admin_creates_user_201",
+    "app/tests/test_rbac.py::test_register_flight_controller_is_403",
+    "app/tests/test_rbac.py::test_register_unauthenticated_is_401",
+    "app/tests/test_rbac.py::test_register_viewer_is_403"
+  ]
+}

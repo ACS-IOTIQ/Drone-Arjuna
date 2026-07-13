@@ -1,0 +1,22 @@
+{
+  "fingerprint": "8f13109642b4e0a3317565d57404ae8628666af738ca3a802e507b391c92feda",
+  "nodeids": [
+    "app/tests/test_mission_deconfliction.py::TestDeconflictMissions::test_conflict_dict_keys_present",
+    "app/tests/test_mission_deconfliction.py::TestDeconflictMissions::test_conflict_overlapping_polygons",
+    "app/tests/test_mission_deconfliction.py::TestDeconflictMissions::test_empty_input",
+    "app/tests/test_mission_deconfliction.py::TestDeconflictMissions::test_identical_missions_conflict",
+    "app/tests/test_mission_deconfliction.py::TestDeconflictMissions::test_mission_with_no_waypoints_skipped",
+    "app/tests/test_mission_deconfliction.py::TestDeconflictMissions::test_no_conflict_separate_areas",
+    "app/tests/test_mission_deconfliction.py::TestDeconflictMissions::test_single_mission_no_conflict",
+    "app/tests/test_mission_deconfliction.py::TestDeconflictMissions::test_three_missions_two_conflicts",
+    "app/tests/test_mission_deconfliction.py::TestDeconflictMissions::test_touching_boundary_not_a_conflict",
+    "app/tests/test_mission_deconfliction.py::TestDeconflictMissions::test_two_waypoint_missions_non_crossing",
+    "app/tests/test_mission_deconfliction.py::test_approve_conflict_with_executing_mission",
+    "app/tests/test_mission_deconfliction.py::test_approve_mission_not_found_returns_404",
+    "app/tests/test_mission_deconfliction.py::test_approve_no_conflict_returns_200",
+    "app/tests/test_mission_deconfliction.py::test_approve_requires_mission_commander",
+    "app/tests/test_mission_deconfliction.py::test_approve_separate_areas_no_conflict",
+    "app/tests/test_mission_deconfliction.py::test_approve_with_conflict_returns_409",
+    "app/tests/test_mission_deconfliction.py::test_non_approved_transition_skips_deconfliction"
+  ]
+}

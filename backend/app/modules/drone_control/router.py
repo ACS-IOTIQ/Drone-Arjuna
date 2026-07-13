@@ -2,14 +2,16 @@ import asyncio
 import json
 import structlog
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, text
 import serial.tools.list_ports
+from urllib.request import urlopen
 
 from app.core.rbac import require_min_role, Role
-from app.database import get_db
+from app.database import get_db, get_ts_db
 from app.models.user import User
 from app.models.mission import Mission, Waypoint
 from app.models.drone import DroneInstance
@@ -23,6 +25,15 @@ router = APIRouter()
 _port_executor = ThreadPoolExecutor(max_workers=1)
 
 
+def _host_bridge_status() -> dict | None:
+    """Return COM bridge status from the com-bridge Docker service."""
+    try:
+        with urlopen("http://host.docker.internal:5761/ports", timeout=0.5) as response:
+            return json.load(response)
+    except Exception:
+        return None
+
+
 # ── REST endpoints ────────────────────────────────────────────────
 
 @router.get("/ports")
@@ -30,33 +41,98 @@ async def list_available_ports(
     _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
 ):
     """
-    Lists all serial ports and standard network endpoints
-    through which a drone can connect via MAVLink.
+    Lists all connectable ports: Windows COM ports (via com_bridge),
+    Linux serial devices inside the container, and standard MAVLink
+    network endpoints.
+
+    Windows COM ports are discovered by querying the com_bridge discovery
+    HTTP endpoint on the host (port 5761).  Each Windows COM port is exposed
+    as a TCP connection through the bridge regardless of whether the bridge
+    currently has that port open.
     """
     loop = asyncio.get_event_loop()
 
     def _scan_serial():
+        """Scan Linux serial devices visible inside the container."""
         results = []
         for p in serial.tools.list_ports.comports():
             is_usb = "USB" in (p.hwid or "").upper()
             results.append({
-                "port": p.device,
-                "type": "usb" if is_usb else "serial",
-                "desc": p.description or p.device,
-                "baud": 57600,
+                "port":   p.device,
+                "type":   "usb" if is_usb else "serial",
+                "desc":   p.description or p.device,
+                "baud":   115200 if is_usb else 57600,
+                "source": "container",
             })
         return results
 
-    serial_ports = await loop.run_in_executor(_port_executor, _scan_serial)
+    serial_ports, bridge = await asyncio.gather(
+        loop.run_in_executor(_port_executor, _scan_serial),
+        loop.run_in_executor(_port_executor, _host_bridge_status),
+    )
+
+    # --- Windows COM ports from com_bridge -----------------------------------
+    # bridge["ports"] contains every COM port visible on the Windows host.
+    # bridge["active_port"] is the one the bridge currently has open.
+    # We surface all of them; the active one is marked ready=True and gets
+    # the live tcp_port; inactive ones advertise the default bridge TCP port.
+    windows_ports = []
+    if bridge:
+        active    = bridge.get("active_port")        # e.g. "COM4"
+        tcp_port  = bridge.get("tcp_port", 5762)
+        baud      = bridge.get("baud", 115200)
+        bridge_connected = bridge.get("connected", False)
+
+        for wp in bridge.get("ports", []):
+            com = wp.get("port", "")
+            desc = wp.get("desc", com)
+            hwid = wp.get("hwid", "")
+            is_active = (com == active and bridge_connected)
+            is_usb = "USB" in hwid.upper()
+
+            windows_ports.append({
+                "port":   f"tcp:host.docker.internal:{tcp_port}",
+                "type":   "tcp",
+                "desc":   f"{com} - {desc} (Windows bridge{' - READY' if is_active else ''})",
+                "baud":   baud if is_active else (115200 if is_usb else 57600),
+                "source": "windows_bridge",
+                "com":    com,
+                "ready":  is_active,
+            })
+
+        # If the bridge is connected but its active port wasn't in the ports
+        # list (edge case), add it explicitly.
+        if bridge_connected and active and not any(
+            wp["com"] == active for wp in windows_ports
+        ):
+            windows_ports.append({
+                "port":   f"tcp:host.docker.internal:{tcp_port}",
+                "type":   "tcp",
+                "desc":   f"{active} - {bridge.get('description', active)} (Windows bridge - READY)",
+                "baud":   baud,
+                "source": "windows_bridge",
+                "com":    active,
+                "ready":  True,
+            })
 
     network_ports = [
-        {"port": "udp:0.0.0.0:14550",   "type": "udp", "desc": "MAVLink UDP (SITL / GCS default)"},
-        {"port": "udp:0.0.0.0:14551",   "type": "udp", "desc": "MAVLink UDP (secondary GCS)"},
-        {"port": "tcp:127.0.0.1:5760",  "type": "tcp", "desc": "MAVLink TCP (SITL ArduPilot default)"},
-        {"port": "tcp:127.0.0.1:5762",  "type": "tcp", "desc": "MAVLink TCP (SITL secondary)"},
+        {"port": "udp:0.0.0.0:14550",  "type": "udp",  "source": "network",
+         "desc": "MAVLink UDP inbound  (SITL / telemetry radio default)", "baud": None},
+        {"port": "udp:0.0.0.0:14551",  "type": "udp",  "source": "network",
+         "desc": "MAVLink UDP inbound  (secondary GCS port)",             "baud": None},
+        {"port": "tcp:host.docker.internal:5762", "type": "tcp", "source": "network",
+         "desc": "Windows hardware COM bridge (TCP 5762)",                "baud": None},
+        {"port": "tcp:host.docker.internal:5760", "type": "tcp", "source": "network",
+         "desc": "Windows hardware COM bridge legacy (TCP 5760)",         "baud": None},
+        {"port": "tcp:127.0.0.1:5760", "type": "tcp",  "source": "network",
+         "desc": "MAVLink TCP - ArduPilot SITL default",                  "baud": None},
     ]
 
-    return serial_ports + network_ports
+    return {
+        "bridge_connected": bool(bridge and bridge.get("connected")),
+        "bridge_active_port": bridge.get("active_port") if bridge else None,
+        "ports": windows_ports + serial_ports + network_ports,
+    }
 
 
 @router.post("/autoconnect", status_code=status.HTTP_200_OK)
@@ -81,25 +157,60 @@ async def autoconnect_drone(
         raise HTTPException(status_code=409, detail="Drone is already connected")
 
     # ── Build candidate list ──────────────────────────────────────
-    # Serial ports first (real hardware), then common SITL network ports
+    # Serial ports first (real hardware), then common SITL network ports.
+    # USB-direct Pixhawk/ArduPilot connections (e.g. via USB cable) always
+    # speak at 115200 baud regardless of the SERIALx param — that's the
+    # rate Mission Planner/QGroundControl use for the USB CDC-ACM port.
+    # SiK telemetry radios (plain "serial" hwid, no USB) use 57600.
+    # We try both, USB-appropriate rate first, so real hardware over a
+    # cable is found without requiring any external GCS.
     loop = asyncio.get_event_loop()
 
     def _scan_serial():
-        return [
-            {"transport": "serial", "serial_port": p.device, "host": "127.0.0.1", "port": 14550}
-            for p in serial.tools.list_ports.comports()
-        ]
+        candidates = []
+        for p in serial.tools.list_ports.comports():
+            is_usb = "USB" in (p.hwid or "").upper()
+            bauds = (115200, 57600, 921600) if is_usb else (57600, 115200)
+            for baud in bauds:
+                candidates.append({
+                    "transport": "serial",
+                    "serial_port": p.device,
+                    "host": "127.0.0.1",
+                    "port": 14550,
+                    "baud_rate": baud,
+                })
+        return candidates
 
-    serial_candidates = await loop.run_in_executor(_port_executor, _scan_serial)
+    serial_candidates, bridge = await asyncio.gather(
+        loop.run_in_executor(_port_executor, _scan_serial),
+        loop.run_in_executor(_port_executor, _host_bridge_status),
+    )
+
+    # If com_bridge is running and has a port open, put it FIRST — it is the
+    # most reliable path for a cable-connected drone on Windows Docker.
+    bridge_candidates = []
+    if bridge and bridge.get("connected"):
+        bridge_candidates.append({
+            "transport":   "tcp",
+            "host":        "host.docker.internal",
+            "port":        bridge.get("tcp_port", 5762),
+            "serial_port": "/dev/ttyUSB0",
+            "baud_rate":   bridge.get("baud", 115200),
+        })
+        log.info("Autoconnect: bridge ready",
+                 com_port=bridge.get("active_port"),
+                 tcp_port=bridge.get("tcp_port", 5762))
 
     network_candidates = [
-        {"transport": "udp", "host": "0.0.0.0",   "port": 14550, "serial_port": "/dev/ttyUSB0"},
-        {"transport": "udp", "host": "0.0.0.0",   "port": 14551, "serial_port": "/dev/ttyUSB0"},
-        {"transport": "tcp", "host": "127.0.0.1", "port": 5760,  "serial_port": "/dev/ttyUSB0"},
-        {"transport": "tcp", "host": "127.0.0.1", "port": 5762,  "serial_port": "/dev/ttyUSB0"},
+        {"transport": "tcp", "host": "host.docker.internal", "port": 5762,  "serial_port": "/dev/ttyUSB0", "baud_rate": 115200},
+        {"transport": "tcp", "host": "host.docker.internal", "port": 5760,  "serial_port": "/dev/ttyUSB0", "baud_rate": 57600},
+        {"transport": "udp", "host": "0.0.0.0",              "port": 14550, "serial_port": "/dev/ttyUSB0", "baud_rate": 57600},
+        {"transport": "udp", "host": "0.0.0.0",              "port": 14551, "serial_port": "/dev/ttyUSB0", "baud_rate": 57600},
+        {"transport": "tcp", "host": "127.0.0.1",            "port": 5760,  "serial_port": "/dev/ttyUSB0", "baud_rate": 57600},
     ]
 
-    candidates = serial_candidates + network_candidates
+    # Order: bridge (ready, cable) → Linux serial → network fallbacks
+    candidates = bridge_candidates + serial_candidates + network_candidates
 
     log.info("Autoconnect starting", drone_id=drone_instance_id,
              call_sign=drone.call_sign, candidates=len(candidates))
@@ -110,9 +221,11 @@ async def autoconnect_drone(
         host        = candidate["host"]
         port        = candidate["port"]
         serial_port = candidate["serial_port"]
+        baud_rate   = candidate.get("baud_rate", 57600)
 
         log.info("Autoconnect probing", drone_id=drone_instance_id,
-                 transport=transport, host=host, port=port, serial_port=serial_port)
+                 transport=transport, host=host, port=port,
+                 serial_port=serial_port, baud_rate=baud_rate)
 
         ok = await mavlink_manager.connect(
             drone_id=drone_instance_id,
@@ -121,13 +234,14 @@ async def autoconnect_drone(
             host=host,
             port=port,
             serial_port=serial_port,
-            baud_rate=57600,
-            heartbeat_timeout=4.0,   # short probe timeout for auto-scan
+            baud_rate=baud_rate,
+            heartbeat_timeout=6.0,   # real hardware may take a moment after cable plug-in
         )
 
         if ok:
             log.info("Autoconnect succeeded", drone_id=drone_instance_id,
-                     transport=transport, host=host, port=port, serial_port=serial_port)
+                     transport=transport, host=host, port=port,
+                     serial_port=serial_port, baud_rate=baud_rate)
             return {
                 "detail":    "Connected",
                 "drone_id":  drone_instance_id,
@@ -136,6 +250,7 @@ async def autoconnect_drone(
                 "host":      host if transport != "serial" else None,
                 "port":      port if transport != "serial" else None,
                 "serial_port": serial_port if transport == "serial" else None,
+                "baud_rate": baud_rate if transport == "serial" else None,
             }
 
     log.warning("Autoconnect exhausted all candidates", drone_id=drone_instance_id)
@@ -153,13 +268,32 @@ async def get_fleet_status(
 ):
     """All connected drones + their current telemetry snapshot."""
     state = mavlink_manager.state.get_all()
-    connections = {c["drone_id"]: c for c in mavlink_manager.get_all_connections()}
+    connections = {
+        c["drone_id"]: c
+        for c in mavlink_manager.get_all_connections()
+        if c.get("connected")
+    }
     return {
         "drones": [
             {**state.get(did, {}), **connections.get(did, {})}
-            for did in set(list(state.keys()) + list(connections.keys()))
+            for did in connections.keys()
         ]
     }
+
+
+async def _require_live_drone(drone_id: int, db: AsyncSession):
+    drone = await db.get(DroneInstance, drone_id)
+    if not drone:
+        raise HTTPException(status_code=404, detail="Drone not found")
+
+    conn = mavlink_manager._connections.get(drone_id)
+    if not conn or not conn.connected:
+        raise HTTPException(status_code=404, detail="Drone not connected")
+
+    state = mavlink_manager.state.get(drone_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Drone telemetry not available")
+    return state
 
 
 @router.post("/connect", status_code=status.HTTP_201_CREATED)
@@ -244,12 +378,88 @@ async def send_command(
 async def get_telemetry(
     drone_id: int,
     _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
+    db: AsyncSession = Depends(get_db),
 ):
     """One-shot telemetry snapshot for a single drone."""
-    state = mavlink_manager.state.get(drone_id)
-    if state is None:
-        raise HTTPException(status_code=404, detail="Drone not connected")
-    return state
+    return await _require_live_drone(drone_id, db)
+
+
+@router.get("/telemetry/{drone_id}/gauges")
+async def get_telemetry_gauges(
+    drone_id: int,
+    _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
+    main_db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_ts_db),
+):
+    """
+    Current gauge telemetry (Battery, Altitude, GND Speed, GPS Sats,
+    RSSI, CPU Load) for a drone — one row per drone_id, no history retained.
+    """
+    await _require_live_drone(drone_id, main_db)
+    result = await db.execute(
+        text("""
+            SELECT recorded_at, battery_pct, altitude_m, ground_speed_ms,
+                   gps_satellites, rssi, cpu_load_pct
+            FROM telemetry_gauges
+            WHERE drone_id = :drone_id
+        """),
+        {"drone_id": drone_id},
+    )
+    row = result.mappings().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="No gauge data recorded for this drone")
+    return {
+        "recorded_at": row["recorded_at"],
+        "battery_remaining_pct": row["battery_pct"],
+        "alt_agl": row["altitude_m"],
+        "groundspeed_ms": row["ground_speed_ms"],
+        "gps_satellites": row["gps_satellites"],
+        "rssi": row["rssi"],
+        "cpu_load_pct": row["cpu_load_pct"],
+    }
+
+
+@router.get("/telemetry/{drone_id}/history")
+async def get_telemetry_history(
+    drone_id: int,
+    _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
+    db: AsyncSession = Depends(get_ts_db),
+    start: datetime | None = None,
+    end: datetime | None = None,
+):
+    """
+    Flight-path history for the Telemetry Replay Player, oldest first.
+
+    Reads `telemetry_history` — a narrow, append-only table retained for
+    1 day (see RETENTION_DAYS in data_recorder.py), separate from the
+    single-row-per-drone `telemetry`/`telemetry_gauges` tables used for
+    live/current state.
+
+    `start`/`end` default to the last hour if omitted.
+    """
+    end = end or datetime.now(timezone.utc)
+    start = start or (end - timedelta(hours=1))
+    result = await db.execute(
+        text("""
+            SELECT recorded_at, lat, lon, alt_agl, yaw_deg, pitch_deg, roll_deg
+            FROM telemetry_history
+            WHERE drone_id = :drone_id AND recorded_at BETWEEN :start AND :end
+            ORDER BY recorded_at ASC
+        """),
+        {"drone_id": drone_id, "start": start, "end": end},
+    )
+    return [
+        {
+            "timestamp": r["recorded_at"],
+            "lat":   r["lat"],
+            "lng":   r["lon"],
+            "alt":   r["alt_agl"],
+            "yaw":   r["yaw_deg"],
+            "pitch": r["pitch_deg"],
+            "roll":  r["roll_deg"],
+        }
+        for r in result.mappings().all()
+    ]
 
 
 # ── Mission simulation ────────────────────────────────────────────

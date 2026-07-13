@@ -10,7 +10,9 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.config import get_settings
 from app.database import engine, ts_engine, Base, AsyncSessionLocal
 from app.core.events import init_rabbitmq, close_rabbitmq
+from app.core.search import bulk_index_all, close_client as close_es
 from app.core.auth import ensure_default_admin
+from app.core.hf_feed import HFFeedListener
 
 # Module routers
 from app.modules.drone_control.router import router as control_router
@@ -28,6 +30,7 @@ asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 cfg = get_settings()
 log = structlog.get_logger()
+hf_feed = HFFeedListener(cfg.redis_url, cfg.hf_feed_host, cfg.hf_feed_port)
 
 
 @asynccontextmanager
@@ -58,17 +61,38 @@ async def lifespan(app: FastAPI):
     # Start telemetry recorder (creates TimescaleDB hypertable if needed)
     await data_recorder.start()
 
+    # Start the vessel NMEA GGA feed listener.
+    await hf_feed.start()
+
     # Seed default admin account if DB is empty
     async with AsyncSessionLocal() as db:
         await ensure_default_admin(db)
+
+    # Bulk-index all inventory records into Elasticsearch
+    async with AsyncSessionLocal() as db:
+        await bulk_index_all(db)
+
+    # Start auto-connector background task (scans ports, connects drones)
+    from app.modules.drone_control.auto_connector import run_auto_connector
+    _auto_connector_task = asyncio.create_task(
+        run_auto_connector(AsyncSessionLocal),
+        name="auto-connector",
+    )
 
     log.info("All services initialised — ready to accept connections")
     yield
 
     # Graceful shutdown
+    _auto_connector_task.cancel()
+    try:
+        await _auto_connector_task
+    except asyncio.CancelledError:
+        pass
     log.info("DroneArjuna shutting down")
+    await hf_feed.stop()
     await data_recorder.stop()
     await close_rabbitmq()
+    await close_es()
     await engine.dispose()
     await ts_engine.dispose()
 

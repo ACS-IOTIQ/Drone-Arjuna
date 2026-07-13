@@ -1,8 +1,9 @@
 // ═══════════════════════════════════════════
 // FleetWorkspace.tsx
 // ═══════════════════════════════════════════
-import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Anchor, Package, Cloud, Droplets, Thermometer, Wind, MapPin, CloudRain } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { droneControlApi } from '@/api/droneControl'
+import { Plus, RefreshCw, Anchor, Package, Cloud, Droplets, Thermometer, Wind, MapPin, CloudRain, Cable } from 'lucide-react'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import { useVesselStore } from '@/store/vesselStore'
@@ -45,6 +46,9 @@ export default function FleetWorkspace() {
   const { vessels, fetchVessels } = useVesselStore()
   const [showConnect, setShowConnect] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [quickConnecting, setQuickConnecting] = useState(false)
+  const [quickConnectStatus, setQuickConnectStatus] = useState<'idle'|'connecting'|'ok'|'fail'>('idle')
+  const [bridgeReady, setBridgeReady] = useState(false)
   const [showAllDrones, setShowAllDrones] = useState(false)
   const [payloads, setPayloads] = useState<PayloadType[]>([])
   const [payloadAssignments, setPayloadAssignments] = useState<Record<number, number | null>>({})
@@ -61,6 +65,39 @@ export default function FleetWorkspace() {
       setRefreshing(false)
     }
   }
+
+  // Poll bridge status every 3s to show Quick Connect button when cable is plugged in
+  useEffect(() => {
+    let active = true
+    const poll = async () => {
+      try {
+        const res = await droneControlApi.ports()
+        if (active) setBridgeReady(res.data.bridge_connected ?? false)
+      } catch {
+        if (active) setBridgeReady(false)
+      }
+    }
+    poll()
+    const id = setInterval(poll, 3000)
+    return () => { active = false; clearInterval(id) }
+  }, [])
+
+  const quickConnect = useCallback(async () => {
+    if (instances.length === 0) return
+    setQuickConnecting(true)
+    setQuickConnectStatus('connecting')
+    try {
+      await droneControlApi.autoconnect({ drone_instance_id: instances[0].id })
+      await fetchConnections()
+      setQuickConnectStatus('ok')
+      setTimeout(() => setQuickConnectStatus('idle'), 3000)
+    } catch {
+      setQuickConnectStatus('fail')
+      setTimeout(() => setQuickConnectStatus('idle'), 4000)
+    } finally {
+      setQuickConnecting(false)
+    }
+  }, [instances, fetchConnections])
 
   const fetchPayloads = async () => {
     setPayloadErr('')
@@ -180,11 +217,36 @@ export default function FleetWorkspace() {
             {instances.length} registered · {Object.values(connections).filter(Boolean).length} connected
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={refresh} className="da-btn da-btn-ghost">
             <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
             Refresh
           </button>
+
+          {/* Quick Connect — visible when com_bridge has a cable plugged in */}
+          {bridgeReady && (
+            <button
+              onClick={quickConnect}
+              disabled={quickConnecting || Object.values(connections).some(c => c?.connected)}
+              className="da-btn"
+              style={{
+                background: quickConnectStatus === 'ok'   ? 'rgba(34,197,94,0.15)'  :
+                            quickConnectStatus === 'fail' ? 'rgba(239,68,68,0.15)'  :
+                                                           'rgba(34,197,94,0.1)',
+                color:      quickConnectStatus === 'ok'   ? '#22c55e' :
+                            quickConnectStatus === 'fail' ? '#ef4444' :
+                                                           '#22c55e',
+                border:     '1px solid rgba(34,197,94,0.3)',
+              }}
+            >
+              <Cable size={14} className={quickConnecting ? 'animate-pulse' : ''} />
+              {quickConnectStatus === 'connecting' ? 'Connecting…' :
+               quickConnectStatus === 'ok'         ? 'Connected!' :
+               quickConnectStatus === 'fail'       ? 'Failed — retry' :
+                                                     'Quick Connect (Cable)'}
+            </button>
+          )}
+
           <button onClick={() => setShowConnect(true)} className="da-btn da-btn-primary">
             <Plus size={14} /> Connect Drone
           </button>

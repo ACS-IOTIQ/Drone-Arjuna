@@ -15,10 +15,11 @@ import structlog
 from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete, update
 from fastapi import HTTPException
 
 from app.models.drone import DroneType, DroneInstance, DroneConfigTemplate
+from app.models.mission import Mission
 from app.schemas.drone import (
     DroneTypeCreate, DroneTypeUpdate,
     DroneInstanceCreate, DroneInstanceUpdate,
@@ -91,30 +92,32 @@ class DroneTypeService:
         return dt
 
     async def archive(self, type_id: int) -> None:
-        """
-        Soft-delete. Blocked if any DroneInstance still references this type
-        — master data must never be hard-deleted per spec section 5.7.
-        """
+        """Permanently delete a type and every registered drone using it."""
         dt = await self.get_by_id(type_id)
 
-        # Check for active instances referencing this type
-        count_result = await self.db.execute(
-            select(func.count(DroneInstance.id)).where(
-                DroneInstance.drone_type_id == type_id
-            )
+        instance_result = await self.db.execute(
+            select(DroneInstance.id).where(DroneInstance.drone_type_id == type_id)
         )
-        instance_count = count_result.scalar_one()
-        if instance_count > 0:
-            raise HTTPException(
-                409,
-                f"Cannot archive drone type '{dt.name}': "
-                f"{instance_count} registered drone(s) still reference it. "
-                f"Reassign or deregister them first."
+        instance_ids = list(instance_result.scalars().all())
+
+        if instance_ids:
+            # Keep mission history, but remove references to drones being deleted.
+            await self.db.execute(
+                update(Mission)
+                .where(Mission.drone_instance_id.in_(instance_ids))
+                .values(drone_instance_id=None)
+            )
+            await self.db.execute(
+                delete(DroneInstance).where(DroneInstance.id.in_(instance_ids))
             )
 
-        dt.is_active = False
+        await self.db.execute(
+            delete(DroneConfigTemplate).where(DroneConfigTemplate.drone_type_id == type_id)
+        )
+        await self.db.delete(dt)
         await self.db.flush()
-        log.info("Drone type archived", name=dt.name, id=type_id)
+        log.info("Drone type permanently deleted", name=dt.name, id=type_id,
+                 deleted_instances=len(instance_ids))
 
     async def get_summary_stats(self) -> dict:
         """Quick stats used by the Settings workspace header."""
@@ -219,6 +222,12 @@ class DroneInstanceService:
         inst = await self.get_by_id(drone_id)
         type_svc = DroneTypeService(self.db)
         return await type_svc.get_by_id(inst.drone_type_id)
+
+    async def archive(self, drone_id: int) -> None:
+        inst = await self.get_by_id(drone_id)
+        await self.db.delete(inst)
+        await self.db.flush()
+        log.info("drone_instance.deleted", id=drone_id, call_sign=inst.call_sign)
 
 
 # ── Config Template helpers ───────────────────────────────────────

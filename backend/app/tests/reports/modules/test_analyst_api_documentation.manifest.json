@@ -1,0 +1,23 @@
+{
+  "fingerprint": "0d11c4a7444336e527980f266e5250cbe0bf5db1453771de0ba03715cb196ede",
+  "nodeids": [
+    "app/tests/test_analyst_api.py::test_cancel_already_cancelled_409",
+    "app/tests/test_analyst_api.py::test_cancel_job_status_persisted",
+    "app/tests/test_analyst_api.py::test_cancel_job_unauthenticated_401",
+    "app/tests/test_analyst_api.py::test_cancel_job_viewer_403",
+    "app/tests/test_analyst_api.py::test_cancel_nonexistent_job_404",
+    "app/tests/test_analyst_api.py::test_create_job_201_all_fields",
+    "app/tests/test_analyst_api.py::test_create_job_default_job_type",
+    "app/tests/test_analyst_api.py::test_create_job_invalid_model_404",
+    "app/tests/test_analyst_api.py::test_create_job_invalid_type_400",
+    "app/tests/test_analyst_api.py::test_create_job_unauthenticated_401",
+    "app/tests/test_analyst_api.py::test_create_job_viewer_403",
+    "app/tests/test_analyst_api.py::test_create_job_with_mission_and_drone",
+    "app/tests/test_analyst_api.py::test_get_job_not_found_404",
+    "app/tests/test_analyst_api.py::test_get_job_round_trip",
+    "app/tests/test_analyst_api.py::test_get_job_unauthenticated_401",
+    "app/tests/test_analyst_api.py::test_list_jobs_contains_created",
+    "app/tests/test_analyst_api.py::test_list_jobs_filter_by_job_type",
+    "app/tests/test_analyst_api.py::test_list_jobs_unauthenticated_401"
+  ]
+}

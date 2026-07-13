@@ -1,0 +1,23 @@
+{
+  "fingerprint": "135d1341e4fe3631d83e60ef3a31fc0a17563adb6d6f916bd635b1c419708db7",
+  "nodeids": [
+    "app/tests/test_drone_types_api.py::test_archive_drone_type_204",
+    "app/tests/test_drone_types_api.py::test_create_drone_type_201",
+    "app/tests/test_drone_types_api.py::test_create_drone_type_cruise_exceeds_max_422",
+    "app/tests/test_drone_types_api.py::test_create_drone_type_duplicate_name_409",
+    "app/tests/test_drone_types_api.py::test_create_drone_type_payload_equals_mtow_422",
+    "app/tests/test_drone_types_api.py::test_create_drone_type_payload_exceeds_mtow_422",
+    "app/tests/test_drone_types_api.py::test_delete_drone_type_cascades_to_registered_instances",
+    "app/tests/test_drone_types_api.py::test_drone_type_all_fields_persisted",
+    "app/tests/test_drone_types_api.py::test_drone_type_stats_200",
+    "app/tests/test_drone_types_api.py::test_drone_types_unauthenticated_401",
+    "app/tests/test_drone_types_api.py::test_get_drone_type_200",
+    "app/tests/test_drone_types_api.py::test_get_drone_type_not_found_404",
+    "app/tests/test_drone_types_api.py::test_list_drone_types_200",
+    "app/tests/test_drone_types_api.py::test_update_drone_type_not_found_404",
+    "app/tests/test_drone_types_api.py::test_update_drone_type_notes_200",
+    "app/tests/test_drone_types_api.py::test_viewer_blocked_from_archive_drone_type_403",
+    "app/tests/test_drone_types_api.py::test_viewer_blocked_from_create_drone_type_403",
+    "app/tests/test_drone_types_api.py::test_viewer_blocked_from_update_drone_type_403"
+  ]
+}

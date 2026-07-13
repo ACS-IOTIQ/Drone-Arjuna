@@ -398,3 +398,81 @@ async def test_inventory_unauthenticated_401(client: AsyncClient):
 async def test_inventory_search_unauthenticated_401(client: AsyncClient):
     resp = await client.get("/api/inventory/search?q=test")
     assert resp.status_code == 401
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Compare — missing scenarios
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_compare_more_than_four_400(
+    client: AsyncClient, viewer_user, inv_drone_type, inv_drone_type2, make_token
+):
+    """Passing more than 4 IDs to /compare must return 400."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    # Use repeated IDs to hit the >4 limit without needing 5 real drone types
+    ids_param = "&ids=".join(
+        [str(inv_drone_type["id"])] * 3 + [str(inv_drone_type2["id"])] * 2
+    )
+    resp = await client.get(
+        f"/api/inventory/compare?ids={ids_param}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Catalogue list — filter scenarios
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_filter_by_mission_type(
+    client: AsyncClient, viewer_user, inv_drone_type, make_token
+):
+    """
+    Filtering by mission_type=ISR must include the fixture drone type
+    (whose mission_type is ISR) and not 404 or 500.
+    """
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.get(
+        "/api/inventory/drones?mission_type=ISR",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "items" in body
+    assert "total" in body
+    # At least the fixture type should appear
+    ids = [item["id"] for item in body["items"]]
+    assert inv_drone_type["id"] in ids
+
+
+async def test_filter_by_autopilot(
+    client: AsyncClient, viewer_user, inv_drone_type, make_token
+):
+    """
+    Filtering by autopilot=ArduPilot must include the fixture drone type
+    and return a valid catalogue response.
+    """
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.get(
+        "/api/inventory/drones?autopilot=ArduPilot",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "items" in body
+    assert "total" in body
+    ids = [item["id"] for item in body["items"]]
+    assert inv_drone_type["id"] in ids
+
+
+async def test_filter_by_unknown_mission_type_returns_empty(
+    client: AsyncClient, viewer_user, make_token
+):
+    """Unknown mission_type filter must return 200 with total==0."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.get(
+        "/api/inventory/drones?mission_type=NONEXISTENT_TYPE",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 0

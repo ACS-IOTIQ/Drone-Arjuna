@@ -16,6 +16,7 @@ V2 will replace the lightweight wrappers here with:
   - Rich HTML5 formatted drone/payload detail pages
   - Comparative analysis (side-by-side spec charts)
 """
+import asyncio
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -146,17 +147,20 @@ class InventoryService:
     # ── Search (V1 lightweight, V2 Elasticsearch) ─────────────────
 
     async def search(self, query: str, limit: int = 20) -> dict:
-        """
-        V1: SQL ILIKE search across DroneType and PayloadType tables.
-        Returns a unified list with a `type` field ("drone" | "payload").
-        V2: Replace this entire method body with an Elasticsearch query —
-        the response shape is intentionally stable so the frontend needs no changes.
-        """
         if not query.strip():
             return {"results": [], "query": query, "total": 0}
 
-        pattern = f"%{query.strip()}%"
+        # V2: Elasticsearch full-text search (P4-06)
+        try:
+            from app.core.search import search_inventory
+            results = await search_inventory(query, limit)
+            if results:
+                return {"query": query, "total": len(results), "results": results}
+        except Exception:
+            pass
 
+        # V1 SQL ILIKE fallback — used when ES unavailable or returns nothing
+        pattern = f"%{query.strip()}%"
         drone_q = (
             select(DroneType)
             .where(DroneType.is_active == True)
@@ -169,7 +173,6 @@ class InventoryService:
             )
             .limit(limit)
         )
-
         payload_q = (
             select(PayloadType)
             .where(PayloadType.is_active == True)
@@ -181,25 +184,15 @@ class InventoryService:
             )
             .limit(limit)
         )
-
-        drone_result, payload_result = (
-            await self.db.execute(drone_q),
-            await self.db.execute(payload_q),
-        )
-        drones   = drone_result.scalars().all()
+        drone_result = await self.db.execute(drone_q)
+        payload_result = await self.db.execute(payload_q)
+        drones = drone_result.scalars().all()
         payloads = payload_result.scalars().all()
-
         results = (
             [{"type": "drone",   **self._drone_card(dt)} for dt in drones]
             + [{"type": "payload", **self._payload_card(pt)} for pt in payloads]
         )
-
-        return {
-            "query":   query,
-            "total":   len(results),
-            "results": results,
-            "note":    "V1 SQL search — full-text Elasticsearch search available in V2 (P4-06)",
-        }
+        return {"query": query, "total": len(results), "results": results}
 
     # ── Quick-reference card ──────────────────────────────────────
 
@@ -248,6 +241,7 @@ class InventoryService:
         return self._threat_card(ts)
 
     async def create_threat(self, data: dict) -> dict:
+        from app.core.search import index_threat_system
         existing = await self.db.execute(
             select(ThreatSystem).where(ThreatSystem.name == data["name"])
         )
@@ -257,9 +251,12 @@ class InventoryService:
         self.db.add(ts)
         await self.db.flush()
         await self.db.refresh(ts)
-        return self._threat_card(ts)
+        card = self._threat_card(ts)
+        asyncio.create_task(index_threat_system(card))
+        return card
 
     async def update_threat(self, threat_id: int, data: dict) -> dict:
+        from app.core.search import index_threat_system
         ts = await self.db.get(ThreatSystem, threat_id)
         if not ts:
             raise HTTPException(404, f"Threat system #{threat_id} not found")
@@ -267,13 +264,18 @@ class InventoryService:
             setattr(ts, key, value)
         await self.db.flush()
         await self.db.refresh(ts)
-        return self._threat_card(ts)
+        card = self._threat_card(ts)
+        asyncio.create_task(index_threat_system(card))
+        return card
 
     async def delete_threat(self, threat_id: int) -> None:
+        from app.core.search import delete_document, INDEX_THREAT
         ts = await self.db.get(ThreatSystem, threat_id)
         if not ts:
             raise HTTPException(404, f"Threat system #{threat_id} not found")
+        doc_id = ts.id
         await self.db.delete(ts)
+        asyncio.create_task(delete_document(INDEX_THREAT, doc_id))
         await self.db.flush()
 
     # ── Internal helpers ──────────────────────────────────────────

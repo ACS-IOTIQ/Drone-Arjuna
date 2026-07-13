@@ -244,3 +244,70 @@ async def test_nearly_expired_token_still_works(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
+
+
+# ══════════════════════════════════════════════════════════════════════
+# setup-password — weak new_password triggers 422 from PasswordPolicy
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_setup_password_weak_new_password_422(
+    client: AsyncClient, admin_user, make_token
+):
+    """
+    POST /setup-password with a new_password that fails PasswordPolicy
+    (too short, no special chars) must return 422.
+    """
+    token = make_token(admin_user.id, admin_user.role)
+    resp  = await client.post(
+        "/api/auth/setup-password",
+        json={"current_password": "Admin@1234", "new_password": "weak"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+# ══════════════════════════════════════════════════════════════════════
+# register — 409 when username or email already exists
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_register_duplicate_username_409(
+    client: AsyncClient, admin_user, make_token
+):
+    """
+    POST /register with a username that already exists → 409.
+    The admin_user fixture already owns username 'admin_test'.
+    """
+    token = make_token(admin_user.id, admin_user.role)
+    resp  = await client.post(
+        "/api/auth/register",
+        json={
+            "username": admin_user.username,   # already taken
+            "email":    "unique_reg@example.com",
+            "password": "Unique@Pass99",
+            "role":     "viewer",
+            "full_name": "Dup User",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 409
+
+
+async def test_register_duplicate_email_409(
+    client: AsyncClient, admin_user, make_token
+):
+    """
+    POST /register with an email that already belongs to a user → 409.
+    """
+    token = make_token(admin_user.id, admin_user.role)
+    resp  = await client.post(
+        "/api/auth/register",
+        json={
+            "username": "unique_reg_user",
+            "email":    admin_user.email,      # already taken
+            "password": "Unique@Pass99",
+            "role":     "viewer",
+            "full_name": "Dup Email User",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 409

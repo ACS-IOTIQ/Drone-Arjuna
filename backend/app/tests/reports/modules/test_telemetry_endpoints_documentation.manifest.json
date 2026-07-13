@@ -1,0 +1,17 @@
+{
+  "fingerprint": "764099c5b3a130a713972bdb0ef9a894f3cb26c1e739c4fac3c90cb21a2cc01c",
+  "nodeids": [
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryGauges::test_gauges_404_unknown_drone_id",
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryGauges::test_gauges_404_when_drone_not_connected",
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryGauges::test_gauges_connected_drone_no_data_returns_404",
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryGauges::test_gauges_connected_drone_returns_gauge_shape",
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryGauges::test_gauges_requires_auth",
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryGauges::test_gauges_viewer_allowed",
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryHistory::test_history_accepts_start_end_params",
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryHistory::test_history_empty_when_no_telemetry",
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryHistory::test_history_flight_controller_allowed",
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryHistory::test_history_requires_auth",
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryHistory::test_history_returns_list_shape",
+    "app/tests/test_telemetry_endpoints.py::TestTelemetryHistory::test_history_viewer_allowed"
+  ]
+}

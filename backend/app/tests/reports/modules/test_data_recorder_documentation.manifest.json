@@ -1,0 +1,31 @@
+{
+  "fingerprint": "51a96c71d730843e4c5f3332c6ae39c40c78a9e5d8fdfb405a10c8cc42b05d59",
+  "nodeids": [
+    "app/tests/test_data_recorder.py::TestChangeDetection::test_changed_state_writes_again",
+    "app/tests/test_data_recorder.py::TestChangeDetection::test_first_call_always_writes",
+    "app/tests/test_data_recorder.py::TestChangeDetection::test_identical_state_skips_write",
+    "app/tests/test_data_recorder.py::TestChangeDetection::test_last_updated_after_write",
+    "app/tests/test_data_recorder.py::TestChangeDetection::test_non_compare_field_change_does_not_trigger_write",
+    "app/tests/test_data_recorder.py::TestChangeDetection::test_separate_drone_ids_tracked_independently",
+    "app/tests/test_data_recorder.py::TestCompareFields::test_compare_fields_count",
+    "app/tests/test_data_recorder.py::TestCompareFields::test_compare_fields_excludes_mission_context",
+    "app/tests/test_data_recorder.py::TestCompareFields::test_compare_fields_excludes_recorded_at",
+    "app/tests/test_data_recorder.py::TestCompareFields::test_compare_fields_includes_battery",
+    "app/tests/test_data_recorder.py::TestCompareFields::test_compare_fields_includes_gps",
+    "app/tests/test_data_recorder.py::TestCompareFields::test_compare_fields_includes_position",
+    "app/tests/test_data_recorder.py::TestGaugeFromFrame::test_gauge_defaults_when_keys_missing",
+    "app/tests/test_data_recorder.py::TestGaugeFromFrame::test_gauge_maps_altitude",
+    "app/tests/test_data_recorder.py::TestGaugeFromFrame::test_gauge_maps_battery",
+    "app/tests/test_data_recorder.py::TestGaugeFromFrame::test_gauge_maps_cpu_load",
+    "app/tests/test_data_recorder.py::TestGaugeFromFrame::test_gauge_maps_gps_satellites",
+    "app/tests/test_data_recorder.py::TestGaugeFromFrame::test_gauge_maps_groundspeed",
+    "app/tests/test_data_recorder.py::TestGaugeFromFrame::test_gauge_maps_rssi",
+    "app/tests/test_data_recorder.py::TestGaugeFromFrame::test_gauge_preserves_drone_id_and_recorded_at",
+    "app/tests/test_data_recorder.py::TestHistoryFromFrame::test_history_defaults_when_keys_missing",
+    "app/tests/test_data_recorder.py::TestHistoryFromFrame::test_history_maps_alt_agl",
+    "app/tests/test_data_recorder.py::TestHistoryFromFrame::test_history_maps_attitude",
+    "app/tests/test_data_recorder.py::TestHistoryFromFrame::test_history_maps_lat_lon",
+    "app/tests/test_data_recorder.py::TestHistoryFromFrame::test_history_preserves_drone_id_and_recorded_at",
+    "app/tests/test_data_recorder.py::TestStop::test_stop_clears_last"
+  ]
+}

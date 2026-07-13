@@ -89,6 +89,20 @@ async def set_drone_status(
     return {"detail": "Status updated", "status": inst.status}
 
 
+@router.post("/drones/{did}/payload", response_model=DroneInstanceOut)
+async def assign_payload_to_drone(
+    did: int, body: dict, db: DbDep,
+    _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
+):
+    """
+    Attach a payload type to a drone instance, or clear it.
+    Body: {"payload_type_id": <int>} to assign, {"payload_type_id": null} to clear.
+    Requires FLIGHT_CONTROLLER or above.
+    """
+    payload_type_id = body.get("payload_type_id")
+    return await DroneInstanceService(db).assign_payload(did, payload_type_id)
+
+
 @router.delete("/drones/{did}", status_code=204)
 async def delete_drone(did: int, db: DbDep, _: AdminDep):
     await DroneInstanceService(db).archive(did)

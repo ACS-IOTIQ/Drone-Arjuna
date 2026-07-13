@@ -223,6 +223,24 @@ class DroneInstanceService:
         type_svc = DroneTypeService(self.db)
         return await type_svc.get_by_id(inst.drone_type_id)
 
+    async def assign_payload(self, drone_id: int, payload_type_id: int | None) -> DroneInstance:
+        """
+        Attach or detach a payload type from a drone instance.
+        Pass payload_type_id=None to clear the current payload.
+        Validates that the payload type exists when assigning.
+        """
+        from app.models.payload import PayloadType
+        inst = await self.get_by_id(drone_id)
+        if payload_type_id is not None:
+            pt = await self.db.get(PayloadType, payload_type_id)
+            if pt is None or not pt.is_active:
+                raise HTTPException(404, f"Payload type #{payload_type_id} not found")
+        inst.payload_type_id = payload_type_id
+        await self.db.flush()
+        action = f"payload_type_id={payload_type_id}" if payload_type_id else "cleared"
+        log.info("drone_instance.payload_updated", id=drone_id, call_sign=inst.call_sign, payload=action)
+        return inst
+
     async def archive(self, drone_id: int) -> None:
         inst = await self.get_by_id(drone_id)
         await self.db.delete(inst)

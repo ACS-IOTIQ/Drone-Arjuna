@@ -362,3 +362,111 @@ async def test_delete_drone_viewer_403(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
+
+
+# ══════════════════════════════════════════════════════════════════════
+# POST /api/master/drones/{did}/payload — Assign / clear payload
+# ══════════════════════════════════════════════════════════════════════
+
+_PT_BODY = {
+    "name":         "Test EO Camera",
+    "manufacturer": "ACS Optics",
+    "model":        "EO-T01",
+    "category":     "sensor",
+}
+
+
+async def test_assign_payload_to_drone_200_with_admin(
+    client: AsyncClient, admin_user, flight_controller_user, drone_instance, make_token
+):
+    """
+    Full round-trip: admin creates a payload type, flight_controller assigns it
+    to a drone, then clears it — verifies assign and clear both persist.
+    """
+    admin_hdrs = {"Authorization": f"Bearer {make_token(admin_user.id, admin_user.role)}"}
+    fc_hdrs    = {"Authorization": f"Bearer {make_token(flight_controller_user.id, flight_controller_user.role)}"}
+
+    # Admin creates payload type
+    pt_resp = await client.post("/api/master/payload-types", json=_PT_BODY, headers=admin_hdrs)
+    assert pt_resp.status_code == 201, pt_resp.text
+    pt_id = pt_resp.json()["id"]
+
+    try:
+        # Flight controller assigns it
+        assign = await client.post(
+            f"/api/master/drones/{drone_instance['id']}/payload",
+            json={"payload_type_id": pt_id},
+            headers=fc_hdrs,
+        )
+        assert assign.status_code == 200, assign.text
+        assert assign.json()["payload_type_id"] == pt_id
+
+        # Re-fetch confirms persistence
+        get = await client.get(f"/api/master/drones/{drone_instance['id']}", headers=fc_hdrs)
+        assert get.json()["payload_type_id"] == pt_id
+
+        # Clear the payload
+        clear = await client.post(
+            f"/api/master/drones/{drone_instance['id']}/payload",
+            json={"payload_type_id": None},
+            headers=fc_hdrs,
+        )
+        assert clear.status_code == 200
+        assert clear.json()["payload_type_id"] is None
+
+        # Re-fetch confirms cleared
+        get2 = await client.get(f"/api/master/drones/{drone_instance['id']}", headers=fc_hdrs)
+        assert get2.json()["payload_type_id"] is None
+
+    finally:
+        await client.delete(f"/api/master/payload-types/{pt_id}", headers=admin_hdrs)
+
+
+async def test_assign_payload_nonexistent_type_404(
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
+):
+    """Assigning a non-existent payload_type_id must return 404."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp  = await client.post(
+        f"/api/master/drones/{drone_instance['id']}/payload",
+        json={"payload_type_id": 999999},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_assign_payload_drone_not_found_404(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Assigning to a non-existent drone must return 404."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp  = await client.post(
+        "/api/master/drones/999999/payload",
+        json={"payload_type_id": None},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_assign_payload_viewer_403(
+    client: AsyncClient, viewer_user, drone_instance, make_token
+):
+    """VIEWER cannot assign a payload — requires FLIGHT_CONTROLLER."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.post(
+        f"/api/master/drones/{drone_instance['id']}/payload",
+        json={"payload_type_id": None},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_assign_payload_unauthenticated_401(
+    client: AsyncClient, drone_instance
+):
+    """Unauthenticated request must return 401."""
+    resp = await client.post(
+        f"/api/master/drones/{drone_instance['id']}/payload",
+        json={"payload_type_id": None},
+    )
+    assert resp.status_code == 401

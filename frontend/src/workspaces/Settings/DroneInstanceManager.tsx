@@ -2,11 +2,12 @@
 // DroneInstanceManager.tsx
 // ═══════════════════════════════════════════
 import { useEffect, useState } from 'react'
-import { Plus, X, Save, Anchor } from 'lucide-react'
+import { Plus, X, Save, Anchor, Trash2 } from 'lucide-react'
 import { droneMasterApi } from '@/api/droneMaster'
 import { vesselApi } from '@/api/vessel'
 import { useVesselStore } from '@/store/vesselStore'
 import type { NavalVessel } from '@/store/vesselStore'
+import { ConfirmModal } from '@/components/common/ConfirmModal'
 
 interface DroneInst {
   id?: number
@@ -30,6 +31,10 @@ export default function DroneInstanceManager() {
   const [editing, setEditing] = useState<DroneInst | null>(null)
   const [saving, setSaving]   = useState(false)
   const [err, setErr]         = useState('')
+  const [removing, setRemoving]   = useState<any | null>(null)
+  const [removeErr, setRemoveErr] = useState('')
+  const [removeBusy, setRemoveBusy] = useState(false)
+  const [removeSuccess, setRemoveSuccess] = useState('')
   const { vessels, fetchVessels } = useVesselStore()
 
   const load = async () => {
@@ -76,6 +81,28 @@ export default function DroneInstanceManager() {
     } finally { setSaving(false) }
   }
 
+  const confirmRemove = async () => {
+    if (!removing) return
+    setRemoveBusy(true); setRemoveErr('')
+    try {
+      const { data } = await droneMasterApi.removeDrone(removing.id)
+      await load()
+      const callSign = removing.call_sign
+      setRemoving(null)
+      const n = data?.unassigned_missions ?? 0
+      setRemoveSuccess(
+        n > 0
+          ? `${callSign} removed. ${n} mission(s) unassigned from it (kept, not deleted).`
+          : `${callSign} removed.`
+      )
+      setTimeout(() => setRemoveSuccess(''), 5000)
+    } catch (e: any) {
+      setRemoveErr(e.response?.data?.detail ?? 'Failed to remove drone')
+    } finally {
+      setRemoveBusy(false)
+    }
+  }
+
   const typeName   = (id: number) => types.find(t => t.id === id)?.name ?? `Type #${id}`
   const vesselName = (id: number | null) => {
     if (!id) return null
@@ -84,6 +111,11 @@ export default function DroneInstanceManager() {
 
   return (
     <div className="flex flex-col gap-4 max-w-3xl">
+      {removeSuccess && (
+        <p className="text-xs px-3 py-2 rounded" style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
+          {removeSuccess}
+        </p>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold">Registered Drones</h2>
@@ -100,14 +132,14 @@ export default function DroneInstanceManager() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--da-border)', background: 'var(--da-surface)' }}>
-              {['Call Sign', 'Type', 'Serial No.', 'MAVLink ID', 'Home Vessel', 'Status', 'Flight Hrs'].map(h => (
+              {['Call Sign', 'Type', 'Serial No.', 'MAVLink ID', 'Home Vessel', 'Status', 'Flight Hrs', ''].map(h => (
                 <th key={h} className="px-3 py-2 text-left text-xs font-medium" style={{ color: '#4b5563' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {drones.length === 0 && (
-              <tr><td colSpan={7} className="text-center py-8 text-sm" style={{ color: '#374151' }}>
+              <tr><td colSpan={8} className="text-center py-8 text-sm" style={{ color: '#374151' }}>
                 No drones registered yet
               </td></tr>
             )}
@@ -134,6 +166,13 @@ export default function DroneInstanceManager() {
                   }}>{d.status}</span>
                 </td>
                 <td className="px-3 py-2 mono text-xs">{Number(d.total_flight_hours).toFixed(1)} h</td>
+                <td className="px-3 py-2 text-right">
+                  <button onClick={() => { setRemoving(d); setRemoveErr('') }}
+                    title="Remove drone"
+                    className="p-1 rounded hover:bg-red-500/10">
+                    <Trash2 size={14} style={{ color: '#ef4444' }} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -209,6 +248,24 @@ export default function DroneInstanceManager() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Remove confirmation */}
+      {removing && (
+        <ConfirmModal
+          title="Remove drone"
+          message={
+            removeErr ||
+            `Remove ${removing.call_sign} from the registered fleet? Any active simulation/connection ` +
+            `will be stopped, and any missions assigned to it will be unassigned (kept, not deleted) so ` +
+            `you can reassign them to a new drone later.`
+          }
+          variant="danger"
+          confirmLabel="Remove"
+          isLoading={removeBusy}
+          onConfirm={confirmRemove}
+          onCancel={() => setRemoving(null)}
+        />
       )}
     </div>
   )

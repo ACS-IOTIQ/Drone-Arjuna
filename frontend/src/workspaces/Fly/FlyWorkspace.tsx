@@ -2,7 +2,7 @@
 // FlyWorkspace.tsx
 // ═══════════════════════════════════════════
 import { useEffect, useState } from 'react'
-import { Gamepad2 } from 'lucide-react'
+import { Gamepad2, Plus } from 'lucide-react'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import LiveMap from './LiveMap'
@@ -18,6 +18,7 @@ export default function FlyWorkspace() {
 
   const [selectedDroneId, setSelectedDroneId] = useState<number | null>(null)
   const [manualOpen, setManualOpen]           = useState(false)
+  const [showLauncher, setShowLauncher]       = useState(false)
 
   // Load instances + connections on mount, poll every 5 s
   useEffect(() => {
@@ -30,12 +31,12 @@ export default function FlyWorkspace() {
   const connectedDrones = instances.filter(d => connections[d.id])
   const activeDroneId   = selectedDroneId ?? connectedDrones[0]?.id ?? null
 
-  // Subscribe to telemetry WebSocket when active drone changes
+  // Subscribe to telemetry for every connected drone (not just the active one)
+  // so the map can render the whole fleet flying simultaneously.
   useEffect(() => {
-    if (!activeDroneId) return
-    subscribe(activeDroneId)
-    return () => unsubscribe(activeDroneId)
-  }, [activeDroneId])
+    connectedDrones.forEach(d => subscribe(d.id))
+    return () => connectedDrones.forEach(d => unsubscribe(d.id))
+  }, [connectedDrones.map(d => d.id).join(',')])
 
   const activeConnection = activeDroneId ? connections[activeDroneId] : null
   const isSimulated      = (activeConnection as any)?.transport === 'simulation'
@@ -46,16 +47,23 @@ export default function FlyWorkspace() {
     setManualOpen(false)
   }
 
-  const handleSimStarted = () => { fetchConnections() }
+  const handleSimStarted = () => {
+    fetchConnections()
+    setShowLauncher(false)
+  }
+
+  const launcherVisible = !activeDroneId || showLauncher
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
 
       {/* ── Drone selector strip (multi-drone) ── */}
-      {connectedDrones.length > 1 && (
+      {connectedDrones.length > 0 && (
         <div className="flex items-center gap-1 px-3 py-1.5 shrink-0"
           style={{ background: 'var(--da-surface)', borderBottom: '1px solid var(--da-border)' }}>
-          <span className="text-xs mr-2" style={{ color: '#6b7280' }}>Viewing:</span>
+          {connectedDrones.length > 1 && (
+            <span className="text-xs mr-2" style={{ color: '#6b7280' }}>Viewing:</span>
+          )}
           {connectedDrones.map(d => {
             const conn = connections[d.id] as any
             const sim  = conn?.transport === 'simulation'
@@ -76,12 +84,18 @@ export default function FlyWorkspace() {
               </button>
             )
           })}
+          <button
+            onClick={() => setShowLauncher(true)}
+            className="da-btn da-btn-ghost text-xs py-1 px-2 flex items-center gap-1 ml-1"
+            title="Launch another simulated drone">
+            <Plus size={12} /> Add Sim
+          </button>
         </div>
       )}
 
       {/* ── Main content ── */}
       <div className="flex-1 relative overflow-hidden">
-        <LiveMap droneId={activeDroneId} />
+        <LiveMap droneId={activeDroneId} onSelectDrone={setSelectedDroneId} />
 
         {/* HUD — top-left overlay */}
         {activeDroneId && (
@@ -142,9 +156,12 @@ export default function FlyWorkspace() {
           <SimProgressOverlay droneId={activeDroneId} onStopped={handleSimStopped} />
         )}
 
-        {/* No drone — show simulation launcher */}
-        {!activeDroneId && (
-          <SimLaunchPanel onStarted={handleSimStarted} />
+        {/* Simulation launcher — first-time (no drones) or opened via "Add Sim" */}
+        {launcherVisible && (
+          <SimLaunchPanel
+            onStarted={handleSimStarted}
+            onClose={activeDroneId ? () => setShowLauncher(false) : undefined}
+          />
         )}
       </div>
     </div>

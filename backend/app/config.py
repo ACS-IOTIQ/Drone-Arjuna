@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     sitl_host: str = "host.docker.internal"
     sitl_port: int = 14550
 
+    # Simulated-drone MAVLink broadcast — deliberately NOT 14550/14551/14552,
+    # since those are already published inbound (docker-compose.yml) for real
+    # SITL and would collide with an external GCS trying to listen there too.
+    mavlink_broadcast_port: int = 14560
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -113,6 +113,30 @@ async def _truncate_tables():
     yield
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_mavlink_state():
+    """
+    mavlink_manager._connections and mission_simulator._flights are
+    process-wide singletons keyed by drone_id. _truncate_tables resets the
+    DB but NOT these in-memory dicts — since SQLite reuses low integer IDs
+    after a table is emptied, a connection/simulation left over from one
+    test (e.g. a started-but-not-stopped simulation) can silently attach
+    itself to an unrelated drone in a later test that happens to reuse the
+    same id. Clear both before and after every test to prevent that.
+    """
+    from app.modules.drone_control.mavlink_manager import mavlink_manager
+    from app.modules.drone_control.mission_simulator import mission_simulator
+
+    async def _clear():
+        for did in list(mission_simulator._flights.keys()):
+            await mission_simulator.stop(did)
+        mavlink_manager._connections.clear()
+
+    await _clear()
+    yield
+    await _clear()
+
+
 # ── TimescaleDB suppression ───────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)

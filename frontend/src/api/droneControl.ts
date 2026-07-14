@@ -78,7 +78,11 @@ export const droneControlApi = {
     api.post('/api/drone-control/autoconnect', p),
 
   // ── Simulation ──────────────────────────────────────────────
-  simulateStart:  (p: SimStartPayload)  => api.post('/api/drone-control/simulate/start', p),
-  simulateStop:   ()                    => api.delete('/api/drone-control/simulate/stop'),
-  simulateStatus: ()                    => api.get('/api/drone-control/simulate/status'),
+  // Multiple drones can simulate concurrently — pass droneId to scope
+  // stop/status to one drone; omit to affect/list all of them.
+  simulateStart:  (p: SimStartPayload)      => api.post('/api/drone-control/simulate/start', p),
+  simulateStop:   (droneId?: number)        =>
+    api.delete('/api/drone-control/simulate/stop', droneId != null ? { params: { drone_id: droneId } } : undefined),
+  simulateStatus: (droneId?: number)        =>
+    api.get('/api/drone-control/simulate/status', droneId != null ? { params: { drone_id: droneId } } : undefined),
 }

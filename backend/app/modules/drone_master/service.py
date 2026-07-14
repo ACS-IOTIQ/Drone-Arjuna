@@ -19,6 +19,7 @@ from sqlalchemy import select, func
 from fastapi import HTTPException
 
 from app.models.drone import DroneType, DroneInstance, DroneConfigTemplate
+from app.models.mission import Mission
 from app.schemas.drone import (
     DroneTypeCreate, DroneTypeUpdate,
     DroneInstanceCreate, DroneInstanceUpdate,
@@ -141,13 +142,15 @@ class DroneInstanceService:
 
     async def list_all(self) -> list[DroneInstance]:
         result = await self.db.execute(
-            select(DroneInstance).order_by(DroneInstance.call_sign)
+            select(DroneInstance)
+            .where(DroneInstance.is_active == True)  # noqa: E712
+            .order_by(DroneInstance.call_sign)
         )
         return result.scalars().all()
 
     async def get_by_id(self, drone_id: int) -> DroneInstance:
         inst = await self.db.get(DroneInstance, drone_id)
-        if not inst:
+        if not inst or not inst.is_active:
             raise HTTPException(404, f"Drone #{drone_id} not found")
         return inst
 
@@ -219,6 +222,42 @@ class DroneInstanceService:
         inst = await self.get_by_id(drone_id)
         type_svc = DroneTypeService(self.db)
         return await type_svc.get_by_id(inst.drone_type_id)
+
+    async def archive(self, drone_id: int) -> dict:
+        """
+        Soft-delete (removes it from the registered-drone list). Master data
+        must never be hard-deleted per spec section 5.7 — so instead of
+        blocking on referencing missions, this unassigns the drone from
+        them (mission rows are kept, just detached) and stops any live
+        simulation/connection first, then removes the drone.
+        """
+        inst = await self.get_by_id(drone_id)
+
+        # Stop a live simulation/connection first, if any, so we don't
+        # remove a drone out from under an active flight.
+        try:
+            from app.modules.drone_control.mavlink_manager import mavlink_manager
+            from app.modules.drone_control.mission_simulator import mission_simulator
+            if mission_simulator.is_active(drone_id):
+                await mission_simulator.stop(drone_id)
+            mavlink_manager.detach_simulation(drone_id)
+            await mavlink_manager.disconnect(drone_id)
+        except Exception:
+            pass  # best-effort — never block removal on live-state cleanup
+
+        # Unassign (not delete) any missions that reference this drone
+        unassign_result = await self.db.execute(
+            select(Mission).where(Mission.drone_instance_id == drone_id)
+        )
+        missions = unassign_result.scalars().all()
+        for m in missions:
+            m.drone_instance_id = None
+
+        inst.is_active = False
+        await self.db.flush()
+        log.info("Drone removed", call_sign=inst.call_sign, id=drone_id,
+                 unassigned_missions=len(missions))
+        return {"unassigned_missions": len(missions)}
 
 
 # ── Config Templates ──────────────────────────────────────────────

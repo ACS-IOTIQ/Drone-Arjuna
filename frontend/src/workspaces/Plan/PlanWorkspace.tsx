@@ -1,22 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Send, XCircle } from 'lucide-react'
+import { CheckCircle2, Cpu, Send, XCircle } from 'lucide-react'
 import { useMissionStore } from '@/store/missionStore'
 import { useFleetStore } from '@/store/fleetStore'
 import { useVesselStore } from '@/store/vesselStore'
 import MapCanvas from './MapCanvas'
 import MissionEditor from './MissionEditor'
 import LiveOpsPanel from './LiveOpsPanel'
+import FleetAssignModal from './FleetAssignModal'
 
 export default function PlanWorkspace() {
   const { missions, activeMissionId, fetchMissions, updateMissionStatus } = useMissionStore()
   const fetchInstances = useFleetStore(s => s.fetchInstances)
+  const fetchConnections = useFleetStore(s => s.fetchConnections)
   const fetchVessels = useVesselStore(s => s.fetchVessels)
   const [busyAction, setBusyAction] = useState('')
   const [actionErr, setActionErr] = useState('')
+  const [showFleetAssign, setShowFleetAssign] = useState(false)
 
   useEffect(() => {
     fetchMissions()
     fetchInstances()
+    fetchConnections()
     fetchVessels()
   }, [])
 
@@ -77,11 +81,19 @@ export default function PlanWorkspace() {
             <XCircle size={14} /> {busyAction === 'Reject' ? 'Rejecting...' : 'Reject'}
           </button>
         </div>
+
+        <div className="absolute" style={{ top: 60, left: 12, zIndex: 1500 }}>
+          <button className="da-btn da-btn-teal" onClick={() => setShowFleetAssign(true)}>
+            <Cpu size={14} /> Fleet Assign
+          </button>
+        </div>
       </div>
 
       <div className="shrink-0 overflow-y-auto" style={{ width: 260 }}>
         <LiveOpsPanel />
       </div>
+
+      {showFleetAssign && <FleetAssignModal onClose={() => setShowFleetAssign(false)} />}
     </div>
   )
 }

@@ -33,6 +33,15 @@ pyserial==3.5
 shapely==2.0.4
 pyproj==3.6.1
 
+# Fleet assignment optimisation (Q-SWARM port — classical solver, always required)
+ortools==9.10.4067
+numpy==1.26.4
+
+# Quantum path for fleet assignment (use_quantum=True) — QAOA on Qiskit Aer
+qiskit==1.1.0
+qiskit-aer==0.14.2
+scipy==1.13.1
+
 # HTTP client (for internal calls)
 httpx==0.27.0
 

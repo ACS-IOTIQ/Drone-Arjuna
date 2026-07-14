@@ -157,12 +157,25 @@ class MAVLinkManager:
                       timeout_s=heartbeat_timeout)
             if conn.hf_adapter:
                 hf_link_adapter.remove(drone_id)
+            self._close_mav(conn)
             return False
         except Exception as e:
             log.error("Connection failed", drone_id=drone_id, error=str(e))
             if conn.hf_adapter:
                 hf_link_adapter.remove(drone_id)
+            self._close_mav(conn)
             return False
+
+    @staticmethod
+    def _close_mav(conn: "DroneConnection"):
+        """Releases the underlying socket/port on a failed connection attempt.
+        Without this, every failed UDP connect/autoconnect probe leaks its
+        bound port for the lifetime of the process."""
+        if conn.mav is not None:
+            try:
+                conn.mav.close()
+            except Exception:
+                pass
 
     async def disconnect(self, drone_id: int):
         conn = self._connections.get(drone_id)
@@ -277,7 +290,7 @@ class MAVLinkManager:
         if conn.transport == "simulation":
             from app.modules.drone_control.mission_simulator import mission_simulator
             from app.modules.drone_control.command_controller import CommandResult
-            await mission_simulator.command(command, params or {})
+            await mission_simulator.command(drone_id, command, params or {})
             rec = CommandRecord(drone_id=drone_id, command=command, params=params)
             rec.result = CommandResult.ACCEPTED
             return rec

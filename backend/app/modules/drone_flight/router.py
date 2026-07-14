@@ -11,8 +11,13 @@ from app.schemas.mission import (
     MissionCreate, MissionOut, MissionSummary,
     MissionStatusUpdate, WaypointOut,
 )
+from app.modules.drone_control import mavlink_manager
 from app.modules.drone_flight.geo_service import compute_mission_summary
 from app.modules.drone_flight.mission_planner import MissionPlanner
+from app.modules.drone_flight.fleet_router import (
+    AssignmentProblem, FleetAssignRequest,
+    classical_assignment, quantum_assignment, decompose_fleet_indices,
+)
 
 router = APIRouter()
 DbDep = Annotated[AsyncSession, Depends(get_db)]
@@ -169,6 +174,73 @@ async def simulate_mission(mid: int, db: DbDep, _: ViewerDep):
         raise HTTPException(400, "Mission has no waypoints")
     frames = await MissionPlanner(db).build_simulation(wps)
     return {"mission_id": mid, "frame_count": len(frames), "frames": frames}
+
+
+@router.post("/assign-fleet")
+async def assign_fleet(body: FleetAssignRequest, _: PilotDep):
+    """
+    Multi-drone -> target assignment (Q-SWARM port).
+    Uses live drone positions from the telemetry hot-cache (mavlink_manager.state) --
+    does not require a Mission to exist yet. Returns which drone should go
+    to which target, minimising total travel distance.
+    """
+    live = mavlink_manager.state.get_all()
+    if body.drone_instance_ids is not None:
+        live = {did: s for did, s in live.items() if did in body.drone_instance_ids}
+    live = {did: s for did, s in live.items() if s.get("connected")}
+
+    if not live:
+        raise HTTPException(400, "No connected drones available for assignment")
+    if not body.targets:
+        raise HTTPException(400, "At least one target is required")
+
+    drone_ids = list(live.keys())
+    drones = [(live[did]["lat"], live[did]["lon"]) for did in drone_ids]
+    targets = [(t.lat, t.lon) for t in body.targets]
+
+    if body.use_quantum:
+        subs = decompose_fleet_indices(drones, targets, body.qubit_budget)
+    else:
+        subs = [(list(range(len(drones))), list(range(len(targets))))]
+
+    solver_name = "QAOA (Aer)" if body.use_quantum else "OR-Tools"
+    assignments: list[dict] = []
+    total_distance_m = 0.0
+    all_feasible = True
+
+    for d_idx, t_idx in subs:
+        problem = AssignmentProblem(
+            drones=[drones[i] for i in d_idx],
+            targets=[targets[j] for j in t_idx],
+        )
+        if body.use_quantum:
+            bits, cost_m, _ms = quantum_assignment(problem)
+        else:
+            bits, cost_m, _ms = classical_assignment(problem)
+
+        all_feasible &= problem.is_feasible(bits)
+        total_distance_m += cost_m
+
+        for local_j, local_is in problem.decode(bits).items():
+            target = body.targets[t_idx[local_j]]
+            for local_i in local_is:
+                drone_id = drone_ids[d_idx[local_i]]
+                assignments.append({
+                    "drone_instance_id": drone_id,
+                    "call_sign": live[drone_id].get("call_sign"),
+                    "target_id": target.id,
+                    "target_lat": target.lat,
+                    "target_lon": target.lon,
+                    "distance_m": round(problem.cost[local_i][local_j], 1),
+                })
+
+    return {
+        "solver": solver_name,
+        "num_subproblems": len(subs),
+        "total_distance_m": round(total_distance_m, 1),
+        "all_feasible": all_feasible,
+        "assignments": assignments,
+    }
 
 
 @router.post("/survey-grid")

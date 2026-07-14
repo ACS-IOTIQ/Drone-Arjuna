@@ -14,6 +14,7 @@ export default defineConfig({
     port: 3000,
     strictPort: false,
     allowedHosts: 'all',
+    watch: { usePolling: true, interval: 300 },
     proxy: {
       '/api': { target: apiProxyTarget, changeOrigin: true, ws: true },
     },

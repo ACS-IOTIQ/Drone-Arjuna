@@ -2,7 +2,7 @@ import asyncio
 import json
 import structlog
 from concurrent.futures import ThreadPoolExecutor
-from typing import Annotated
+from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,6 +20,11 @@ from app.modules.drone_control.mission_simulator import mission_simulator
 log = structlog.get_logger()
 router = APIRouter()
 _port_executor = ThreadPoolExecutor(max_workers=1)
+
+MISSION_PLANNER_HELP = (
+    "No MAVLink heartbeat received. In Mission Planner, forward MAVLink UDP "
+    "to 127.0.0.1:14550, then select Mission Planner UDP 14550 in this app."
+)
 
 
 # ── REST endpoints ────────────────────────────────────────────────
@@ -49,10 +54,13 @@ async def list_available_ports(
     serial_ports = await loop.run_in_executor(_port_executor, _scan_serial)
 
     network_ports = [
-        {"port": "udp:0.0.0.0:14550",   "type": "udp", "desc": "MAVLink UDP (SITL / GCS default)"},
-        {"port": "udp:0.0.0.0:14551",   "type": "udp", "desc": "MAVLink UDP (secondary GCS)"},
-        {"port": "tcp:127.0.0.1:5760",  "type": "tcp", "desc": "MAVLink TCP (SITL ArduPilot default)"},
-        {"port": "tcp:127.0.0.1:5762",  "type": "tcp", "desc": "MAVLink TCP (SITL secondary)"},
+        {"port": "udp:0.0.0.0:14550", "type": "udp", "desc": "Mission Planner UDP output / MAVLink default"},
+        {"port": "udp:0.0.0.0:14551", "type": "udp", "desc": "Mission Planner secondary UDP output"},
+        {"port": "udp:0.0.0.0:14552", "type": "udp", "desc": "Mission Planner alternate UDP output"},
+        {"port": "tcp:host.docker.internal:5760", "type": "tcp", "desc": "ArduPilot SITL TCP on Windows host"},
+        {"port": "tcp:host.docker.internal:5762", "type": "tcp", "desc": "ArduPilot SITL secondary TCP on Windows host"},
+        {"port": "tcp:127.0.0.1:5760", "type": "tcp", "desc": "ArduPilot SITL TCP when backend runs locally"},
+        {"port": "tcp:127.0.0.1:5762", "type": "tcp", "desc": "ArduPilot SITL secondary TCP when backend runs locally"},
     ]
 
     return serial_ports + network_ports
@@ -92,10 +100,13 @@ async def autoconnect_drone(
     serial_candidates = await loop.run_in_executor(_port_executor, _scan_serial)
 
     network_candidates = [
-        {"transport": "udp", "host": "0.0.0.0",   "port": 14550, "serial_port": "/dev/ttyUSB0"},
-        {"transport": "udp", "host": "0.0.0.0",   "port": 14551, "serial_port": "/dev/ttyUSB0"},
-        {"transport": "tcp", "host": "127.0.0.1", "port": 5760,  "serial_port": "/dev/ttyUSB0"},
-        {"transport": "tcp", "host": "127.0.0.1", "port": 5762,  "serial_port": "/dev/ttyUSB0"},
+        {"transport": "udp", "host": "0.0.0.0", "port": 14550, "serial_port": "/dev/ttyUSB0"},
+        {"transport": "udp", "host": "0.0.0.0", "port": 14551, "serial_port": "/dev/ttyUSB0"},
+        {"transport": "udp", "host": "0.0.0.0", "port": 14552, "serial_port": "/dev/ttyUSB0"},
+        {"transport": "tcp", "host": "host.docker.internal", "port": 5760, "serial_port": "/dev/ttyUSB0"},
+        {"transport": "tcp", "host": "host.docker.internal", "port": 5762, "serial_port": "/dev/ttyUSB0"},
+        {"transport": "tcp", "host": "127.0.0.1", "port": 5760, "serial_port": "/dev/ttyUSB0"},
+        {"transport": "tcp", "host": "127.0.0.1", "port": 5762, "serial_port": "/dev/ttyUSB0"},
     ]
 
     candidates = serial_candidates + network_candidates
@@ -230,10 +241,7 @@ async def start_simulation(
     _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
     db: AsyncSession = Depends(get_db),
 ):
-    """Start a simulated flight of a saved mission."""
-    if mission_simulator.active:
-        raise HTTPException(status_code=409, detail="A simulation is already running")
-
+    """Start a simulated flight of a saved mission. Multiple drones may fly concurrently."""
     # Fetch mission
     mission = await db.get(Mission, req.mission_id)
     if not mission:
@@ -243,6 +251,10 @@ async def start_simulation(
     drone_id = req.drone_instance_id or mission.drone_instance_id
     if not drone_id:
         raise HTTPException(status_code=422, detail="No drone assigned — set drone_instance_id")
+
+    if mission_simulator.is_active(drone_id):
+        raise HTTPException(status_code=409, detail=f"Drone #{drone_id} already has an active simulation")
+
     drone = await db.get(DroneInstance, drone_id)
     if not drone:
         raise HTTPException(status_code=404, detail="Drone instance not found")
@@ -257,9 +269,19 @@ async def start_simulation(
     if not wps:
         raise HTTPException(status_code=422, detail="Mission has no waypoints")
 
-    # Home position = first waypoint's lat/lon (ground level)
-    home_lat = float(wps[0].latitude)
-    home_lon = float(wps[0].longitude)
+    # Home position = the mission's actual home waypoint (is_home=True),
+    # i.e. wherever the drone actually launches from — NOT wps[0], which is
+    # the first *flight* waypoint since home waypoints are excluded above.
+    # Falls back to the first flight waypoint only if no home was recorded.
+    home_result = await db.execute(
+        select(Waypoint)
+        .where(Waypoint.mission_id == req.mission_id, Waypoint.is_home == True)  # noqa: E712
+        .order_by(Waypoint.sequence)
+        .limit(1)
+    )
+    home_wp = home_result.scalar_one_or_none()
+    home_lat = float(home_wp.latitude) if home_wp else float(wps[0].latitude)
+    home_lon = float(home_wp.longitude) if home_wp else float(wps[0].longitude)
 
     waypoint_dicts = [
         {
@@ -278,7 +300,8 @@ async def start_simulation(
     # Register virtual connection in mavlink_manager so the drone appears "connected"
     mavlink_manager.attach_simulation(drone_id, drone.call_sign)
 
-    # Start the simulator (injects into the same StateManager)
+    # Start the simulator (injects into the same StateManager, and MAVLink
+    # UDP-broadcasts so external GCS software like Mission Planner sees it too)
     await mission_simulator.start(
         drone_id=drone_id,
         call_sign=drone.call_sign,
@@ -287,6 +310,7 @@ async def start_simulation(
         home_lon=home_lon,
         speed_mult=req.speed_multiplier,
         state_mgr=mavlink_manager.state,
+        mavlink_system_id=drone.mavlink_system_id,
     )
 
     return {
@@ -301,21 +325,38 @@ async def start_simulation(
 @router.delete("/simulate/stop")
 async def stop_simulation(
     _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
+    drone_id: Optional[int] = None,
 ):
-    if not mission_simulator.active:
-        raise HTTPException(status_code=404, detail="No simulation running")
-    drone_id = mission_simulator.drone_id
-    await mission_simulator.stop()
+    """Stop one drone's simulation (?drone_id=N), or all running simulations if omitted."""
     if drone_id is not None:
+        if not mission_simulator.is_active(drone_id):
+            raise HTTPException(status_code=404, detail=f"No active simulation for drone #{drone_id}")
+        await mission_simulator.stop(drone_id)
         mavlink_manager.detach_simulation(drone_id)
-    return {"detail": "Simulation stopped"}
+        return {"detail": "Simulation stopped", "drone_id": drone_id}
+
+    active_ids = mission_simulator.active_drone_ids()
+    if not active_ids:
+        raise HTTPException(status_code=404, detail="No simulation running")
+    for did in active_ids:
+        await mission_simulator.stop(did)
+        mavlink_manager.detach_simulation(did)
+    return {"detail": "Simulations stopped", "drone_ids": active_ids}
 
 
 @router.get("/simulate/status")
 async def simulation_status(
     _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
+    drone_id: Optional[int] = None,
 ):
-    return mission_simulator.get_status()
+    """One drone's status (?drone_id=N), or {"simulations": [...]} for all active flights."""
+    if drone_id is not None:
+        status_dict = mission_simulator.get_status(drone_id)
+        return status_dict or {
+            "active": False, "phase": "idle", "drone_id": drone_id, "call_sign": "",
+            "waypoint_index": 0, "waypoint_count": 0, "progress": 0.0, "speed_multiplier": 1.0,
+        }
+    return {"simulations": mission_simulator.get_status()}
 
 
 # ── WebSocket telemetry stream ────────────────────────────────────

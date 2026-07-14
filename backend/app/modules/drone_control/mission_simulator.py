@@ -81,10 +81,11 @@ _PHASE_MODE = {
 }
 
 
-class MissionSimulator:
+class _SimulatedFlight:
     """
-    Module-level singleton that manages one active simulation at a time.
-    Multiple concurrent simulations are not supported.
+    One simulated drone's flight — state machine + 10 Hz physics tick.
+    Owned by SimulationManager, which keeps one instance per drone_id so
+    multiple drones can fly concurrently.
     """
     TICK_HZ     = 10
     CRUISE_MS   = 10.0   # default cruise speed m/s
@@ -101,6 +102,7 @@ class MissionSimulator:
 
         self.phase      = SimPhase.IDLE
         self.drone_id:  Optional[int] = None
+        self.mavlink_system_id = 1
         self.call_sign  = ""
         self.waypoints: list = []
         self.speed_mult = 1.0
@@ -150,6 +152,7 @@ class MissionSimulator:
         home_lon:   float,
         speed_mult: float = 1.0,
         state_mgr=None,
+        mavlink_system_id: int = 1,
     ):
         if self.active:
             await self.stop()
@@ -158,6 +161,7 @@ class MissionSimulator:
             self._sm = state_mgr
 
         self.drone_id   = drone_id
+        self.mavlink_system_id = mavlink_system_id
         self.call_sign  = call_sign
         self.waypoints  = waypoints
         self.speed_mult = max(0.1, min(speed_mult, 20.0))
@@ -191,12 +195,33 @@ class MissionSimulator:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        if self.drone_id is not None and self._sm:
-            self._sm.remove_drone(self.drone_id)
+        # _cleanup() already ran via _run()'s finally block (natural landing
+        # or the cancel above both funnel through it) — this just resets
+        # local flags so a stopped instance reports IDLE/inactive.
         self.phase    = SimPhase.IDLE
         self._task    = None
         self.drone_id = None
         log.info("Simulation stopped")
+
+    def _cleanup(self):
+        """
+        Detaches this flight from every shared registry it touched. Runs
+        on ANY way the flight ends — explicit stop, cancellation, or
+        natural completion after landing — so a drone that simply lands
+        on its own doesn't linger forever as "connected" (which is what
+        previously kept it visible in the app and broadcasting to any
+        external GCS, and made the Stop button 404 since the backend
+        already considered the (uncleaned) flight inactive).
+        """
+        if self.drone_id is None:
+            return
+        if self._sm:
+            self._sm.remove_drone(self.drone_id)
+        from app.modules.drone_control.mavlink_broadcaster import mavlink_broadcaster
+        mavlink_broadcaster.remove(self.drone_id)
+        from app.modules.drone_control.mavlink_manager import mavlink_manager
+        mavlink_manager.detach_simulation(self.drone_id)
+        log.info("Simulated flight cleaned up", drone_id=self.drone_id)
 
     # ── Main loop ─────────────────────────────────────────────────
 
@@ -218,6 +243,7 @@ class MissionSimulator:
         except asyncio.CancelledError:
             raise
         finally:
+            self._cleanup()
             log.info("Sim loop exited", drone_id=self.drone_id)
 
     # ── Command handler ───────────────────────────────────────────
@@ -397,7 +423,7 @@ class MissionSimulator:
     async def _push(self):
         if self.drone_id is None or self._sm is None:
             return
-        await self._sm.update(self.drone_id, {
+        state = {
             "lat":                   self.lat,
             "lon":                   self.lon,
             "alt_msl":               self.alt + self.HOME_MSL,
@@ -427,8 +453,75 @@ class MissionSimulator:
             "sim_progress":          self.wp_idx / len(self.waypoints) if self.waypoints else 0.0,
             "sim_waypoint_idx":      self.wp_idx,
             "sim_waypoint_count":    len(self.waypoints),
-        })
+        }
+        await self._sm.update(self.drone_id, state)
+
+        from app.modules.drone_control.mavlink_broadcaster import mavlink_broadcaster
+        mavlink_broadcaster.send(self.drone_id, self.mavlink_system_id, state)
 
 
-# Module-level singleton
-mission_simulator = MissionSimulator()
+class SimulationManager:
+    """
+    Owns one _SimulatedFlight per drone_id, so many drones can fly
+    concurrently. Replaces the old single-instance MissionSimulator.
+    """
+
+    def __init__(self):
+        self._flights: dict[int, _SimulatedFlight] = {}
+
+    def is_active(self, drone_id: int) -> bool:
+        flight = self._flights.get(drone_id)
+        return flight is not None and flight.active
+
+    def active_drone_ids(self) -> list[int]:
+        return [did for did, f in self._flights.items() if f.active]
+
+    def get_status(self, drone_id: Optional[int] = None):
+        """Single drone's status dict if drone_id given, else a list of all active flights."""
+        if drone_id is not None:
+            flight = self._flights.get(drone_id)
+            return flight.get_status() if flight else None
+        return [f.get_status() for f in self._flights.values() if f.active]
+
+    async def start(
+        self,
+        drone_id:   int,
+        call_sign:  str,
+        waypoints:  list,
+        home_lat:   float,
+        home_lon:   float,
+        speed_mult: float = 1.0,
+        state_mgr=None,
+        mavlink_system_id: int = 1,
+    ):
+        existing = self._flights.get(drone_id)
+        if existing and existing.active:
+            await existing.stop()
+        flight = _SimulatedFlight()
+        self._flights[drone_id] = flight
+        await flight.start(
+            drone_id=drone_id, call_sign=call_sign, waypoints=waypoints,
+            home_lat=home_lat, home_lon=home_lon,
+            speed_mult=speed_mult, state_mgr=state_mgr,
+            mavlink_system_id=mavlink_system_id,
+        )
+
+    async def command(self, drone_id: int, action: str, params: dict = {}):
+        flight = self._flights.get(drone_id)
+        if flight and flight.active:
+            await flight.command(action, params)
+
+    async def stop(self, drone_id: int):
+        flight = self._flights.pop(drone_id, None)
+        if flight:
+            await flight.stop()
+
+    async def stop_all(self) -> list[int]:
+        ids = self.active_drone_ids()
+        for did in ids:
+            await self.stop(did)
+        return ids
+
+
+# Module-level manager — supports many concurrent simulated flights
+mission_simulator = SimulationManager()

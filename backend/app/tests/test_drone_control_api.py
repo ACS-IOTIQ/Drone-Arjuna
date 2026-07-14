@@ -70,6 +70,45 @@ async def drone_instance(client: AsyncClient, admin_user, drone_type, make_token
     await client.delete(f"/api/master/drones/{data['id']}", headers=hdrs)
 
 
+@pytest_asyncio.fixture
+async def drone_instance_2(client: AsyncClient, admin_user, drone_type, make_token):
+    """A second, independent drone instance — for concurrent-simulation tests."""
+    token = make_token(admin_user.id, admin_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    resp  = await client.post(
+        "/api/master/drones",
+        json={
+            "call_sign":     "CTL-TEST-02",
+            "drone_type_id": drone_type["id"],
+            "serial_number": "SN-CTL-002",
+        },
+        headers=hdrs,
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    yield data
+    await client.delete(f"/api/master/drones/{data['id']}", headers=hdrs)
+
+
+async def _make_flyable_mission(client: AsyncClient, hdrs: dict, drone_id: int, name: str) -> int:
+    """Creates a mission with real (non-home) waypoints so simulate/start can fly it."""
+    resp = await client.post(
+        "/api/flight/missions",
+        json={
+            "name": name, "mission_type": "ISR", "drone_instance_id": drone_id,
+            "waypoints": [
+                {"sequence": 1, "latitude": 17.385, "longitude": 78.4867,
+                 "altitude_m": 50, "altitude_ref": "AGL", "action": "none", "is_home": True},
+                {"sequence": 2, "latitude": 17.395, "longitude": 78.4967,
+                 "altitude_m": 80, "altitude_ref": "AGL", "action": "none"},
+            ],
+        },
+        headers=hdrs,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
 # ══════════════════════════════════════════════════════════════════════
 # Ports
 # ══════════════════════════════════════════════════════════════════════
@@ -373,6 +412,130 @@ async def test_simulate_start_no_waypoints_422(
         headers=hdrs,
     )
     assert resp.status_code == 422
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Concurrent multi-drone simulation
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_simulate_start_uses_true_home_waypoint_for_rtl(
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
+):
+    """
+    Regression test: home_lat/home_lon (what RTL flies back to) must come
+    from the mission's actual is_home=True waypoint, not the first *flight*
+    waypoint. The waypoint query for the flight path explicitly excludes
+    home waypoints, so naively taking its [0] element silently picks the
+    wrong point — the drone would "RTL" to its first waypoint instead of
+    where it actually launched from.
+    """
+    from app.modules.drone_control.mission_simulator import mission_simulator
+
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    mission_id = await _make_flyable_mission(client, hdrs, drone_instance["id"], "Home-Regression")
+
+    start = await client.post(
+        "/api/drone-control/simulate/start",
+        json={"mission_id": mission_id, "drone_instance_id": drone_instance["id"]},
+        headers=hdrs,
+    )
+    assert start.status_code == 201, start.text
+
+    flight = mission_simulator._flights[drone_instance["id"]]
+    assert flight._home_lat == 17.385
+    assert flight._home_lon == 78.4867
+    # And NOT the first flight waypoint's coordinates
+    assert flight._home_lat != 17.395
+    assert flight._home_lon != 78.4967
+
+    await client.delete(
+        f"/api/drone-control/simulate/stop?drone_id={drone_instance['id']}", headers=hdrs
+    )
+
+
+async def test_simulate_two_drones_concurrently(
+    client: AsyncClient, flight_controller_user, drone_instance, drone_instance_2, make_token
+):
+    """Two different drones can each have an active simulation at the same time."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+
+    m1 = await _make_flyable_mission(client, hdrs, drone_instance["id"], "Concurrent-A")
+    m2 = await _make_flyable_mission(client, hdrs, drone_instance_2["id"], "Concurrent-B")
+
+    r1 = await client.post("/api/drone-control/simulate/start",
+                            json={"mission_id": m1, "drone_instance_id": drone_instance["id"]},
+                            headers=hdrs)
+    assert r1.status_code == 201, r1.text
+
+    r2 = await client.post("/api/drone-control/simulate/start",
+                            json={"mission_id": m2, "drone_instance_id": drone_instance_2["id"]},
+                            headers=hdrs)
+    assert r2.status_code == 201, r2.text
+
+    status_all = await client.get("/api/drone-control/simulate/status", headers=hdrs)
+    assert status_all.status_code == 200
+    active_ids = {s["drone_id"] for s in status_all.json()["simulations"]}
+    assert {drone_instance["id"], drone_instance_2["id"]} <= active_ids
+
+    # Cleanup — stop both so they don't leak into other tests
+    await client.delete(f"/api/drone-control/simulate/stop?drone_id={drone_instance['id']}", headers=hdrs)
+    await client.delete(f"/api/drone-control/simulate/stop?drone_id={drone_instance_2['id']}", headers=hdrs)
+
+
+async def test_simulate_start_same_drone_twice_409(
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
+):
+    """Starting a second simulation for a drone that's already flying must return 409."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    m1 = await _make_flyable_mission(client, hdrs, drone_instance["id"], "Dup-A")
+    m2 = await _make_flyable_mission(client, hdrs, drone_instance["id"], "Dup-B")
+
+    first = await client.post("/api/drone-control/simulate/start",
+                               json={"mission_id": m1, "drone_instance_id": drone_instance["id"]},
+                               headers=hdrs)
+    assert first.status_code == 201, first.text
+
+    second = await client.post("/api/drone-control/simulate/start",
+                                json={"mission_id": m2, "drone_instance_id": drone_instance["id"]},
+                                headers=hdrs)
+    assert second.status_code == 409
+
+    await client.delete(f"/api/drone-control/simulate/stop?drone_id={drone_instance['id']}", headers=hdrs)
+
+
+async def test_simulate_stop_scoped_to_one_drone(
+    client: AsyncClient, flight_controller_user, drone_instance, drone_instance_2, make_token
+):
+    """Stopping one drone's simulation must not affect another drone's simulation."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    m1 = await _make_flyable_mission(client, hdrs, drone_instance["id"], "Scoped-A")
+    m2 = await _make_flyable_mission(client, hdrs, drone_instance_2["id"], "Scoped-B")
+
+    await client.post("/api/drone-control/simulate/start",
+                       json={"mission_id": m1, "drone_instance_id": drone_instance["id"]}, headers=hdrs)
+    await client.post("/api/drone-control/simulate/start",
+                       json={"mission_id": m2, "drone_instance_id": drone_instance_2["id"]}, headers=hdrs)
+
+    stop_resp = await client.delete(
+        f"/api/drone-control/simulate/stop?drone_id={drone_instance['id']}", headers=hdrs
+    )
+    assert stop_resp.status_code == 200, stop_resp.text
+
+    status_1 = await client.get(
+        f"/api/drone-control/simulate/status?drone_id={drone_instance['id']}", headers=hdrs
+    )
+    assert status_1.json()["active"] is False
+
+    status_2 = await client.get(
+        f"/api/drone-control/simulate/status?drone_id={drone_instance_2['id']}", headers=hdrs
+    )
+    assert status_2.json()["active"] is True
+
+    await client.delete(f"/api/drone-control/simulate/stop?drone_id={drone_instance_2['id']}", headers=hdrs)
 
 
 # ══════════════════════════════════════════════════════════════════════

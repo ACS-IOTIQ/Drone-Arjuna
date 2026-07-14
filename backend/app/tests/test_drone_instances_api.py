@@ -308,3 +308,49 @@ async def test_drone_instance_all_fields_persisted(
         assert stored["status"]            == "offline"            # default on creation
     finally:
         await client.delete(f"/api/master/drones/{did}", headers=hdrs)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Remove (soft-delete) — unassigns referencing missions rather than blocking
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_remove_drone_no_missions_200(
+    client: AsyncClient, admin_user, drone_instance, make_token
+):
+    token = make_token(admin_user.id, admin_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+    resp  = await client.delete(f"/api/master/drones/{drone_instance['id']}", headers=hdrs)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["unassigned_missions"] == 0
+
+    # No longer listed
+    listing = await client.get("/api/master/drones", headers=hdrs)
+    assert drone_instance["id"] not in [d["id"] for d in listing.json()]
+
+
+async def test_remove_drone_unassigns_referencing_missions(
+    client: AsyncClient, admin_user, drone_instance, make_token
+):
+    """Removing a drone that a mission points to must detach the mission
+    (drone_instance_id -> null), not block removal or delete the mission."""
+    token = make_token(admin_user.id, admin_user.role)
+    hdrs  = {"Authorization": f"Bearer {token}"}
+
+    mission_resp = await client.post(
+        "/api/flight/missions",
+        json={
+            "name": "Unassign-Test", "mission_type": "ISR",
+            "drone_instance_id": drone_instance["id"], "waypoints": [],
+        },
+        headers=hdrs,
+    )
+    assert mission_resp.status_code == 201, mission_resp.text
+    mission_id = mission_resp.json()["id"]
+
+    resp = await client.delete(f"/api/master/drones/{drone_instance['id']}", headers=hdrs)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["unassigned_missions"] == 1
+
+    mission_after = await client.get(f"/api/flight/missions/{mission_id}", headers=hdrs)
+    assert mission_after.status_code == 200
+    assert mission_after.json()["drone_instance_id"] is None

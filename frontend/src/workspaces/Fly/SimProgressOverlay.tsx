@@ -49,10 +49,14 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
   const stopSim = async () => {
     setStopping(true)
     try {
-      await droneControlApi.simulateStop()
+      await droneControlApi.simulateStop(droneId)
+    } catch {
+      // A 404 here just means the flight already ended on its own (e.g. it
+      // landed and auto-cleaned up) — that's the same end state as a
+      // successful stop, so fall through and refresh/close either way.
+    } finally {
       await useFleetStore.getState().fetchConnections()
       onStopped()
-    } finally {
       setStopping(false)
     }
   }

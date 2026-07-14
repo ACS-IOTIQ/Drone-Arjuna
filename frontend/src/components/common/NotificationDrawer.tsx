@@ -11,6 +11,8 @@ import { X, Bell, BatteryLow, Wifi, Satellite, AlertTriangle, CheckCircle, Info 
 import { useNotificationStore, NotifLevel, notify } from '@/store/notificationStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import { useFleetStore } from '@/store/fleetStore'
+import { useMissionStore, type Mission } from '@/store/missionStore'
+import { isPointInsidePolygon, geoJsonToPolygon } from '@/utils/geofence'
 
 interface Props {
   open:    boolean
@@ -39,13 +41,27 @@ const LEVEL_BORDER: Record<NotifLevel, string> = {
   info:    'rgba(59,130,246,0.15)',
 }
 
+// Missions this drone might be flying, best guess first — used to find
+// which geofence (if any) should currently apply to its live position.
+const STATUS_PRIORITY: Record<string, number> = { executing: 0, approved: 1, planning: 2, completed: 3, aborted: 4 }
+
+function findGeofenceFor(droneId: number, missions: Mission[]) {
+  const candidates = missions
+    .filter(m => m.drone_instance_id === droneId && m.geofence)
+    .sort((a, b) => (STATUS_PRIORITY[a.status] ?? 9) - (STATUS_PRIORITY[b.status] ?? 9) || b.id - a.id)
+  return candidates.length ? geoJsonToPolygon(candidates[0].geofence) : []
+}
+
 export default function NotificationDrawer({ open, onClose }: Props) {
   const { notifications, unreadCount, markAllRead, clear } = useNotificationStore()
   const frames    = useTelemetryStore(s => s.frames)
   const { instances, connections } = useFleetStore()
+  const { missions, fetchMissions } = useMissionStore()
 
   // Track previous values to fire alerts only on threshold crossing
   const prevRef = useRef<Record<number, Record<string, boolean>>>({})
+
+  useEffect(() => { fetchMissions() }, [])
 
   // ── Health threshold watcher ───────────────────────────────
   useEffect(() => {
@@ -94,9 +110,23 @@ export default function NotificationDrawer({ open, onClose }: Props) {
         prev.gpsWarn = false
       }
 
+      // Geofence breach — only checked once the drone has a real fix
+      const hasPosition = frame.lat !== 0 || frame.lon !== 0
+      if (hasPosition) {
+        const polygon = findGeofenceFor(id, missions)
+        const outside = polygon.length >= 3 && !isPointInsidePolygon({ lat: frame.lat, lng: frame.lon }, polygon)
+        if (outside && !prev.geofenceOut) {
+          notify.danger('Geofence breach', `${call} has left its assigned geofence`, id)
+          prev.geofenceOut = true
+        } else if (!outside && prev.geofenceOut) {
+          notify.success('Back inside geofence', `${call} has returned within its assigned zone`, id)
+          prev.geofenceOut = false
+        }
+      }
+
       prevRef.current[id] = prev
     }
-  }, [frames, instances, connections])
+  }, [frames, instances, connections, missions])
 
   // Mark read when drawer opens
   useEffect(() => {

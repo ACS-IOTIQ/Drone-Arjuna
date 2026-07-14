@@ -27,6 +27,36 @@ export interface MissionInput {
   geofence?: object
 }
 
+export interface FleetTarget {
+  id: string
+  lat: number
+  lon: number
+}
+
+export interface FleetAssignInput {
+  drone_instance_ids?: number[]
+  targets: FleetTarget[]
+  qubit_budget?: number
+  use_quantum?: boolean
+}
+
+export interface FleetAssignment {
+  drone_instance_id: number
+  call_sign: string | null
+  target_id: string
+  target_lat: number
+  target_lon: number
+  distance_m: number
+}
+
+export interface FleetAssignResult {
+  solver: string
+  num_subproblems: number
+  total_distance_m: number
+  all_feasible: boolean
+  assignments: FleetAssignment[]
+}
+
 export const droneFlightApi = {
   listMissions:    ()               => api.get('/api/flight/missions'),
   createMission:   (d: MissionInput) => api.post('/api/flight/missions', d),
@@ -35,4 +65,6 @@ export const droneFlightApi = {
   updateStatus:    (id: number, status: string) =>
     api.patch(`/api/flight/missions/${id}/status`, { status }),
   deleteMission:   (id: number)     => api.delete(`/api/flight/missions/${id}`),
+  assignFleet:     (d: FleetAssignInput) =>
+    api.post<FleetAssignResult>('/api/flight/assign-fleet', d),
 }

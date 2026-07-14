@@ -45,6 +45,7 @@ class DroneInstance(Base):
     total_flight_hours: Mapped[float] = mapped_column(Float, default=0.0)
     home_vessel_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class DroneConfigTemplate(Base):

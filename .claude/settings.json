@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X DELETE http://localhost:8000/api/drone-control/simulate/stop -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(curl -s -X DELETE http://localhost:8000/api/flight/missions/1 -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -w ' [status:%{http_code}]')",
+      "Bash(curl -s -X DELETE http://localhost:8000/api/flight/missions/2 -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -w ' [status:%{http_code}]')",
+      "Bash(curl -s -X DELETE http://localhost:8000/api/master/drones/1 -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -w ' [status:%{http_code}]')",
+      "Bash(curl -s -X DELETE http://localhost:8000/api/master/drones/2 -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -w ' [status:%{http_code}]')",
+      "Bash(docker top *)",
+      "Bash(kill -0 5429)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"frontend status: %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"proxy to backend health: %{http_code}\\\\n\" http://localhost:3000/api/health)"
+    ]
+  }
+}

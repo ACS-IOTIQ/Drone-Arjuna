@@ -63,6 +63,7 @@ import app.models.mission  # noqa: F401, E402 — registers Mission, Waypoint
 import app.models.vessel  # noqa: F401, E402 — registers NavalVessel
 import app.models.telemetry  # noqa: F401, E402 — registers telemetry models
 import app.models.payload  # noqa: F401, E402 — registers PayloadType
+import app.models.threat   # noqa: F401, E402 — registers ThreatSystem
 
 pytest_plugins = ("app.tests.testcase_word_report",)
 
@@ -196,6 +197,7 @@ def _mock_audit_logger():
         inst.login_success = AsyncMock()
         inst.login_failed = AsyncMock()
         inst.user_created = AsyncMock()
+        inst.user_password_changed = AsyncMock()
         yield
 
 
@@ -248,10 +250,39 @@ async def admin_user():
     async with _TestSession() as session:
         user = User(
             username="admin_test",
-            email="admin_test@da.local",
+            email="admin_test@example.com",
             hashed_password=hash_password("Admin@1234"),
             full_name="Test Admin",
             role="admin",
+            is_active=True,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        user_id = user.id
+
+    yield user
+
+    async with _TestSession() as session:
+        result = await session.execute(select(User).where(User.id == user_id))
+        u = result.scalar_one_or_none()
+        if u:
+            await session.delete(u)
+            await session.commit()
+
+
+@pytest_asyncio.fixture
+async def mission_commander_user():
+    """A mission_commander User persisted for the duration of a single test."""
+    from app.core.auth import hash_password
+
+    async with _TestSession() as session:
+        user = User(
+            username="mc_test",
+            email="mc_test@example.com",
+            hashed_password=hash_password("MissionCmd@99"),
+            full_name="Test MC",
+            role="mission_commander",
             is_active=True,
         )
         session.add(user)
@@ -277,7 +308,7 @@ async def flight_controller_user():
     async with _TestSession() as session:
         user = User(
             username="fc_test",
-            email="fc_test@da.local",
+            email="fc_test@example.com",
             hashed_password=hash_password("FlightCtrl@99"),
             full_name="Test FC",
             role="flight_controller",
@@ -306,10 +337,39 @@ async def viewer_user():
     async with _TestSession() as session:
         user = User(
             username="viewer_test",
-            email="viewer_test@da.local",
+            email="viewer_test@example.com",
             hashed_password=hash_password("Viewer@9999"),
             full_name="Test Viewer",
             role="viewer",
+            is_active=True,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        user_id = user.id
+
+    yield user
+
+    async with _TestSession() as session:
+        result = await session.execute(select(User).where(User.id == user_id))
+        u = result.scalar_one_or_none()
+        if u:
+            await session.delete(u)
+            await session.commit()
+
+
+@pytest_asyncio.fixture
+async def intelligence_analyst_user():
+    """An intelligence_analyst User persisted for the duration of a single test."""
+    from app.core.auth import hash_password
+
+    async with _TestSession() as session:
+        user = User(
+            username="ia_test",
+            email="ia_test@example.com",
+            hashed_password=hash_password("Analyst@9999"),
+            full_name="Test Analyst",
+            role="intelligence_analyst",
             is_active=True,
         )
         session.add(user)

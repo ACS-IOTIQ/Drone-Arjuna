@@ -1,0 +1,6 @@
+{
+  "fingerprint": "b439831544398b69c2a3cf402fcdaaf07bd4be68aab5d7267108de3aef867d5e",
+  "nodeids": [
+    "app/tests/test_elasticsearch_integration.py::test_elasticsearch_index_search_delete"
+  ]
+}

@@ -3,6 +3,11 @@
 // ═══════════════════════════════════════════
 import { create } from 'zustand'
 import { login as apiLogin, getMe } from '@/api/auth'
+import {
+  getPasswordSetupState,
+  clearPasswordSetupState,
+  setPasswordSetupState,
+} from '@/store/accessRequestStore'
 
 interface AuthState {
   token: string | null
@@ -10,10 +15,18 @@ interface AuthState {
   role: string
   isLoading: boolean
   error: string
+  setupPending: boolean
+  pendingUsername: string | null
+  pendingTempPassword: string | null
+  pendingEmail: string | null
+  pendingMobile: string | null
   login: (u: string, p: string) => Promise<void>
   logout: () => void
   hydrate: () => Promise<void>
+  completePasswordSetup: () => void
 }
+
+const pendingSetup = getPasswordSetupState()
 
 export const useAuthStore = create<AuthState>((set) => ({
   token: localStorage.getItem('da_token'),
@@ -21,13 +34,41 @@ export const useAuthStore = create<AuthState>((set) => ({
   role: 'viewer',
   isLoading: false,
   error: '',
+  setupPending: Boolean(pendingSetup),
+  pendingUsername: pendingSetup?.username ?? null,
+  pendingTempPassword: pendingSetup?.tempPassword ?? null,
+  pendingEmail: pendingSetup?.email ?? null,
+  pendingMobile: pendingSetup?.mobile ?? null,
 
   login: async (username, password) => {
     set({ isLoading: true, error: '' })
     try {
       const res = await apiLogin(username, password)
       localStorage.setItem('da_token', res.access_token)
-      set({ token: res.access_token, role: res.role, isLoading: false })
+
+      const isTemp = Boolean(res.must_change_password)
+      let pendingEmail: string | null = null
+      if (isTemp) {
+        // Fetch user profile to get email for the PasswordSetupScreen greeting
+        try {
+          const me = await getMe()
+          pendingEmail = me.email ?? null
+        } catch { /* non-critical — screen still works without email */ }
+        setPasswordSetupState({ username, tempPassword: password, email: pendingEmail ?? '', mobile: '' })
+      } else {
+        clearPasswordSetupState()
+      }
+
+      set({
+        token: res.access_token,
+        role: res.role,
+        isLoading: false,
+        setupPending: isTemp,
+        pendingUsername: isTemp ? username : null,
+        pendingTempPassword: isTemp ? password : null,
+        pendingEmail,
+        pendingMobile: null,
+      })
     } catch (e: any) {
       const status = e?.response?.status
       const detail = e?.response?.data?.detail
@@ -45,7 +86,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () => {
     localStorage.removeItem('da_token')
-    set({ token: null, user: null, role: 'viewer' })
+    clearPasswordSetupState()
+    set({ token: null, user: null, role: 'viewer', setupPending: false, pendingUsername: null, pendingTempPassword: null, pendingEmail: null, pendingMobile: null })
   },
 
   hydrate: async () => {
@@ -54,7 +96,14 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user, role: user.role })
     } catch {
       localStorage.removeItem('da_token')
-      set({ token: null })
+      clearPasswordSetupState()
+      set({ token: null, setupPending: false, pendingUsername: null, pendingTempPassword: null, pendingEmail: null, pendingMobile: null })
     }
+  },
+
+  completePasswordSetup: () => {
+    clearPasswordSetupState()
+    localStorage.removeItem('da_token')
+    set({ token: null, user: null, role: 'viewer', setupPending: false, pendingUsername: null, pendingTempPassword: null, pendingEmail: null, pendingMobile: null })
   },
 }))

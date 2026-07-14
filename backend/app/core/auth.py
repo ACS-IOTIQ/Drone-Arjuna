@@ -2,6 +2,7 @@
 Full auth.py — adds /register and /users endpoints
 to the existing login + /me routes.
 """
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
@@ -22,12 +23,19 @@ from app.schemas.user import (
     AccessRequestCreate, AccessRequestOut, AcceptBody, RejectBody,
 )
 from app.core.security import PasswordPolicy, AuditLogger
+from app.core.email import send_approval_email
+from pydantic import BaseModel
 
 cfg = get_settings()
 router = APIRouter()
 
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+
+
+class PasswordSetupBody(BaseModel):
+    current_password: str
+    new_password: str
 
 
 # ── Helpers ───────────────────────────────────────────────────────
@@ -85,12 +93,35 @@ async def login(
 
     token = create_access_token({"sub": str(user.id), "role": user.role})
     await AuditLogger(db).login_success(user.id, "unknown")
-    return TokenOut(access_token=token, token_type="bearer", role=user.role)
+    return TokenOut(
+        access_token=token,
+        token_type="bearer",
+        role=user.role,
+        must_change_password=user.must_change_password,
+    )
 
 
 @router.get("/me", response_model=UserOut)
 async def me(current: Annotated[User, Depends(get_current_user)]):
     return current
+
+
+@router.post("/setup-password")
+async def setup_password(
+    body: PasswordSetupBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[User, Depends(get_current_user)],
+):
+    if not verify_password(body.current_password, current.hashed_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    PasswordPolicy.enforce(body.new_password)
+    current.hashed_password = hash_password(body.new_password)
+    current.must_change_password = False
+    db.add(current)
+    await db.commit()
+    await AuditLogger(db).user_password_changed(current.id)
+    return {"message": "Password updated"}
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
@@ -106,9 +137,11 @@ async def register(
     # Enforce password policy before hashing
     PasswordPolicy.enforce(body.password)
 
-    exists = await db.execute(select(User).where(User.username == body.username))
+    exists = await db.execute(
+        select(User).where((User.username == body.username) | (User.email == body.email))
+    )
     if exists.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Username already exists")
+        raise HTTPException(status_code=409, detail="Username or email already exists")
 
     user = User(
         username=body.username,
@@ -116,7 +149,7 @@ async def register(
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
         role=body.role,
-        is_active=True,
+        is_active=body.is_active,
     )
     db.add(user)
     await db.flush()
@@ -199,10 +232,14 @@ async def accept_access_request(
     if req.status != "pending":
         raise HTTPException(status_code=409, detail=f"Request is already {req.status}")
 
-    # Check the username isn't already taken
-    taken = await db.execute(select(User).where(User.username == req.username))
-    if taken.scalar_one_or_none():
+    # Check username and email aren't already taken
+    taken_user = await db.execute(select(User).where(User.username == req.username))
+    if taken_user.scalar_one_or_none():
         raise HTTPException(status_code=409, detail=f"Username '{req.username}' is already registered")
+
+    taken_email = await db.execute(select(User).where(User.email == req.email))
+    if taken_email.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"Email '{req.email}' is already registered to another account")
 
     role = body.role_override or req.requested_role
     temp_pwd = _make_temp_password()
@@ -214,6 +251,7 @@ async def accept_access_request(
         full_name=req.full_name,
         role=role,
         is_active=True,
+        must_change_password=True,
     )
     db.add(user)
     await db.flush()
@@ -226,7 +264,49 @@ async def accept_access_request(
     await db.flush()
     await db.refresh(req)
     await AuditLogger(db).user_created(current.id, user.id, role)
+
+    # Fire approval email — failure is logged but never raises
+    asyncio.create_task(
+        send_approval_email(
+            to_email=req.email,
+            full_name=req.full_name,
+            username=req.username,
+            temp_password=temp_pwd,
+            role=role,
+        )
+    )
+
     return req
+
+
+@router.post("/access-requests/{req_id}/resend-email", status_code=200)
+async def resend_approval_email(
+    req_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[User, Depends(get_current_user)],
+):
+    """Admin only — re-send the approval email for an approved request."""
+    if current.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    req = await db.get(AccessRequest, req_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Access request not found")
+    if req.status != "approved":
+        raise HTTPException(status_code=409, detail="Email can only be resent for approved requests")
+    if not req.temp_password:
+        raise HTTPException(status_code=409, detail="No temporary password on record for this request")
+
+    asyncio.create_task(
+        send_approval_email(
+            to_email=req.email,
+            full_name=req.full_name,
+            username=req.username,
+            temp_password=req.temp_password,
+            role=req.requested_role,
+        )
+    )
+    return {"message": f"Approval email queued for {req.email}"}
 
 
 @router.post("/access-requests/{req_id}/reject", response_model=AccessRequestOut)

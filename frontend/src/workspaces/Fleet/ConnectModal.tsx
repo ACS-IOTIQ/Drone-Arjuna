@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 import { useState, useEffect } from 'react'
 import { X, Radio, ScanLine, Wifi, Usb, Cable, Zap } from 'lucide-react'
-import { droneControlApi, PortInfo } from '@/api/droneControl'
+import { droneControlApi, PortInfo, PortsResponse } from '@/api/droneControl'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 
@@ -29,8 +29,9 @@ interface ConnectionPreset {
 
 const BUILT_IN_PRESETS: ConnectionPreset[] = [
   { id: 'udp-sitl-14550', name: 'SITL UDP 14550', transport: 'udp', host: '0.0.0.0', port: 14550 },
-  { id: 'tcp-sitl-5760', name: 'SITL TCP 5760', transport: 'tcp', host: 'host.docker.internal', port: 5760 },
-  { id: 'serial-usb-57600', name: 'USB Serial 57600', transport: 'serial', serial_port: '/dev/ttyUSB0', baud_rate: 57600 },
+  { id: 'tcp-bridge-5762', name: 'Windows COM Bridge TCP 5762', transport: 'tcp', host: 'host.docker.internal', port: 5762 },
+  { id: 'serial-usb-115200', name: 'Pixhawk USB Direct 115200', transport: 'serial', serial_port: '/dev/ttyUSB0', baud_rate: 115200 },
+  { id: 'serial-radio-57600', name: 'SiK Telemetry Radio 57600', transport: 'serial', serial_port: '/dev/ttyUSB0', baud_rate: 57600 },
   { id: 'hf-harris-serial', name: 'HF Harris Serial', transport: 'hf_serial', serial_port: '/dev/ttyUSB0', baud_rate: 9600, hf_modem_type: 'harris' },
 ]
 
@@ -73,12 +74,18 @@ export default function ConnectModal({ onClose }: Props) {
   ])
 
   // ── Port scan state ────────────────────────────────────────────
-  const [scanning,  setScanning]  = useState(false)
-  const [portList,  setPortList]  = useState<PortInfo[] | null>(null)
-  const [scanErr,   setScanErr]   = useState('')
+  const [scanning,       setScanning]       = useState(false)
+  const [portList,       setPortList]       = useState<PortInfo[] | null>(null)
+  const [bridgeConnected, setBridgeConnected] = useState(false)
+  const [bridgePort,     setBridgePort]     = useState<string | null>(null)
+  const [scanErr,        setScanErr]        = useState('')
 
   const isHF     = HF_TRANSPORTS.includes(transport)
   const isSerial = transport === 'serial' || transport === 'hf_serial'
+
+  useEffect(() => {
+    if (!droneId && instances[0]?.id) setDroneId(instances[0].id)
+  }, [droneId, instances])
 
   const applyPreset = (id: string) => {
     setPresetId(id)
@@ -93,6 +100,7 @@ export default function ConnectModal({ onClose }: Props) {
   }
 
   const connect = async () => {
+    if (!droneId) { setErr('Select a drone before connecting'); return }
     setLoading(true); setErr('')
     try {
       await droneControlApi.connect({
@@ -115,12 +123,19 @@ export default function ConnectModal({ onClose }: Props) {
   }
 
   const scanPorts = async () => {
-    setScanning(true); setScanErr(''); setPortList(null)
+    setScanning(true); setScanErr('')
     try {
       const res = await droneControlApi.ports()
-      setPortList(res.data)
+      const data: PortsResponse = res.data
+      setPortList(data.ports ?? [])
+      setBridgeConnected(data.bridge_connected ?? false)
+      setBridgePort(data.bridge_active_port ?? null)
+      // Auto-fill form with the first ready bridge port so user just clicks Connect
+      const readyPort = (data.ports ?? []).find(p => p.ready)
+      if (readyPort) applyPort(readyPort)
     } catch (e: any) {
       setScanErr(e.response?.data?.detail ?? 'Port scan failed')
+      setPortList([])
     } finally {
       setScanning(false)
     }
@@ -133,6 +148,7 @@ export default function ConnectModal({ onClose }: Props) {
   }, [])
 
   const autoConnect = async () => {
+    if (!droneId) { setErr('Select a drone before auto-connect'); return }
     setAutoConnecting(true); setErr('')
     try {
       await droneControlApi.autoconnect({ drone_instance_id: droneId })
@@ -212,10 +228,19 @@ export default function ConnectModal({ onClose }: Props) {
           <button
             className="text-[10px] px-2 py-1 rounded"
             style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.25)' }}
-            onClick={() => { setTransport('tcp'); setHost('host.docker.internal'); setPort(5760) }}>
-            TCP 5760
+            onClick={() => { setTransport('tcp'); setHost('host.docker.internal'); setPort(5762) }}>
+            TCP 5762
           </button>
         </div>
+
+        {/* ── Bridge status banner ──────────────────────────────── */}
+        {bridgeConnected && bridgePort && (
+          <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded text-xs"
+            style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e' }}>
+            <Cable size={12} />
+            <span>COM bridge ready — <strong>{bridgePort}</strong> forwarded to TCP. Form pre-filled.</span>
+          </div>
+        )}
 
         {/* ── Port scanner ──────────────────────────────────────── */}
         <div className="mb-4 rounded"
@@ -381,14 +406,14 @@ export default function ConnectModal({ onClose }: Props) {
               opacity: loading ? 0.5 : 1,
             }}
             onClick={autoConnect}
-            disabled={loading || autoConnecting}>
+            disabled={loading || autoConnecting || !droneId}>
             <Zap size={14} className={autoConnecting ? 'animate-pulse' : ''} />
             {autoConnecting ? 'Scanning all ports…' : 'Auto Connect'}
           </button>
 
           <div className="flex gap-2">
             <button className="da-btn da-btn-ghost flex-1" onClick={onClose}>Cancel</button>
-            <button className="da-btn da-btn-primary flex-1" onClick={connect} disabled={loading || autoConnecting}>
+            <button className="da-btn da-btn-primary flex-1" onClick={connect} disabled={loading || autoConnecting || !droneId}>
               {loading ? 'Connecting…' : 'Connect'}
             </button>
           </div>

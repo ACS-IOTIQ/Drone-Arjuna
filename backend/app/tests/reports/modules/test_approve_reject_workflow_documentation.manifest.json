@@ -1,0 +1,32 @@
+{
+  "fingerprint": "a51e3c367ff2f2694fd088264453b3adf98526082053509ba75d92b01b18806d",
+  "nodeids": [
+    "app/tests/test_approve_reject_workflow.py::test_ar01_accept_returns_200",
+    "app/tests/test_approve_reject_workflow.py::test_ar02_accept_response_contains_temp_password",
+    "app/tests/test_approve_reject_workflow.py::test_ar03_accept_response_shape_for_frontend_state_merge",
+    "app/tests/test_approve_reject_workflow.py::test_ar04_accepted_user_appears_in_users_list",
+    "app/tests/test_approve_reject_workflow.py::test_ar05_role_override_applied",
+    "app/tests/test_approve_reject_workflow.py::test_ar06_admin_note_persisted_on_accept",
+    "app/tests/test_approve_reject_workflow.py::test_ar07_reject_returns_200",
+    "app/tests/test_approve_reject_workflow.py::test_ar08_reject_response_shape_for_frontend_state_merge",
+    "app/tests/test_approve_reject_workflow.py::test_ar09_reject_does_not_create_user",
+    "app/tests/test_approve_reject_workflow.py::test_ar10_admin_note_persisted_on_reject",
+    "app/tests/test_approve_reject_workflow.py::test_ar11_rejected_row_visible_in_list",
+    "app/tests/test_approve_reject_workflow.py::test_ar12_double_accept_is_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar13_double_reject_is_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar14_accept_after_reject_is_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar15_reject_after_accept_is_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar16_viewer_cannot_accept",
+    "app/tests/test_approve_reject_workflow.py::test_ar17_viewer_cannot_reject",
+    "app/tests/test_approve_reject_workflow.py::test_ar18_unauthenticated_accept_is_401",
+    "app/tests/test_approve_reject_workflow.py::test_ar19_unauthenticated_reject_is_401",
+    "app/tests/test_approve_reject_workflow.py::test_ar20_accept_nonexistent_is_404",
+    "app/tests/test_approve_reject_workflow.py::test_ar21_reject_nonexistent_is_404",
+    "app/tests/test_approve_reject_workflow.py::test_ar22_resend_email_approved_request_200",
+    "app/tests/test_approve_reject_workflow.py::test_ar23_resend_email_pending_request_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar24_resend_email_rejected_request_409",
+    "app/tests/test_approve_reject_workflow.py::test_ar25_resend_email_nonexistent_404",
+    "app/tests/test_approve_reject_workflow.py::test_ar26_resend_email_viewer_403",
+    "app/tests/test_approve_reject_workflow.py::test_ar27_resend_email_unauthenticated_401"
+  ]
+}

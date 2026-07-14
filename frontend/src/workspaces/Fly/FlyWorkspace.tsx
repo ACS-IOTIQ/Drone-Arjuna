@@ -95,7 +95,11 @@ export default function FlyWorkspace() {
 
       {/* ── Main content ── */}
       <div className="flex-1 relative overflow-hidden">
-        <LiveMap droneId={activeDroneId} onSelectDrone={setSelectedDroneId} />
+        <LiveMap
+          droneId={activeDroneId}
+          onSelectDrone={setSelectedDroneId}
+          onManualControlRequest={() => setManualOpen(true)}
+        />
 
         {/* HUD — top-left overlay */}
         {activeDroneId && (

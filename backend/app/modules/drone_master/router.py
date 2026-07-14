@@ -95,6 +95,20 @@ async def remove_drone(did: int, db: DbDep, _: AdminDep):
     return {"detail": "Drone removed", **result}
 
 
+@router.post("/drones/{did}/payload", response_model=DroneInstanceOut)
+async def assign_payload_to_drone(
+    did: int, body: dict, db: DbDep,
+    _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
+):
+    """
+    Attach a payload type to a drone instance, or clear it.
+    Body: {"payload_type_id": <int>} to assign, {"payload_type_id": null} to clear.
+    Requires FLIGHT_CONTROLLER or above.
+    """
+    payload_type_id = body.get("payload_type_id")
+    return await DroneInstanceService(db).assign_payload(did, payload_type_id)
+
+
 @router.get("/drones/{did}/type-spec", response_model=DroneTypeOut)
 async def get_drone_type_spec(did: int, db: DbDep, _: ViewerDep):
     """Returns the full DroneType spec for a given drone instance.

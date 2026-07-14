@@ -1,0 +1,26 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "DroneArjuna Main Database",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "dronearjuna",
+      "Username": "da_admin",
+      "SSLMode": "prefer",
+      "PasswordExecCommand": "echo '2107'",
+      "PasswordExecExpiration": 0
+    },
+    "2": {
+      "Name": "DroneArjuna Telemetry Database",
+      "Group": "Servers",
+      "Host": "timescale",
+      "Port": 5432,
+      "MaintenanceDB": "da_telemetry",
+      "Username": "da_admin",
+      "SSLMode": "prefer",
+      "PasswordExecCommand": "echo '2107'",
+      "PasswordExecExpiration": 0
+    }
+  }
+}

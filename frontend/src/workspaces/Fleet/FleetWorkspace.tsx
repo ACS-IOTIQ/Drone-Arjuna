@@ -1,8 +1,9 @@
 // ═══════════════════════════════════════════
 // FleetWorkspace.tsx
 // ═══════════════════════════════════════════
-import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Anchor, Package } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { droneControlApi } from '@/api/droneControl'
+import { Plus, RefreshCw, Anchor, Package, Cloud, Droplets, Thermometer, Wind, MapPin, CloudRain, Cable } from 'lucide-react'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import { useVesselStore } from '@/store/vesselStore'
@@ -12,6 +13,16 @@ import ConnectModal from './ConnectModal'
 
 const PAYLOAD_CACHE_KEY = 'da_payload_types_fallback'
 const PAYLOAD_ASSIGNMENT_KEY = 'da_payload_assignments'
+const INITIAL_DRONE_LIMIT = 6
+
+interface WeatherSnapshot {
+  temperatureC: number
+  humidity: number
+  rainfallChance: number
+  windSpeedKph: number
+  label: string
+  icon: string
+}
 
 function readCachedPayloads(): PayloadType[] {
   try {
@@ -35,15 +46,58 @@ export default function FleetWorkspace() {
   const { vessels, fetchVessels } = useVesselStore()
   const [showConnect, setShowConnect] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [quickConnecting, setQuickConnecting] = useState(false)
+  const [quickConnectStatus, setQuickConnectStatus] = useState<'idle'|'connecting'|'ok'|'fail'>('idle')
+  const [bridgeReady, setBridgeReady] = useState(false)
+  const [showAllDrones, setShowAllDrones] = useState(false)
   const [payloads, setPayloads] = useState<PayloadType[]>([])
   const [payloadAssignments, setPayloadAssignments] = useState<Record<number, number | null>>({})
   const [payloadErr, setPayloadErr] = useState('')
+  const [weather, setWeather] = useState<WeatherSnapshot | null>(null)
+  const [weatherNote, setWeatherNote] = useState('Checking local weather...')
+  const [weatherLocation, setWeatherLocation] = useState<{ lat: number; lon: number } | null>(null)
 
   const refresh = async () => {
     setRefreshing(true)
-    await Promise.all([fetchInstances(), fetchConnections(), fetchVessels(), fetchPayloads()])
-    setRefreshing(false)
+    try {
+      await Promise.all([fetchInstances(), fetchConnections(), fetchVessels(), fetchPayloads()])
+    } finally {
+      setRefreshing(false)
+    }
   }
+
+  // Poll bridge status every 3s to show Quick Connect button when cable is plugged in
+  useEffect(() => {
+    let active = true
+    const poll = async () => {
+      try {
+        const res = await droneControlApi.ports()
+        if (active) setBridgeReady(res.data.bridge_connected ?? false)
+      } catch {
+        if (active) setBridgeReady(false)
+      }
+    }
+    poll()
+    const id = setInterval(poll, 3000)
+    return () => { active = false; clearInterval(id) }
+  }, [])
+
+  const quickConnect = useCallback(async () => {
+    if (instances.length === 0) return
+    setQuickConnecting(true)
+    setQuickConnectStatus('connecting')
+    try {
+      await droneControlApi.autoconnect({ drone_instance_id: instances[0].id })
+      await fetchConnections()
+      setQuickConnectStatus('ok')
+      setTimeout(() => setQuickConnectStatus('idle'), 3000)
+    } catch {
+      setQuickConnectStatus('fail')
+      setTimeout(() => setQuickConnectStatus('idle'), 4000)
+    } finally {
+      setQuickConnecting(false)
+    }
+  }, [instances, fetchConnections])
 
   const fetchPayloads = async () => {
     setPayloadErr('')
@@ -59,6 +113,71 @@ export default function FleetWorkspace() {
   useEffect(() => {
     setPayloadAssignments(readAssignments())
     refresh()
+  }, [])
+
+
+  useEffect(() => {
+    let active = true
+
+    const mapWeatherCode = (code: number) => {
+      if (code === 0) return { label: 'Clear sky', icon: '☀️' }
+      if (code <= 2) return { label: 'Mostly clear', icon: '🌤️' }
+      if (code === 3) return { label: 'Overcast', icon: '☁️' }
+      if ([45, 48].includes(code)) return { label: 'Fog', icon: '🌫️' }
+      if ([51, 53, 55].includes(code)) return { label: 'Drizzle', icon: '🌦️' }
+      if ([61, 63, 65].includes(code)) return { label: 'Rain', icon: '🌧️' }
+      if ([71, 73, 75].includes(code)) return { label: 'Snow', icon: '❄️' }
+      if ([80, 81, 82].includes(code)) return { label: 'Showers', icon: '🌦️' }
+      if ([95, 96, 99].includes(code)) return { label: 'Storm risk', icon: '⛈️' }
+      return { label: 'Variable', icon: '🌤️' }
+    }
+
+    const fetchWeather = async (lat: number, lon: number) => {
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,relative_humidity_2m,precipitation_probability,wind_speed_10m,weather_code&timezone=auto`
+        const res = await fetch(url)
+        if (!res.ok) throw new Error('Weather unavailable')
+        const data = await res.json()
+        if (!active) return
+        const current = data.current
+        const meta = mapWeatherCode(current.weather_code)
+        setWeather({
+          temperatureC: current.temperature_2m,
+          humidity: current.relative_humidity_2m,
+          rainfallChance: current.precipitation_probability,
+          windSpeedKph: current.wind_speed_10m,
+          label: meta.label,
+          icon: meta.icon,
+        })
+        setWeatherNote('Live weather for your current position')
+      } catch {
+        if (active) {
+          setWeather(null)
+          setWeatherNote('Weather service unavailable right now')
+        }
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const nextLocation = { lat: position.coords.latitude, lon: position.coords.longitude }
+          setWeatherLocation(nextLocation)
+          void fetchWeather(nextLocation.lat, nextLocation.lon)
+        },
+        () => {
+          if (active) {
+            setWeatherLocation(null)
+            setWeatherNote('Enable location to view live weather')
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000 },
+      )
+    } else {
+      setWeatherNote('Location unavailable in this browser')
+    }
+
+    return () => { active = false }
   }, [])
 
   // Subscribe to telemetry for connected drones
@@ -98,14 +217,75 @@ export default function FleetWorkspace() {
             {instances.length} registered · {Object.values(connections).filter(Boolean).length} connected
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={refresh} className="da-btn da-btn-ghost">
             <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
             Refresh
           </button>
+
+          {/* Quick Connect — visible when com_bridge has a cable plugged in */}
+          {bridgeReady && (
+            <button
+              onClick={quickConnect}
+              disabled={quickConnecting || Object.values(connections).some(c => c?.connected)}
+              className="da-btn"
+              style={{
+                background: quickConnectStatus === 'ok'   ? 'rgba(34,197,94,0.15)'  :
+                            quickConnectStatus === 'fail' ? 'rgba(239,68,68,0.15)'  :
+                                                           'rgba(34,197,94,0.1)',
+                color:      quickConnectStatus === 'ok'   ? '#22c55e' :
+                            quickConnectStatus === 'fail' ? '#ef4444' :
+                                                           '#22c55e',
+                border:     '1px solid rgba(34,197,94,0.3)',
+              }}
+            >
+              <Cable size={14} className={quickConnecting ? 'animate-pulse' : ''} />
+              {quickConnectStatus === 'connecting' ? 'Connecting…' :
+               quickConnectStatus === 'ok'         ? 'Connected!' :
+               quickConnectStatus === 'fail'       ? 'Failed — retry' :
+                                                     'Quick Connect (Cable)'}
+            </button>
+          )}
+
           <button onClick={() => setShowConnect(true)} className="da-btn da-btn-primary">
             <Plus size={14} /> Connect Drone
           </button>
+        </div>
+      </div>
+
+      {/* Local weather card */}
+      <div className="mb-4 rounded-lg border border-sky-200 bg-slate-900 px-3 py-2 text-white shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-[210px] items-center gap-2">
+            <Cloud size={14} className="text-sky-200" />
+            <div className="text-2xl font-semibold leading-none">
+              {weather ? `${weather.temperatureC.toFixed(0)}C` : '--'}
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-xs font-semibold text-slate-100">
+                {weather ? `${weather.icon} ${weather.label}` : 'Checking local conditions'}
+              </div>
+              <div className="flex items-center gap-1 truncate text-[10px] text-slate-300">
+                <MapPin size={10} />
+                {weatherLocation ? `${weatherLocation.lat.toFixed(2)}, ${weatherLocation.lon.toFixed(2)}` : weatherNote}
+              </div>
+            </div>
+          </div>
+          <div className="grid flex-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Rain', value: weather ? `${weather.rainfallChance}%` : '--', icon: <CloudRain size={12} /> },
+              { label: 'Humidity', value: weather ? `${weather.humidity}%` : '--', icon: <Droplets size={12} /> },
+              { label: 'Wind', value: weather ? `${weather.windSpeedKph.toFixed(0)} kph` : '--', icon: <Wind size={12} /> },
+              { label: 'Feels', value: weather ? `${(weather.temperatureC + 1.5).toFixed(0)}C` : '--', icon: <Thermometer size={12} /> },
+            ].map(item => (
+              <div key={item.label} className="rounded border border-white/10 bg-white/10 px-2 py-1">
+                <div className="flex items-center gap-1.5 text-[9px] uppercase text-slate-300">
+                  {item.icon} <span className="truncate">{item.label}</span>
+                </div>
+                <div className="text-xs font-semibold text-white">{item.value}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -214,22 +394,37 @@ export default function FleetWorkspace() {
           <p className="text-sm">No drones registered. Add one in Settings → Master Data.</p>
         </div>
       ) : (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-          {instances.map(d => (
-            <DroneCard
-              key={d.id}
-              drone={d}
-              connected={!!connections[d.id]?.connected}
-              homeVessel={d.home_vessel_id != null ? vesselById[d.home_vessel_id] : undefined}
-              connectionInfo={connections[d.id]}
-              payloadName={
-                payloadAssignments[d.id] && payloadById[payloadAssignments[d.id]!]
-                  ? payloadById[payloadAssignments[d.id]!]!.name
-                  : undefined
-              }
-            />
-          ))}
-        </div>
+        <>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">
+              Showing {showAllDrones ? instances.length : Math.min(INITIAL_DRONE_LIMIT, instances.length)} of {instances.length} drones
+            </p>
+            {instances.length > INITIAL_DRONE_LIMIT && (
+              <button
+                onClick={() => setShowAllDrones(v => !v)}
+                className="da-btn da-btn-ghost text-xs"
+              >
+                {showAllDrones ? 'Show less' : 'Show all'}
+              </button>
+            )}
+          </div>
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+            {instances.slice(0, showAllDrones ? instances.length : INITIAL_DRONE_LIMIT).map(d => (
+              <DroneCard
+                key={d.id}
+                drone={d}
+                connected={!!connections[d.id]?.connected}
+                homeVessel={d.home_vessel_id != null ? vesselById[d.home_vessel_id] : undefined}
+                connectionInfo={connections[d.id]}
+                payloadName={
+                  payloadAssignments[d.id] && payloadById[payloadAssignments[d.id]!]
+                    ? payloadById[payloadAssignments[d.id]!]!.name
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {showConnect && <ConnectModal onClose={() => setShowConnect(false)} />}

@@ -9,6 +9,7 @@ class UserCreate(BaseModel):
     password: str
     full_name: str = ""
     role: str = "viewer"
+    is_active: bool = True
 
     @field_validator("role")
     @classmethod
@@ -49,6 +50,7 @@ class TokenOut(BaseModel):
     access_token: str
     token_type: str
     role: str
+    must_change_password: bool = False
 
 
 class TokenPayload(BaseModel):

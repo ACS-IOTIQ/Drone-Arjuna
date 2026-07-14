@@ -173,6 +173,8 @@ export class RobustWebSocket {
   private onCloseCallback: (() => void) | null = null
   private onErrorCallback: ((error: Event) => void) | null = null
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private shouldReconnect = true
   private channelId: string
 
   constructor(url: string, channelId: string) {
@@ -183,6 +185,8 @@ export class RobustWebSocket {
 
   connect() {
     try {
+      if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return
+      this.shouldReconnect = true
       useConnectionHealthStore.getState().updateChannelStatus(this.channelId, 'connecting')
       this.ws = new WebSocket(this.url)
 
@@ -205,7 +209,7 @@ export class RobustWebSocket {
         this.stopHeartbeat()
         useConnectionHealthStore.getState().updateChannelStatus(this.channelId, 'disconnected')
         this.onCloseCallback?.()
-        this.attemptReconnect()
+        if (this.shouldReconnect) this.attemptReconnect()
       }
 
       this.ws.onerror = (event) => {
@@ -218,11 +222,15 @@ export class RobustWebSocket {
   }
 
   private attemptReconnect() {
+    if (!this.shouldReconnect || this.reconnectTimer) return
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++
       useConnectionHealthStore.getState().retryConnection(this.channelId)
       const delay = this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1)
-      setTimeout(() => this.connect(), delay)
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null
+        this.connect()
+      }, delay)
     }
   }
 
@@ -236,6 +244,7 @@ export class RobustWebSocket {
 
   private stopHeartbeat() {
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval)
+    this.heartbeatInterval = null
   }
 
   send(data: string) {
@@ -265,6 +274,11 @@ export class RobustWebSocket {
   }
 
   close() {
+    this.shouldReconnect = false
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
     this.stopHeartbeat()
     if (this.ws) this.ws.close()
   }

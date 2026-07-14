@@ -52,7 +52,9 @@ class HealthMonitor:
             self._clear_fired(drone_id, "battery_rtl")
 
         # ── Battery warning ─────────────────────────────────────────
-        if batt >= 0 and batt <= BATTERY_WARN_PCT:
+        # Only fire when in warning range (RTL threshold < batt <= warn threshold).
+        # At or below RTL threshold, the RTL path owns alerting.
+        if batt >= 0 and BATTERY_RTL_PCT < batt <= BATTERY_WARN_PCT:
             if not self._has_fired(drone_id, "battery_warn"):
                 log.warning("Battery low", drone_id=drone_id, pct=batt)
                 await emit_health_alert(drone_id, "battery_warn", batt)

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Mail, Phone, Plus, Save, UserCheck, UserX, X } from 'lucide-react'
 import { api } from '@/api/client'
-import { requestMailto, requestSms } from '@/store/accessRequestStore'
+import {
+  requestMailto,
+  requestSms,
+} from '@/store/accessRequestStore'
 import { notify } from '@/store/notificationStore'
 
 interface AccessRequestOut {
@@ -96,12 +99,15 @@ export function UserManager() {
 
   const approveRequest = async (req: AccessRequestOut) => {
     setRequestErr('')
+    setApprovingId(req.id)
     try {
-      setApprovingId(req.id)
-      await api.post(`/api/auth/access-requests/${req.id}/accept`, {})
-      notify.success('Access approved', `${req.username} account created`)
+      const { data } = await api.post(
+        `/api/auth/access-requests/${req.id}/accept`,
+        { admin_note: null, role_override: null },
+      )
+      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, ...data } : r))
       await loadUsers()
-      await loadRequests()
+      notify.success('Access approved', `${req.username} account created`)
     } catch (e: any) {
       setRequestErr(e.response?.data?.detail ?? 'Approval failed. Confirm you are logged in as admin.')
     } finally {
@@ -110,10 +116,14 @@ export function UserManager() {
   }
 
   const rejectRequest = async (req: AccessRequestOut) => {
+    setRequestErr('')
     try {
-      await api.post(`/api/auth/access-requests/${req.id}/reject`, {})
+      const { data } = await api.post(
+        `/api/auth/access-requests/${req.id}/reject`,
+        { admin_note: 'Request rejected by administrator.' },
+      )
+      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, ...data } : r))
       notify.warning('Access rejected', `${req.username} request rejected`)
-      await loadRequests()
     } catch (e: any) {
       setRequestErr(e.response?.data?.detail ?? 'Reject failed.')
     }
@@ -174,9 +184,26 @@ export function UserManager() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                  <a className="da-btn da-btn-ghost text-xs" href={requestMailto(req as any)}>
-                    <Mail size={13} /> Email
-                  </a>
+                  {req.status === 'approved' ? (
+                    <button
+                      type="button"
+                      className="da-btn da-btn-ghost text-xs"
+                      onClick={async () => {
+                        try {
+                          await api.post(`/api/auth/access-requests/${req.id}/resend-email`)
+                          notify.success('Email sent', `Approval email resent to ${req.email}`)
+                        } catch (e: any) {
+                          notify.danger('Email failed', e?.response?.data?.detail ?? 'Could not send email')
+                        }
+                      }}
+                    >
+                      <Mail size={13} /> Email
+                    </button>
+                  ) : (
+                    <a className="da-btn da-btn-ghost text-xs" href={requestMailto(req as any)}>
+                      <Mail size={13} /> Email
+                    </a>
+                  )}
                   {req.mobile && (
                     <a className="da-btn da-btn-ghost text-xs" href={requestSms(req as any)}>
                       <Phone size={13} /> SMS

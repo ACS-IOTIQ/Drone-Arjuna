@@ -1,0 +1,30 @@
+{
+  "fingerprint": "76fec0ab408269f0c57c126d2508effcc83084ae447e6337fb014c75df1aeb21",
+  "nodeids": [
+    "app/tests/test_threat_system_api.py::test_create_threat_201",
+    "app/tests/test_threat_system_api.py::test_create_threat_default_classification",
+    "app/tests/test_threat_system_api.py::test_create_threat_duplicate_name_409",
+    "app/tests/test_threat_system_api.py::test_create_threat_invalid_category_422",
+    "app/tests/test_threat_system_api.py::test_delete_threat_system_204",
+    "app/tests/test_threat_system_api.py::test_delete_threat_system_not_found_404",
+    "app/tests/test_threat_system_api.py::test_get_threat_system_200",
+    "app/tests/test_threat_system_api.py::test_get_threat_system_not_found_404",
+    "app/tests/test_threat_system_api.py::test_list_threat_systems_200",
+    "app/tests/test_threat_system_api.py::test_list_threats_filter_category",
+    "app/tests/test_threat_system_api.py::test_list_threats_filter_country",
+    "app/tests/test_threat_system_api.py::test_mission_commander_can_list_threat_systems",
+    "app/tests/test_threat_system_api.py::test_patch_notes_admin_200",
+    "app/tests/test_threat_system_api.py::test_patch_notes_analyst_200",
+    "app/tests/test_threat_system_api.py::test_patch_notes_not_found_404",
+    "app/tests/test_threat_system_api.py::test_patch_notes_viewer_403",
+    "app/tests/test_threat_system_api.py::test_threat_all_fields_persisted",
+    "app/tests/test_threat_system_api.py::test_threat_systems_unauthenticated_401",
+    "app/tests/test_threat_system_api.py::test_update_threat_classification_200",
+    "app/tests/test_threat_system_api.py::test_update_threat_not_found_404",
+    "app/tests/test_threat_system_api.py::test_update_threat_notes_200",
+    "app/tests/test_threat_system_api.py::test_viewer_blocked_from_create_threat_403",
+    "app/tests/test_threat_system_api.py::test_viewer_blocked_from_delete_threat_403",
+    "app/tests/test_threat_system_api.py::test_viewer_blocked_from_list_threat_systems_403",
+    "app/tests/test_threat_system_api.py::test_viewer_blocked_from_update_threat_403"
+  ]
+}

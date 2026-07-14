@@ -58,7 +58,8 @@ async def test_ports_viewer_is_200(client: AsyncClient, viewer_user, make_token)
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
-    ports = resp.json()
+    body = resp.json()
+    ports = body["ports"]
     assert isinstance(ports, list)
     # Hardcoded network endpoints are always present
     types = {p["type"] for p in ports}

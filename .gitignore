@@ -51,3 +51,8 @@ Thumbs.db
 
 # Local assistant/tooling state
 .claude/settings.local.json
+
+# Ad-hoc debugging scratch output
+backend_log_tmp*.txt
+backend_check_final.txt
+*_check.txt

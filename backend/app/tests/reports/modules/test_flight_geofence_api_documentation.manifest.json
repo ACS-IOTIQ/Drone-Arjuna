@@ -1,0 +1,13 @@
+{
+  "fingerprint": "8087e1ebe9756145085b775b9bc6b5768156a44f1fb71f281a572b9e56007707",
+  "nodeids": [
+    "app/tests/test_flight_geofence_api.py::test_all_waypoints_inside_geofence_passes",
+    "app/tests/test_flight_geofence_api.py::test_geofence_error_contains_sequence_and_coords",
+    "app/tests/test_flight_geofence_api.py::test_home_waypoint_outside_geofence_caught",
+    "app/tests/test_flight_geofence_api.py::test_malformed_geofence_warns_and_skips",
+    "app/tests/test_flight_geofence_api.py::test_multiple_waypoints_outside_all_reported",
+    "app/tests/test_flight_geofence_api.py::test_no_geofence_check_skipped",
+    "app/tests/test_flight_geofence_api.py::test_upload_with_geofence_violation_returns_422",
+    "app/tests/test_flight_geofence_api.py::test_waypoint_outside_geofence_returns_error"
+  ]
+}

@@ -6,3 +6,4 @@ from app.models.drone    import DroneType, DroneInstance, DroneConfigTemplate  #
 from app.models.mission  import Mission, Waypoint         # noqa: F401
 from app.models.vessel   import NavalVessel               # noqa: F401
 from app.models.payload  import PayloadType               # noqa: F401
+from app.models.threat   import ThreatSystem              # noqa: F401

@@ -49,6 +49,21 @@ class Settings(BaseSettings):
     # SITL and would collide with an external GCS trying to listen there too.
     mavlink_broadcast_port: int = 14560
 
+    # Vessel NMEA feed
+    hf_feed_host: str = "0.0.0.0"
+    hf_feed_port: int = 10110
+
+    # Elasticsearch
+    elasticsearch_url: str = "http://localhost:9200"
+
+    # SMTP — email notifications
+    smtp_enabled: bool = False
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "DroneArjuna GCS <noreply@dronearjuna.local>"
+
 
 @lru_cache
 def get_settings() -> Settings:

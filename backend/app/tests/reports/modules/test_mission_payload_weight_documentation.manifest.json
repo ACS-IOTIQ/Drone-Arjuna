@@ -1,0 +1,26 @@
+{
+  "fingerprint": "3c0f275aac582125f885fd28ae5372a3df8fa78d6b1e4df0dc664bd4019b5e98",
+  "nodeids": [
+    "app/tests/test_mission_payload_weight.py::test_mission_summary_no_waypoints_400",
+    "app/tests/test_mission_payload_weight.py::test_mission_summary_returns_estimates",
+    "app/tests/test_mission_payload_weight.py::test_negative_payload_weight_422",
+    "app/tests/test_mission_payload_weight.py::test_no_payload_declared_no_error",
+    "app/tests/test_mission_payload_weight.py::test_patch_mission_status",
+    "app/tests/test_mission_payload_weight.py::test_patch_mission_status_not_found_404",
+    "app/tests/test_mission_payload_weight.py::test_patch_mission_status_viewer_403",
+    "app/tests/test_mission_payload_weight.py::test_payload_at_exact_limit_valid",
+    "app/tests/test_mission_payload_weight.py::test_payload_check_skipped_without_drone",
+    "app/tests/test_mission_payload_weight.py::test_payload_error_message_contains_weights",
+    "app/tests/test_mission_payload_weight.py::test_payload_exceeds_limit_invalid",
+    "app/tests/test_mission_payload_weight.py::test_payload_under_limit_valid",
+    "app/tests/test_mission_payload_weight.py::test_payload_weight_persisted_and_returned",
+    "app/tests/test_mission_payload_weight.py::test_payload_within_10pct_margin_warns",
+    "app/tests/test_mission_payload_weight.py::test_simulate_mission_no_waypoints_400",
+    "app/tests/test_mission_payload_weight.py::test_simulate_mission_returns_frames",
+    "app/tests/test_mission_payload_weight.py::test_survey_grid_generates_waypoints",
+    "app/tests/test_mission_payload_weight.py::test_survey_grid_missing_polygon_400",
+    "app/tests/test_mission_payload_weight.py::test_upload_mission_no_drone_400",
+    "app/tests/test_mission_payload_weight.py::test_upload_mission_not_found_404",
+    "app/tests/test_mission_payload_weight.py::test_upload_mission_viewer_403"
+  ]
+}

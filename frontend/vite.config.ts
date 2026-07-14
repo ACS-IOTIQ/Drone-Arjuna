@@ -14,7 +14,10 @@ export default defineConfig({
     port: 3000,
     strictPort: false,
     allowedHosts: 'all',
-    watch: { usePolling: true, interval: 300 },
+    watch: {
+      usePolling: true,   // required for hot reload on Windows Docker volume mounts (DEF-07)
+      interval: 300,
+    },
     proxy: {
       '/api': { target: apiProxyTarget, changeOrigin: true, ws: true },
     },

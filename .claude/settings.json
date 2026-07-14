@@ -10,7 +10,9 @@
       "Bash(kill -0 5429)",
       "Read(//tmp/**)",
       "Bash(curl -s -o /dev/null -w \"frontend status: %{http_code}\\\\n\" http://localhost:3000/)",
-      "Bash(curl -s -o /dev/null -w \"proxy to backend health: %{http_code}\\\\n\" http://localhost:3000/api/health)"
+      "Bash(curl -s -o /dev/null -w \"proxy to backend health: %{http_code}\\\\n\" http://localhost:3000/api/health)",
+      "Bash(git commit -m ' *)",
+      "Bash(git pull *)"
     ]
   }
 }

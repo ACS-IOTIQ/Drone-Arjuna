@@ -20,6 +20,7 @@ Covers:
 """
 import pytest_asyncio
 from httpx import AsyncClient
+from unittest.mock import patch
 
 
 _DT_BODY = {
@@ -121,15 +122,46 @@ async def test_list_ports_viewer_200(client: AsyncClient, viewer_user, make_toke
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    body = resp.json()
+    assert "ports" in body
+    ports = body["ports"]
+    assert isinstance(ports, list)
     # Network ports are always included
-    port_strings = [p["port"] for p in resp.json()]
+    port_strings = [p["port"] for p in ports]
     assert any("14550" in p for p in port_strings)
 
 
 async def test_list_ports_unauthenticated_401(client: AsyncClient):
     resp = await client.get("/api/drone-control/ports")
     assert resp.status_code == 401
+
+
+async def test_list_ports_includes_connected_windows_bridge(
+    client: AsyncClient, viewer_user, make_token
+):
+    token = make_token(viewer_user.id, viewer_user.role)
+    bridge = {
+        "connected": True,
+        "active_port": "COM7",
+        "description": "ArduPilot Mega",
+        "baud": 115200,
+        "tcp_port": 5760,
+        "ports": [],
+    }
+    with patch(
+        "app.modules.drone_control.router._host_bridge_status",
+        return_value=bridge,
+    ):
+        resp = await client.get(
+            "/api/drone-control/ports",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["bridge_connected"] is True
+    assert body["bridge_active_port"] == "COM7"
+    assert isinstance(body["ports"], list)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -196,13 +228,22 @@ async def test_autoconnect_no_sitl_503(
     client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """Autoconnect with a valid drone but no SITL running must return 503."""
+    from unittest.mock import AsyncMock, patch
+    from app.modules.drone_control.mavlink_manager import mavlink_manager
+
     token = make_token(flight_controller_user.id, flight_controller_user.role)
-    resp  = await client.post(
-        "/api/drone-control/autoconnect",
-        json={"drone_instance_id": drone_instance["id"]},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    # No SITL in test environment — expect 503
+
+    # Force all connection attempts to fail regardless of host environment
+    async def _fail(*args, **kwargs):
+        return False
+
+    with patch.object(mavlink_manager, "connect", new=AsyncMock(return_value=False)):
+        resp = await client.post(
+            "/api/drone-control/autoconnect",
+            json={"drone_instance_id": drone_instance["id"]},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    # All ports failed — expect 503
     assert resp.status_code == 503
 
 
@@ -216,6 +257,38 @@ async def test_autoconnect_viewer_403(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
+
+
+async def test_autoconnect_already_connected_409(
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
+):
+    """
+    If the drone already has a live entry in mavlink_manager._connections,
+    autoconnect must return 409 Conflict.
+
+    We inject a fake connected DroneConnection directly into the manager's
+    internal dict to simulate an already-connected drone, bypassing the
+    need for a real MAVLink session.
+    """
+    from unittest.mock import MagicMock
+    from app.modules.drone_control.mavlink_manager import mavlink_manager
+
+    did = drone_instance["id"]
+    fake_conn = MagicMock()
+    fake_conn.connected = True
+
+    mavlink_manager._connections[did] = fake_conn
+    try:
+        token = make_token(flight_controller_user.id, flight_controller_user.role)
+        resp  = await client.post(
+            "/api/drone-control/autoconnect",
+            json={"drone_instance_id": did},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 409
+        assert "already connected" in resp.json()["detail"].lower()
+    finally:
+        mavlink_manager._connections.pop(did, None)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -561,3 +634,188 @@ def test_ws_stream_accepts_connection():
                 pass
     finally:
         app.router.lifespan_context = original_lifespan
+
+
+# ══════════════════════════════════════════════════════════════════════
+# POST /api/drone-control/connect — additional scenarios
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_connect_no_heartbeat_returns_503(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """
+    POST /connect with a UDP port where no MAVLink device is listening
+    must return 503 (connect() returns False → heartbeat timed out).
+    """
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp  = await client.post(
+        "/api/drone-control/connect",
+        json={
+            "drone_instance_id": 1,
+            "transport":         "udp",
+            "host":              "127.0.0.1",
+            "port":              19999,   # nothing listening here in test env
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 503
+
+
+async def test_connect_unauthenticated_401(client: AsyncClient):
+    """No token → 401 before the MAVLink attempt is even made."""
+    resp = await client.post(
+        "/api/drone-control/connect",
+        json={"drone_instance_id": 1, "transport": "udp", "port": 14550},
+    )
+    assert resp.status_code == 401
+
+
+# ══════════════════════════════════════════════════════════════════════
+# POST /api/drone-control/disconnect/{drone_id} — additional scenarios
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_disconnect_not_connected_returns_200(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """
+    Disconnecting a drone that is not connected must not raise —
+    mavlink_manager.disconnect() is a no-op for unknown IDs, returns 200.
+    """
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp  = await client.post(
+        "/api/drone-control/disconnect/99999",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert "detail" in resp.json()
+
+
+async def test_disconnect_unauthenticated_401(client: AsyncClient):
+    """No token → 401."""
+    resp = await client.post("/api/drone-control/disconnect/1")
+    assert resp.status_code == 401
+
+
+# ══════════════════════════════════════════════════════════════════════
+# POST /api/drone-control/drones/{drone_id}/geofence
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_drone_geofence_set_200(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Valid Polygon GeoJSON → 200 with geofence-set detail."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    polygon = {
+        "type": "Polygon",
+        "coordinates": [[
+            [77.58, 12.97],
+            [77.60, 12.97],
+            [77.60, 12.99],
+            [77.58, 12.99],
+            [77.58, 12.97],
+        ]],
+    }
+    resp = await client.post(
+        "/api/drone-control/drones/1/geofence",
+        json={"geofence": polygon},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["active"] is True
+    assert body["drone_id"] == 1
+
+
+async def test_drone_geofence_clear_200(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """geofence: null clears the fence → 200 with 'Geofence cleared'."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp = await client.post(
+        "/api/drone-control/drones/1/geofence",
+        json={"geofence": None},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert "cleared" in resp.json()["detail"].lower()
+
+
+async def test_drone_geofence_invalid_geometry_422(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """GeoJSON of wrong type (Point) → 422 from geofence_store.set_geofence."""
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp = await client.post(
+        "/api/drone-control/drones/1/geofence",
+        json={"geofence": {"type": "Point", "coordinates": [77.59, 12.98]}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_drone_geofence_viewer_403(
+    client: AsyncClient, viewer_user, make_token
+):
+    """VIEWER cannot set geofence → 403."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp = await client.post(
+        "/api/drone-control/drones/1/geofence",
+        json={"geofence": None},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_drone_geofence_unauthenticated_401(client: AsyncClient):
+    """No token → 401."""
+    resp = await client.post(
+        "/api/drone-control/drones/1/geofence",
+        json={"geofence": None},
+    )
+    assert resp.status_code == 401
+
+
+# ══════════════════════════════════════════════════════════════════════
+# simulate/stop and simulate/status — missing 401 cases
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_simulate_stop_unauthenticated_401(client: AsyncClient):
+    """No token on DELETE /simulate/stop → 401."""
+    resp = await client.delete("/api/drone-control/simulate/stop")
+    assert resp.status_code == 401
+
+
+async def test_simulate_status_unauthenticated_401(client: AsyncClient):
+    """No token on GET /simulate/status → 401."""
+    resp = await client.get("/api/drone-control/simulate/status")
+    assert resp.status_code == 401
+
+
+# ══════════════════════════════════════════════════════════════════════
+# POST /simulate/start — 409 simulation already running
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_simulate_start_already_running_409(
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
+):
+    """
+    Starting a second simulation while one is active must return 409.
+    We mock mission_simulator.active = True to skip needing a real running sim.
+    """
+    from unittest.mock import patch
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+
+    with patch(
+        "app.modules.drone_control.router.mission_simulator"
+    ) as mock_sim:
+        mock_sim.active = True
+        resp = await client.post(
+            "/api/drone-control/simulate/start",
+            json={
+                "mission_id":        1,
+                "drone_instance_id": drone_instance["id"],
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 409

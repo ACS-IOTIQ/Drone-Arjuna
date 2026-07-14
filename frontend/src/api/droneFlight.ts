@@ -62,6 +62,8 @@ export const droneFlightApi = {
   createMission:   (d: MissionInput) => api.post('/api/flight/missions', d),
   getMission:      (id: number)     => api.get(`/api/flight/missions/${id}`),
   getMissionSummary: (id: number)   => api.get(`/api/flight/missions/${id}/summary`),
+  updateMission:   (id: number, d: Partial<MissionInput>) =>
+    api.patch(`/api/flight/missions/${id}`, d),
   updateStatus:    (id: number, status: string) =>
     api.patch(`/api/flight/missions/${id}/status`, { status }),
   deleteMission:   (id: number)     => api.delete(`/api/flight/missions/${id}`),

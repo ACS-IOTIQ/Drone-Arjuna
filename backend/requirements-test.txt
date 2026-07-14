@@ -9,5 +9,8 @@ anyio[asyncio]>=4.0       # async backend for httpx + pytest-asyncio
 # SQLite async driver (replaces PostgreSQL for unit tests)
 aiosqlite>=0.20.0
 
+# Infrastructure/search config tests import app.core.search.
+elasticsearch[async]>=8.12.0
+
 # httpx is already in requirements.txt (0.27.0) — listed here for clarity
 # httpx>=0.27.0

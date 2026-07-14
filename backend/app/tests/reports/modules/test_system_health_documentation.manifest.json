@@ -1,0 +1,8 @@
+{
+  "fingerprint": "ad311fedb8cde9cfe1b57a83c8626e5ede2be8e886390c3cd4be7ef9aaf3e9e9",
+  "nodeids": [
+    "app/tests/test_system_health.py::test_health_200_unauthenticated",
+    "app/tests/test_system_health.py::test_health_returns_status_ok",
+    "app/tests/test_system_health.py::test_health_returns_version"
+  ]
+}

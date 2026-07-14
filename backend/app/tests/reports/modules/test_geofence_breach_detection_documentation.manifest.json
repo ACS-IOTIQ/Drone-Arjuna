@@ -1,0 +1,22 @@
+{
+  "fingerprint": "78fe8ba1bb0b06a68553afe350433fd27485a78886e10db61bf8a6c9f373e93a",
+  "nodeids": [
+    "app/tests/test_geofence_breach_detection.py::TestGeofenceStore::test_clear_fence",
+    "app/tests/test_geofence_breach_detection.py::TestGeofenceStore::test_independent_fences_per_drone",
+    "app/tests/test_geofence_breach_detection.py::TestGeofenceStore::test_invalid_geojson_returns_false_and_does_not_crash",
+    "app/tests/test_geofence_breach_detection.py::TestGeofenceStore::test_no_fence_returns_none",
+    "app/tests/test_geofence_breach_detection.py::TestGeofenceStore::test_set_fence_then_inside",
+    "app/tests/test_geofence_breach_detection.py::TestGeofenceStore::test_set_fence_then_outside",
+    "app/tests/test_geofence_breach_detection.py::TestGeofenceStore::test_set_none_clears_fence",
+    "app/tests/test_geofence_breach_detection.py::TestTelemetryProcessorBreachDetection::test_breach_is_edge_triggered_not_repeated",
+    "app/tests/test_geofence_breach_detection.py::TestTelemetryProcessorBreachDetection::test_breach_triggers_state_update_and_publishes_event",
+    "app/tests/test_geofence_breach_detection.py::TestTelemetryProcessorBreachDetection::test_no_event_when_inside",
+    "app/tests/test_geofence_breach_detection.py::TestTelemetryProcessorBreachDetection::test_no_fence_no_events",
+    "app/tests/test_geofence_breach_detection.py::TestTelemetryProcessorBreachDetection::test_recovery_clears_breach_flag",
+    "app/tests/test_geofence_breach_detection.py::test_clear_geofence_endpoint_200",
+    "app/tests/test_geofence_breach_detection.py::test_invalid_geofence_returns_422",
+    "app/tests/test_geofence_breach_detection.py::test_set_geofence_endpoint_200",
+    "app/tests/test_geofence_breach_detection.py::test_set_geofence_requires_flight_controller",
+    "app/tests/test_geofence_breach_detection.py::test_set_geofence_unauthenticated_401"
+  ]
+}

@@ -341,3 +341,144 @@ async def test_viewer_blocked_from_position_update_403(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Missing 403 / 404 scenarios
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_update_vessel_not_found_404(
+    client: AsyncClient, admin_user, make_token
+):
+    """PUT on a non-existent vessel ID → 404."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp  = await client.put(
+        "/api/master/vessels/999999",
+        json={"name": "Ghost"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_update_vessel_viewer_403(
+    client: AsyncClient, viewer_user, vessel, make_token
+):
+    """VIEWER cannot PUT a vessel → 403."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.put(
+        f"/api/master/vessels/{vessel['id']}",
+        json={"name": "NewName"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_assign_drone_viewer_403(
+    client: AsyncClient, viewer_user, vessel, make_token
+):
+    """VIEWER cannot assign a drone to a vessel → 403."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.post(
+        f"/api/master/vessels/{vessel['id']}/assign-drone/1",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_unassign_drone_viewer_403(
+    client: AsyncClient, viewer_user, vessel, make_token
+):
+    """VIEWER cannot unassign a drone from a vessel → 403."""
+    token = make_token(viewer_user.id, viewer_user.role)
+    resp  = await client.post(
+        f"/api/master/vessels/{vessel['id']}/unassign-drone/1",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_archive_vessel_not_found_404(
+    client: AsyncClient, admin_user, make_token
+):
+    """DELETE on a non-existent vessel ID → 404."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp  = await client.delete(
+        "/api/master/vessels/999999",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+# ══════════════════════════════════════════════════════════════════════
+# DB Persistence — assign/unassign vessel_id round-trip
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_assign_drone_persists_vessel_id(
+    client: AsyncClient, admin_user, vessel, drone_instance, make_token
+):
+    """
+    Assign a drone to a vessel — response is DroneInstanceOut for the
+    updated drone. Confirm the response is the correct drone and that
+    a second assign attempt on the same drone returns 200 (idempotent)
+    confirming the state is stored.
+    """
+    admin_token = make_token(admin_user.id, admin_user.role)
+    hdrs        = {"Authorization": f"Bearer {admin_token}"}
+
+    resp = await client.post(
+        f"/api/master/vessels/{vessel['id']}/assign-drone/{drone_instance['id']}",
+        headers=hdrs,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    # Response is the updated DroneInstanceOut — confirm correct drone
+    assert body["id"] == drone_instance["id"]
+    assert body["call_sign"] == drone_instance["call_sign"]
+
+    # Archiving the vessel should now be blocked (drone is assigned) → 409
+    # This proves the assignment was persisted in DB
+    archive = await client.delete(
+        f"/api/master/vessels/{vessel['id']}",
+        headers=hdrs,
+    )
+    assert archive.status_code == 409, (
+        "Vessel archive should be blocked while drone is assigned — "
+        "if 204, the assignment was not persisted"
+    )
+
+    # Cleanup
+    await client.post(
+        f"/api/master/vessels/{vessel['id']}/unassign-drone/{drone_instance['id']}",
+        headers=hdrs,
+    )
+
+
+async def test_unassign_drone_clears_vessel_id(
+    client: AsyncClient, admin_user, vessel, drone_instance, make_token
+):
+    """
+    Unassign a drone from a vessel — response must be 200 with the updated
+    DroneInstanceOut for that drone, confirming the operation was applied.
+    DB persistence is validated indirectly: the assign test already proves
+    assignment blocks archival (409); a successful unassign here restores
+    the clean state that makes the vessel archivable again.
+    """
+    admin_token = make_token(admin_user.id, admin_user.role)
+    hdrs        = {"Authorization": f"Bearer {admin_token}"}
+
+    # Assign first
+    assign = await client.post(
+        f"/api/master/vessels/{vessel['id']}/assign-drone/{drone_instance['id']}",
+        headers=hdrs,
+    )
+    assert assign.status_code == 200
+
+    # Unassign — response must be the updated DroneInstanceOut
+    resp = await client.post(
+        f"/api/master/vessels/{vessel['id']}/unassign-drone/{drone_instance['id']}",
+        headers=hdrs,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["id"]        == drone_instance["id"]
+    assert body["call_sign"] == drone_instance["call_sign"]

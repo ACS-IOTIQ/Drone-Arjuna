@@ -17,7 +17,7 @@ from pymavlink import mavutil
 
 from app.utils.mavlink_utils import build_connection_string
 from app.modules.drone_control.telemetry_processor import TelemetryProcessor
-from app.modules.drone_control.state_manager import StateManager
+from app.modules.drone_control.state_manager import StateManager, home_point_updater
 from app.modules.drone_control.health_monitor import HealthMonitor
 from app.modules.drone_control.data_recorder import data_recorder
 from app.modules.drone_control.command_controller import CommandController, CommandRecord
@@ -54,6 +54,7 @@ class DroneConnection:
     connected: bool = False
     link_quality: int = 0
     hf_adapter: Optional[HFLinkAdapter] = None   # set when transport is HF
+    home_task: Optional[asyncio.Task] = None      # vessel home-point updater
     errors: list[str] = field(default_factory=list)
 
 
@@ -115,6 +116,12 @@ class MAVLinkManager:
 
             # Request telemetry streams from ArduPilot.
             # Without this, ArduPilot only sends heartbeats — no position/attitude/etc.
+            #
+            # REQUEST_DATA_STREAM is the legacy mechanism — modern ArduPilot/PX4
+            # builds silently ignore it for several message types (notably
+            # GPS_RAW_INT and RC_CHANNELS), leaving GPS Sats / RSSI stuck at their
+            # defaults. MAV_CMD_SET_MESSAGE_INTERVAL is the mechanism both
+            # autopilots actually honor, so request each message explicitly too.
             def _request_streams(mav):
                 for stream_id, rate_hz in [
                     (mavutil.mavlink.MAV_DATA_STREAM_RAW_SENSORS,    2),   # GPS, IMU
@@ -133,6 +140,24 @@ class MAVLinkManager:
                         1,   # 1 = start streaming
                     )
 
+                for msg_id, rate_hz in [
+                    (mavutil.mavlink.MAVLINK_MSG_ID_GPS_RAW_INT,          2),
+                    (mavutil.mavlink.MAVLINK_MSG_ID_RC_CHANNELS,          2),
+                    (mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT,  4),
+                    (mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE,            10),
+                    (mavutil.mavlink.MAVLINK_MSG_ID_VFR_HUD,              4),
+                    (mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS,           2),
+                ]:
+                    mav.mav.command_long_send(
+                        mav.target_system,
+                        mav.target_component,
+                        mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+                        0,
+                        msg_id,
+                        int(1e6 / rate_hz),  # interval in microseconds
+                        0, 0, 0, 0, 0,
+                    )
+
             await loop.run_in_executor(None, _request_streams, conn.mav)
             log.info("Stream rates requested", drone_id=drone_id)
 
@@ -148,6 +173,16 @@ class MAVLinkManager:
                 self._read_loop(drone_id),
                 name=f"mavlink-reader-{call_sign}"
             )
+
+            # Start vessel home-point updater — tracks vessel:position in Redis
+            # and sends MAV_CMD_DO_SET_HOME every 5 s so RTL returns to the vessel
+            from app.dependencies import get_redis
+            redis = await get_redis()
+            conn.home_task = asyncio.create_task(
+                home_point_updater(drone_id, conn.mav, redis),
+                name=f"home-updater-{call_sign}"
+            )
+
             log.info("Drone connected", drone_id=drone_id, call_sign=call_sign,
                      transport=transport)
             return True
@@ -155,12 +190,22 @@ class MAVLinkManager:
         except asyncio.TimeoutError:
             log.error("Heartbeat timeout", drone_id=drone_id, conn_str=conn_str,
                       timeout_s=heartbeat_timeout)
+            if conn.mav:
+                try:
+                    conn.mav.close()
+                except Exception:
+                    pass
             if conn.hf_adapter:
                 hf_link_adapter.remove(drone_id)
             self._close_mav(conn)
             return False
         except Exception as e:
             log.error("Connection failed", drone_id=drone_id, error=str(e))
+            if conn.mav:
+                try:
+                    conn.mav.close()
+                except Exception:
+                    pass
             if conn.hf_adapter:
                 hf_link_adapter.remove(drone_id)
             self._close_mav(conn)
@@ -183,6 +228,8 @@ class MAVLinkManager:
             return
         if conn.task:
             conn.task.cancel()
+        if conn.home_task:
+            conn.home_task.cancel()
         if conn.mav:
             conn.mav.close()
         conn.connected = False
@@ -308,6 +355,27 @@ class MAVLinkManager:
         if not conn or not conn.controller:
             return []
         return conn.controller.get_history(limit)
+
+    async def start_geofence_rtl_consumer(self):
+        """
+        Subscribe to geofence_breach events on RabbitMQ and dispatch RTL for each breach.
+        This is the authoritative path for auto-RTL — TelemetryProcessor only publishes
+        the event; command dispatch happens here via the event bus consumer.
+        """
+        from app.core.events import subscribe
+
+        async def _rtl_handler(payload: dict):
+            drone_id = payload.get("drone_id")
+            if drone_id is None:
+                return
+            log.warning("Geofence RTL consumer — dispatching auto-RTL", drone_id=drone_id)
+            await self.send_command(drone_id, "rtl", {})
+
+        await subscribe(
+            routing_key_pattern="drone_control.geofence_breach",
+            queue_name="geofence_rtl_queue",
+            handler=_rtl_handler,
+        )
 
     def get_all_connections(self) -> list[dict]:
         result = []

@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 from app.database import get_db
 from app.core.rbac import require_min_role, Role
@@ -9,11 +9,12 @@ from app.models.user import User
 from app.models.mission import Mission, Waypoint
 from app.schemas.mission import (
     MissionCreate, MissionOut, MissionSummary,
-    MissionStatusUpdate, WaypointOut,
+    MissionStatusUpdate, MissionUpdate, WaypointOut,
 )
 from app.modules.drone_control import mavlink_manager
 from app.modules.drone_flight.geo_service import compute_mission_summary
-from app.modules.drone_flight.mission_planner import MissionPlanner
+from app.modules.drone_flight.mission_planner import MissionPlanner, deconflict_missions
+from app.modules.drone_flight.airspace_service import validate_mission_airspace
 from app.modules.drone_flight.fleet_router import (
     AssignmentProblem, FleetAssignRequest,
     classical_assignment, quantum_assignment, decompose_fleet_indices,
@@ -41,8 +42,20 @@ async def list_missions(db: DbDep, _: ViewerDep):
     return out
 
 
+def _enforce_airspace(waypoints_body, geofence_body):
+    """Raise 422 if the mission violates any government airspace restriction."""
+    wp_points = [
+        (wp.latitude, wp.longitude, f"Waypoint {i + 1}")
+        for i, wp in enumerate(waypoints_body or [])
+    ]
+    result = validate_mission_airspace(wp_points, geofence_body)
+    if not result.ok:
+        raise HTTPException(status_code=422, detail={"errors": result.error_messages})
+
+
 @router.post("/missions", response_model=MissionOut, status_code=201)
 async def create_mission(body: MissionCreate, db: DbDep, user: PilotDep):
+    _enforce_airspace(body.waypoints, body.geofence)
     m = Mission(
         name=body.name,
         description=body.description,
@@ -96,6 +109,38 @@ async def mission_summary(mid: int, db: DbDep, _: ViewerDep):
     return compute_mission_summary(wp_list)
 
 
+@router.patch("/missions/{mid}", response_model=MissionOut)
+async def update_mission(
+    mid: int, body: MissionUpdate, db: DbDep, _: PilotDep,
+):
+    """Update mission fields (name, geofence, waypoints, etc.). Only allowed in 'planning' status."""
+    m = await db.get(Mission, mid)
+    if not m:
+        raise HTTPException(404, "Mission not found")
+    if m.status not in ("planning",):
+        raise HTTPException(409, f"Cannot edit a mission with status '{m.status}'")
+
+    _enforce_airspace(body.waypoints, body.geofence)
+
+    update_data = body.model_dump(exclude_unset=True, exclude={"waypoints"})
+    for field, value in update_data.items():
+        setattr(m, field, value)
+
+    if body.waypoints is not None:
+        await db.execute(delete(Waypoint).where(Waypoint.mission_id == mid))
+        for wp_data in body.waypoints:
+            db.add(Waypoint(mission_id=mid, **wp_data.model_dump()))
+
+    await db.flush()
+    await db.refresh(m)
+    wps = await db.execute(
+        select(Waypoint).where(Waypoint.mission_id == mid).order_by(Waypoint.sequence)
+    )
+    result = MissionOut.model_validate(m).model_dump()
+    result["waypoints"] = [WaypointOut.model_validate(w) for w in wps.scalars().all()]
+    return result
+
+
 @router.patch("/missions/{mid}/status")
 async def update_mission_status(
     mid: int,
@@ -106,6 +151,48 @@ async def update_mission_status(
     m = await db.get(Mission, mid)
     if not m:
         raise HTTPException(404, "Mission not found")
+
+    if body.status == "approved":
+        # Load waypoints for the mission being approved
+        wps_result = await db.execute(
+            select(Waypoint).where(Waypoint.mission_id == mid).order_by(Waypoint.sequence)
+        )
+        target_wps = wps_result.scalars().all()
+
+        # Load all currently active missions (approved or executing), excluding this one
+        active_result = await db.execute(
+            select(Mission).where(
+                Mission.status.in_(["approved", "executing"]),
+                Mission.id != mid,
+            )
+        )
+        active_missions = active_result.scalars().all()
+
+        # Load waypoints for each active mission
+        missions_with_waypoints: list[tuple[Mission, list[Waypoint]]] = [
+            (m, list(target_wps))
+        ]
+        for active in active_missions:
+            aw_result = await db.execute(
+                select(Waypoint)
+                .where(Waypoint.mission_id == active.id)
+                .order_by(Waypoint.sequence)
+            )
+            missions_with_waypoints.append((active, aw_result.scalars().all()))
+
+        conflicts = deconflict_missions(missions_with_waypoints)
+        if conflicts:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "Approval blocked — airspace conflict detected with "
+                        f"{len(conflicts)} active mission(s)"
+                    ),
+                    "conflicts": conflicts,
+                },
+            )
+
     m.status = body.status
     return {"detail": "Status updated", "status": body.status}
 

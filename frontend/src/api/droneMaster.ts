@@ -11,6 +11,7 @@ export const droneMasterApi = {
 
   listDrones:   ()          => api.get('/api/master/drones'),
   createDrone:  (d: object) => api.post('/api/master/drones', d),
+  updateDrone:  (id: number, d: object) => api.put(`/api/master/drones/${id}`, d),
   getDrone:     (id: number) => api.get(`/api/master/drones/${id}`),
   removeDrone:  (id: number) => api.delete(`/api/master/drones/${id}`),
 }

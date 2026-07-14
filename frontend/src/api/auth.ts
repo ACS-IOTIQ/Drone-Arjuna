@@ -8,6 +8,7 @@ export interface LoginResponse {
   access_token: string
   token_type: string
   role: string
+  must_change_password: boolean
 }
 
 export async function login(username: string, password: string): Promise<LoginResponse> {

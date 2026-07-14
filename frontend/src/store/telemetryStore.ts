@@ -2,7 +2,10 @@
 // src/store/telemetryStore.ts
 // ═══════════════════════════════════════════
 import { create } from 'zustand'
-import { makeTelemetryWS } from '@/api/client'
+import { makeTelemetryUrl } from '@/api/client'
+import { RobustWebSocket } from '@/store/connectionHealthStore'
+import { eventLog } from './eventLogStore'
+import { notify } from './notificationStore'
 
 // ── Core flight state (always present) ─────────────────────────
 export interface TelemetryFrame {
@@ -46,6 +49,9 @@ export interface TelemetryFrame {
   rssi: number
   cpu_load_pct: number
   last_updated: string | null
+  geofence_breach?: boolean
+  breach_lat?: number
+  breach_lon?: number
 
   // Simulation metadata
   sim_phase?: string
@@ -145,7 +151,7 @@ const DEFAULT_FRAME: TelemetryFrame = {
 
 interface TelemetryState {
   frames:  Record<number, TelemetryFrame>
-  sockets: Record<number, WebSocket>
+  sockets: Record<number, RobustWebSocket>
   history: Record<number, TelemetryFrame[]>   // last 300 frames per drone
   subscribe:   (droneId: number) => void
   unsubscribe: (droneId: number) => void
@@ -161,43 +167,59 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
       console.log('[Telemetry] already subscribed to drone', droneId)
       return
     }
-    const ws = makeTelemetryWS(droneId)
-    console.log('[Telemetry] WebSocket opening:', ws.url)
-    ws.onopen  = () => console.log('[Telemetry] WebSocket OPEN  drone', droneId)
-    ws.onerror = (e) => console.error('[Telemetry] WebSocket ERROR drone', droneId, e)
 
-    ws.onmessage = ({ data }) => {
+    const url = makeTelemetryUrl(droneId)
+    const rws = new RobustWebSocket(url, `telemetry-${droneId}`)
+
+    rws.onOpen(() => console.log('[Telemetry] RobustWebSocket OPEN drone', droneId))
+    rws.onError((e) => console.error('[Telemetry] RobustWebSocket ERROR drone', droneId, e))
+
+    rws.onMessage((data) => {
       try {
         const frame: TelemetryFrame = JSON.parse(data)
         if ((frame as any).type === 'pong') return
+
+        const wasBreach = Boolean((frame as any).geofence_breach)
+        const prevFrame = get().frames[droneId]
+        const wasPrevBreach = Boolean(prevFrame?.geofence_breach)
+
+        if (wasBreach && !wasPrevBreach) {
+          const title = 'Geofence breach detected'
+          const message = `Drone ${droneId} crossed the configured geofence boundary. Returning to safe state.`
+          notify.danger(title, message, droneId)
+          eventLog.drone(title, message, String(droneId), 'error')
+        } else if (!wasBreach && wasPrevBreach) {
+          const title = 'Geofence recovered'
+          const message = `Drone ${droneId} has returned inside the configured boundary.`
+          notify.warning(title, message, droneId)
+          eventLog.drone(title, message, String(droneId), 'warning')
+        }
+
         set(s => {
           const prev = s.history[droneId] ?? []
           const next = [...prev.slice(-299), frame]
+          // Log a lightweight telemetry event on first frame and periodically
+          if (prev.length === 0) {
+            eventLog.telemetry('Telemetry Stream Started', String(droneId), { call_sign: frame.call_sign })
+          } else if (next.length % 300 === 0) {
+            eventLog.telemetry('Telemetry Update (sampled)', String(droneId), { call_sign: frame.call_sign })
+          }
           return {
             frames:  { ...s.frames,  [droneId]: frame },
             history: { ...s.history, [droneId]: next },
           }
         })
       } catch { /* ignore parse errors */ }
-    }
+    })
 
-    // Keepalive ping every 20s
-    const pingInterval = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN)
-        ws.send(JSON.stringify({ type: 'ping' }))
-    }, 20_000)
+    rws.onClose(() => {
+      console.warn('[Telemetry] RobustWebSocket CLOSE drone', droneId)
+    })
 
-    ws.onclose = (e) => {
-      console.warn('[Telemetry] WebSocket CLOSE drone', droneId, 'code', e.code, e.reason)
-      clearInterval(pingInterval)
-      set(s => {
-        const { [droneId]: _, ...socks } = s.sockets
-        return { sockets: socks }
-      })
-    }
+    rws.connect()
 
     set(s => ({
-      sockets: { ...s.sockets, [droneId]: ws },
+      sockets: { ...s.sockets, [droneId]: rws },
       frames:  { ...s.frames,  [droneId]: DEFAULT_FRAME },
     }))
   },

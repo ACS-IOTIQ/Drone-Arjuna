@@ -1,15 +1,32 @@
 import { useState } from 'react'
 import { Eye, EyeOff, Lock, Shield } from 'lucide-react'
+import { api } from '@/api/client'
+import { notify } from '@/store/notificationStore'
+import {
+  openPasswordChangeNotifications,
+} from '@/store/accessRequestStore'
 
 interface PasswordSetupScreenProps {
   username: string
   tempPassword: string
+  email: string
+  mobile: string
   onSetupComplete: (newPassword: string) => void
+}
+
+async function submitPasswordSetup(currentPassword: string, newPassword: string) {
+  const { data } = await api.post('/api/auth/setup-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  })
+  return data
 }
 
 export default function PasswordSetupScreen({
   username,
   tempPassword,
+  email,
+  mobile,
   onSetupComplete,
 }: PasswordSetupScreenProps) {
   const [password, setPassword] = useState('')
@@ -45,11 +62,16 @@ export default function PasswordSetupScreen({
 
     setIsLoading(true)
     try {
-      // Simulate API call - replace with actual backend call
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await submitPasswordSetup(tempPassword, password)
+      notify.success('Password updated', 'Your password has been changed. Please sign in again.')
+      openPasswordChangeNotifications(email || undefined, mobile || undefined, username)
       onSetupComplete(password)
-    } catch (error) {
-      setPasswordError('Failed to set password. Please try again.')
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail
+      const message = typeof detail === 'string'
+        ? detail
+        : detail?.message || 'Failed to set password. Please try again.'
+      setPasswordError(message)
     } finally {
       setIsLoading(false)
     }
@@ -232,7 +254,7 @@ export default function PasswordSetupScreen({
             </button>
 
             <p className="text-xs text-slate-500 text-center">
-              After setup, use the temporary password to log in, then update your profile.
+              After setup, use your new password to continue. You can update it again later in profile settings.
             </p>
           </form>
         </section>

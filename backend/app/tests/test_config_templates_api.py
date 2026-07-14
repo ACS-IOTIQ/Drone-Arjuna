@@ -49,7 +49,13 @@ _INSTANCE_BODY = {
     "drone_type_id": None,  # filled per-fixture
 }
 
-_SETTINGS = {"RTL_ALT": 50, "FENCE_ENABLE": 1, "FS_THR_ENABLE": 1}
+_SETTINGS = {
+    "mavlink":  {"rtl_altitude_m": 50.0, "wpnav_speed_ms": 15.0},
+    "failsafe": {"battery_action": "RTL", "gcs_action": "RTL"},
+    "geofence": {"radius_m": 500.0, "alt_max_m": 2000.0},
+    "battery":  {"rtl_pct": 20, "land_pct": 10},
+    "mission":  {"max_waypoint_alt_m": 2500.0, "default_cruise_speed_ms": 20.0},
+}
 
 
 @pytest_asyncio.fixture
@@ -131,7 +137,9 @@ async def test_create_config_template_201(
     body = resp.json()
     assert body["name"] == "New-Config"
     assert body["drone_type_id"] == drone_type["id"]
-    assert body["settings"] == _SETTINGS
+    assert body["settings"]["mavlink"]["rtl_altitude_m"] == 50.0
+    assert body["settings"]["geofence"]["alt_max_m"] == 2000.0
+    assert body["settings"]["battery"]["rtl_pct"] == 20
     assert body["is_active"] is True
     assert "id" in body
     assert "created_at" in body
@@ -262,7 +270,11 @@ async def test_update_config_template_settings_200(
     client: AsyncClient, admin_user, config_template, make_token
 ):
     token = make_token(admin_user.id, admin_user.role)
-    new_settings = {"RTL_ALT": 100, "FENCE_ENABLE": 0}
+    new_settings = {
+        "mavlink":  {"rtl_altitude_m": 100.0},
+        "battery":  {"rtl_pct": 25, "land_pct": 10},
+        "geofence": {"alt_max_m": 1500.0},
+    }
     resp = await client.put(
         f"/api/master/config-templates/{config_template['id']}",
         json={"settings": new_settings},
@@ -270,7 +282,9 @@ async def test_update_config_template_settings_200(
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["settings"] == new_settings
+    assert body["settings"]["mavlink"]["rtl_altitude_m"] == 100.0
+    assert body["settings"]["battery"]["rtl_pct"] == 25
+    assert body["settings"]["geofence"]["alt_max_m"] == 1500.0
     assert body["updated_at"] is not None
 
 
@@ -362,7 +376,8 @@ async def test_apply_config_template_to_drone_200(
     body = resp.json()
     assert body["template_id"] == config_template["id"]
     assert body["drone_id"] == drone_instance["id"]
-    assert body["settings"] == _SETTINGS
+    assert body["settings"]["mavlink"]["rtl_altitude_m"] == 50.0
+    assert body["settings"]["battery"]["rtl_pct"] == 20
 
 
 async def test_apply_config_template_type_mismatch_422(
@@ -455,3 +470,150 @@ async def test_viewer_blocked_from_archive_config_template_403(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Settings limit validation (cross-check against DroneType physical bounds)
+# DroneType used: max_altitude_m=3000, max_speed_ms=30
+# ══════════════════════════════════════════════════════════════════════
+
+async def test_create_settings_waypoint_alt_exceeds_type_ceiling_422(
+    client: AsyncClient, admin_user, drone_type, make_token
+):
+    """mission.max_waypoint_alt_m above type ceiling must be rejected."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp = await client.post(
+        "/api/master/config-templates",
+        json={
+            "name": "Bad-Alt-Config",
+            "drone_type_id": drone_type["id"],
+            "settings": {"mission": {"max_waypoint_alt_m": 5000.0}},  # > 3000 m
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_settings_cruise_speed_exceeds_type_max_422(
+    client: AsyncClient, admin_user, drone_type, make_token
+):
+    """mission.default_cruise_speed_ms above type max must be rejected."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp = await client.post(
+        "/api/master/config-templates",
+        json={
+            "name": "Bad-Speed-Config",
+            "drone_type_id": drone_type["id"],
+            "settings": {"mission": {"default_cruise_speed_ms": 50.0}},  # > 30 m/s
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_settings_mavlink_rtl_alt_exceeds_ceiling_422(
+    client: AsyncClient, admin_user, drone_type, make_token
+):
+    """mavlink.rtl_altitude_m above type ceiling must be rejected."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp = await client.post(
+        "/api/master/config-templates",
+        json={
+            "name": "Bad-RTL-Config",
+            "drone_type_id": drone_type["id"],
+            "settings": {"mavlink": {"rtl_altitude_m": 9999.0}},  # > 3000 m
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_settings_geofence_alt_exceeds_ceiling_422(
+    client: AsyncClient, admin_user, drone_type, make_token
+):
+    """geofence.alt_max_m above type ceiling must be rejected."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp = await client.post(
+        "/api/master/config-templates",
+        json={
+            "name": "Bad-Fence-Config",
+            "drone_type_id": drone_type["id"],
+            "settings": {"geofence": {"alt_max_m": 4000.0}},  # > 3000 m
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_settings_battery_rtl_below_land_422(
+    client: AsyncClient, admin_user, drone_type, make_token
+):
+    """battery.rtl_pct <= land_pct is rejected by schema validation."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp = await client.post(
+        "/api/master/config-templates",
+        json={
+            "name": "Bad-Battery-Config",
+            "drone_type_id": drone_type["id"],
+            "settings": {"battery": {"rtl_pct": 10, "land_pct": 15}},  # rtl < land
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_settings_within_limits_201(
+    client: AsyncClient, admin_user, drone_type, make_token
+):
+    """All settings at or below type limits must succeed."""
+    token = make_token(admin_user.id, admin_user.role)
+    hdrs = {"Authorization": f"Bearer {token}"}
+    resp = await client.post(
+        "/api/master/config-templates",
+        json={
+            "name": "Good-Limits-Config",
+            "drone_type_id": drone_type["id"],
+            "settings": {
+                "mavlink":  {"rtl_altitude_m": 3000.0, "wpnav_speed_ms": 30.0},
+                "geofence": {"alt_max_m": 3000.0},
+                "mission":  {"max_waypoint_alt_m": 3000.0, "default_cruise_speed_ms": 30.0},
+                "battery":  {"rtl_pct": 20, "land_pct": 10},
+            },
+        },
+        headers=hdrs,
+    )
+    assert resp.status_code == 201
+    await client.delete(f"/api/master/config-templates/{resp.json()['id']}", headers=hdrs)
+
+
+async def test_update_settings_altitude_exceeds_type_ceiling_422(
+    client: AsyncClient, admin_user, config_template, make_token
+):
+    """Updating settings with an out-of-bounds altitude must be rejected."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp = await client.put(
+        f"/api/master/config-templates/{config_template['id']}",
+        json={"settings": {"mission": {"max_waypoint_alt_m": 9999.0}}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_empty_settings_create_uses_defaults_201(
+    client: AsyncClient, admin_user, drone_type, make_token
+):
+    """Omitting settings entirely is valid; all defaults are stored."""
+    token = make_token(admin_user.id, admin_user.role)
+    hdrs = {"Authorization": f"Bearer {token}"}
+    resp = await client.post(
+        "/api/master/config-templates",
+        json={"name": "Default-Settings-Config", "drone_type_id": drone_type["id"]},
+        headers=hdrs,
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    # Defaults should be present
+    assert body["settings"]["failsafe"]["battery_action"] == "RTL"
+    assert body["settings"]["battery"]["rtl_pct"] == 20
+    assert body["settings"]["preflight"]["required_gps_fix"] == "3D"
+    await client.delete(f"/api/master/config-templates/{body['id']}", headers=hdrs)

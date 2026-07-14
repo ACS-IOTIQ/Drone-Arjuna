@@ -79,13 +79,13 @@ export default function LoginScreen() {
       <span className="text-sm font-semibold leading-tight text-slate-700">
         {label}{required ? ' *' : ''}
       </span>
-      <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 flex -translate-y-1/2 items-center text-slate-400">
+      <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <span className="flex h-11 w-11 flex-none items-center justify-center border-r border-slate-200 text-slate-400">
           {icon}
         </span>
         <input
           type={type}
-          className="da-input h-11 pl-9"
+          className="da-input h-11 flex-1 border-0 bg-transparent px-3 shadow-none"
           value={request[key]}
           onChange={e => setRequest(prev => ({ ...prev, [key]: e.target.value }))}
         />
@@ -145,10 +145,12 @@ export default function LoginScreen() {
             <form onSubmit={submitLogin} className="flex flex-col gap-4">
               <label className="flex flex-col gap-1.5">
                 <span className="text-sm font-semibold leading-tight text-slate-700">Username</span>
-                <div className="relative">
-                  <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                  <span className="flex h-11 w-11 flex-none items-center justify-center border-r border-slate-200 text-slate-400">
+                    <User className="h-4 w-4" />
+                  </span>
                   <input
-                    className="da-input h-11 pl-9"
+                    className="da-input h-11 flex-1 border-0 bg-transparent px-3 shadow-none"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
                     autoComplete="username"
@@ -159,11 +161,13 @@ export default function LoginScreen() {
 
               <label className="flex flex-col gap-1.5">
                 <span className="text-sm font-semibold leading-tight text-slate-700">Password</span>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                  <span className="flex h-11 w-11 flex-none items-center justify-center border-r border-slate-200 text-slate-400">
+                    <Lock className="h-4 w-4" />
+                  </span>
                   <input
                     type="password"
-                    className="da-input h-11 pl-9"
+                    className="da-input h-11 flex-1 border-0 bg-transparent px-3 shadow-none"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     autoComplete="current-password"

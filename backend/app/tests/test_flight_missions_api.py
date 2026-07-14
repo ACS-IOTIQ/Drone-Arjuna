@@ -479,3 +479,121 @@ async def test_validate_mission_unauthenticated_401(client: AsyncClient):
     """No token → 401."""
     resp = await client.post("/api/flight/missions/1/validate")
     assert resp.status_code == 401
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# PATCH /api/flight/missions/{mid} — update mission
+# ═══════════════════════════════════════════════════════════════════════
+
+@pytest.mark.asyncio
+async def test_update_mission_geofence_200(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Update a planning-status mission's geofence and verify it persists."""
+    hdrs = auth_headers(flight_controller_user, make_token)
+    m = await _make_mission(client, hdrs)
+    try:
+        geofence = {
+            "type": "Polygon",
+            "coordinates": [[[77.5, 12.9], [77.6, 12.9], [77.6, 13.0], [77.5, 13.0], [77.5, 12.9]]],
+        }
+        resp = await client.patch(
+            f"/api/flight/missions/{m['id']}",
+            json={"geofence": geofence},
+            headers=hdrs,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["geofence"] == geofence
+    finally:
+        await client.delete(f"/api/flight/missions/{m['id']}", headers=hdrs)
+
+
+@pytest.mark.asyncio
+async def test_update_mission_name_and_waypoints_200(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Update mission name and replace waypoints."""
+    hdrs = auth_headers(flight_controller_user, make_token)
+    m = await _make_mission(client, hdrs)
+    try:
+        new_wp = {
+            "sequence": 1, "latitude": 12.95, "longitude": 77.55,
+            "altitude_m": 100.0, "action": "none", "is_home": True,
+        }
+        resp = await client.patch(
+            f"/api/flight/missions/{m['id']}",
+            json={"name": "Updated Mission Name", "waypoints": [new_wp]},
+            headers=hdrs,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "Updated Mission Name"
+        assert len(body["waypoints"]) == 1
+        assert body["waypoints"][0]["latitude"] == 12.95
+    finally:
+        await client.delete(f"/api/flight/missions/{m['id']}", headers=hdrs)
+
+
+@pytest.mark.asyncio
+async def test_update_mission_non_planning_status_409(
+    client: AsyncClient, flight_controller_user, mission_commander_user, make_token
+):
+    """Cannot edit a mission that is not in 'planning' status → 409."""
+    fc_hdrs = auth_headers(flight_controller_user, make_token)
+    mc_hdrs = auth_headers(mission_commander_user, make_token)
+    m = await _make_mission(client, fc_hdrs)
+    try:
+        # Approve the mission
+        approve = await client.patch(
+            f"/api/flight/missions/{m['id']}/status",
+            json={"status": "approved"},
+            headers=mc_hdrs,
+        )
+        assert approve.status_code == 200
+
+        resp = await client.patch(
+            f"/api/flight/missions/{m['id']}",
+            json={"name": "Should Fail"},
+            headers=fc_hdrs,
+        )
+        assert resp.status_code == 409
+    finally:
+        # Reset to planning so delete works
+        await client.patch(
+            f"/api/flight/missions/{m['id']}/status",
+            json={"status": "planning"},
+            headers=mc_hdrs,
+        )
+        await client.delete(f"/api/flight/missions/{m['id']}", headers=fc_hdrs)
+
+
+@pytest.mark.asyncio
+async def test_update_mission_not_found_404(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """Non-existent mission → 404."""
+    hdrs = auth_headers(flight_controller_user, make_token)
+    resp = await client.patch(
+        "/api/flight/missions/999999",
+        json={"name": "Ghost"},
+        headers=hdrs,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_mission_viewer_403(
+    client: AsyncClient, viewer_user, make_token
+):
+    """VIEWER cannot update mission → 403."""
+    hdrs = {"Authorization": f"Bearer {make_token(viewer_user.id, viewer_user.role)}"}
+    resp = await client.patch("/api/flight/missions/1", json={"name": "X"}, headers=hdrs)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_update_mission_unauthenticated_401(client: AsyncClient):
+    """No token → 401."""
+    resp = await client.patch("/api/flight/missions/1", json={"name": "X"})
+    assert resp.status_code == 401

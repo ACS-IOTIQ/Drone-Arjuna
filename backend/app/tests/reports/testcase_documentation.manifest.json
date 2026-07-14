@@ -1,5 +1,5 @@
 {
-  "fingerprint": "16888da6098b2be61d8ca256b1d207193df4fc6ea8026d55f9547318b9613f9b",
+  "fingerprint": "676bf0906864dd372ff33be23339510cfed7cc6610fd7dd6151a4c7cca9c0aa2",
   "nodeids": [
     "app/tests/test_access_requests_api.py::test_accept_already_approved_request_is_409",
     "app/tests/test_access_requests_api.py::test_accept_conflict_when_username_already_registered",
@@ -249,6 +249,12 @@
     "app/tests/test_flight_missions_api.py::test_list_missions_returns_created_missions",
     "app/tests/test_flight_missions_api.py::test_list_missions_unauthenticated_401",
     "app/tests/test_flight_missions_api.py::test_list_missions_viewer_can_read",
+    "app/tests/test_flight_missions_api.py::test_update_mission_geofence_200",
+    "app/tests/test_flight_missions_api.py::test_update_mission_name_and_waypoints_200",
+    "app/tests/test_flight_missions_api.py::test_update_mission_non_planning_status_409",
+    "app/tests/test_flight_missions_api.py::test_update_mission_not_found_404",
+    "app/tests/test_flight_missions_api.py::test_update_mission_unauthenticated_401",
+    "app/tests/test_flight_missions_api.py::test_update_mission_viewer_403",
     "app/tests/test_flight_missions_api.py::test_upload_drone_not_connected_503",
     "app/tests/test_flight_missions_api.py::test_upload_invalid_mission_422",
     "app/tests/test_flight_missions_api.py::test_upload_mission_unauthenticated_401",

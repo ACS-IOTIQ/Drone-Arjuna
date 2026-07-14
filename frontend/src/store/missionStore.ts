@@ -44,6 +44,7 @@ interface MissionState {
   clearGeofence: () => void
   clearDraft: () => void
   saveMission: (name: string, type: string, droneId?: number, homePointType?: string, homeVesselId?: number) => Promise<void>
+  updateMission: (id: number, name: string, type: string, droneId?: number, homePointType?: string, homeVesselId?: number) => Promise<void>
   loadMission: (id: number) => Promise<LoadedMissionMeta>
   updateMissionStatus: (id: number, status: 'planning' | 'approved' | 'executing' | 'completed' | 'aborted') => Promise<void>
 }
@@ -113,6 +114,20 @@ export const useMissionStore = create<MissionState>((set, get) => ({
       geofence: geofenceToGeoJson(get().geofence),
     })
     set(s => ({ missions: [data, ...s.missions], activeMissionId: data.id }))
+  },
+
+  updateMission: async (id, name, type, droneId, homePointType = 'fixed', homeVesselId) => {
+    const { data } = await droneFlightApi.updateMission(id, {
+      name, mission_type: type,
+      drone_instance_id: droneId,
+      home_point_type: homePointType,
+      home_vessel_id: homePointType === 'dynamic_vessel' ? homeVesselId : undefined,
+      waypoints: get().draftWaypoints,
+      geofence: geofenceToGeoJson(get().geofence),
+    })
+    set(s => ({
+      missions: s.missions.map(m => m.id === id ? { ...m, ...data } : m),
+    }))
   },
 
   loadMission: async (id) => {

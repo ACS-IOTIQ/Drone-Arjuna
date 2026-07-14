@@ -31,7 +31,11 @@ export default function PlanWorkspace() {
     try {
       await updateMissionStatus(activeMissionId, status)
     } catch (e: any) {
-      setActionErr(e.response?.data?.detail ?? `${label} failed`)
+      const detail = e.response?.data?.detail
+      const msg = typeof detail === 'string'
+        ? detail
+        : detail?.message ?? `${label} failed`
+      setActionErr(msg)
     } finally {
       setBusyAction('')
     }

@@ -211,6 +211,9 @@ class MissionValidator:
         if mission.geofence:
             self._check_geofence(waypoints, mission.geofence, result)
 
+        # ── 2b. Government airspace restrictions ────────────────────
+        self._check_airspace_restrictions(waypoints, mission.geofence, result)
+
         # ── 3. Drone-specific limits ────────────────────────────────
         if drone_type:
             self._check_payload_weight(mission, drone_type, result)
@@ -260,6 +263,22 @@ class MissionValidator:
                     f"Waypoint {wp.sequence} ({wp.latitude:.5f}, {wp.longitude:.5f}) "
                     f"is outside the defined geofence"
                 )
+
+    # ── Airspace restrictions ─────────────────────────────────────
+
+    def _check_airspace_restrictions(
+        self,
+        wps: list[Waypoint],
+        geofence: Optional[dict],
+        r: ValidationResult,
+    ) -> None:
+        from app.modules.drone_flight.airspace_service import validate_mission_airspace
+        wp_points = [
+            (wp.latitude, wp.longitude, f"Waypoint {wp.sequence}") for wp in wps
+        ]
+        result = validate_mission_airspace(wp_points, geofence)
+        for msg in result.error_messages:
+            r.add_error(msg)
 
     # ── Payload weight ────────────────────────────────────────────
 

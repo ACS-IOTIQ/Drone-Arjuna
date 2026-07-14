@@ -4,6 +4,7 @@ import { useMissionStore } from '@/store/missionStore'
 import { useFleetStore } from '@/store/fleetStore'
 import { useVesselStore } from '@/store/vesselStore'
 import { droneFlightApi } from '@/api/droneFlight'
+import { notify } from '@/store/notificationStore'
 
 export default function MissionEditor() {
   const { draftWaypoints, geofence, missions, saveMission, removeWaypoint, loadMission } = useMissionStore()
@@ -50,6 +51,16 @@ export default function MissionEditor() {
     }
   }
 
+  const extractApiError = (e: any): string => {
+    const detail = e?.response?.data?.detail
+    if (!detail) return 'Save failed'
+    if (typeof detail === 'string') return detail
+    // 422 airspace errors: { errors: [...] }
+    if (Array.isArray(detail?.errors)) return detail.errors.join('\n')
+    if (detail?.message) return detail.message
+    return 'Save failed'
+  }
+
   const save = async () => {
     if (!name.trim() || draftWaypoints.length === 0) return
     if (homeType === 'dynamic_vessel' && !homeVesselId) {
@@ -60,7 +71,9 @@ export default function MissionEditor() {
       await saveMission(name, type, droneId, homeType, homeVesselId)
       setName('')
     } catch (e: any) {
-      setErr(e.response?.data?.detail ?? 'Save failed')
+      const msg = extractApiError(e)
+      setErr(msg)
+      notify.danger('Mission save blocked', msg)
     } finally {
       setSaving(false)
     }

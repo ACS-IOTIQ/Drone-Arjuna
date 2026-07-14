@@ -128,6 +128,7 @@ class MissionUpdate(BaseModel):
     notes: Optional[str] = None
     geofence: Optional[dict] = None
     payload_weight_kg: Optional[float] = None
+    waypoints: Optional[list[WaypointCreate]] = None  # if provided, replaces all waypoints
 
 
 class MissionStatusUpdate(BaseModel):

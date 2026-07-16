@@ -62,7 +62,7 @@ export default function MonitorWorkspace() {
           <TelemetryChart droneId={activeDroneId} />
 
           {/* Raw telemetry + system log side by side on wide screens */}
-          <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <RawTelemetry droneId={activeDroneId} />
             <SystemLog    droneId={activeDroneId} />
           </div>
@@ -105,7 +105,7 @@ function RawTelemetry({ droneId }: { droneId: number }) {
           <Download size={13} /> CSV
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 text-xs mono overflow-auto"
+      <div className="mono grid grid-cols-1 gap-x-6 gap-y-0.5 overflow-auto text-xs sm:grid-cols-2"
         style={{ maxHeight: 280 }}>
         {frame
           ? Object.entries(frame)

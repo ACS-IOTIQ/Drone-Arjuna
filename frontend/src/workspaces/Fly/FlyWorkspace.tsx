@@ -94,7 +94,7 @@ export default function FlyWorkspace() {
       )}
 
       {/* ── Main content ── */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className={`relative flex-1 overflow-hidden ${manualOpen ? 'manual-is-open' : ''}`}>
         <LiveMap
           droneId={activeDroneId}
           onSelectDrone={setSelectedDroneId}
@@ -103,21 +103,19 @@ export default function FlyWorkspace() {
 
         {/* HUD — top-left overlay */}
         {activeDroneId && (
-          <div className="absolute top-3 left-3 z-[999]">
-            <InstrumentHUD droneId={activeDroneId} />
+          <div className="da-fly-top-overlay">
+            <div className="da-fly-overlay-item"><InstrumentHUD droneId={activeDroneId} /></div>
+            {isSimulated && (
+              <div className="da-fly-sim-badge"><span>SIMULATION MODE</span></div>
+            )}
+            <div className="da-fly-overlay-item da-fly-command"><CommandPanel droneId={activeDroneId} /></div>
           </div>
         )}
 
         {/* Command panel — top-right overlay */}
-        {activeDroneId && (
-          <div className="absolute top-3 right-3 z-[999]" style={{ width: 220 }}>
-            <CommandPanel droneId={activeDroneId} />
-          </div>
-        )}
-
         {/* Manual control — bottom-right overlay, shown when toggled */}
         {activeDroneId && manualOpen && (
-          <div className="absolute bottom-14 right-3 z-[999]">
+          <div className="da-fly-manual-panel absolute bottom-14 right-3 z-[999]">
             <ManualControlPanel droneId={activeDroneId} />
           </div>
         )}
@@ -142,18 +140,7 @@ export default function FlyWorkspace() {
         )}
 
         {/* SIM mode banner */}
-        {isSimulated && activeDroneId && (
-          <div className="absolute top-3 left-1/2 z-[999]"
-            style={{ transform: 'translateX(-50%)' }}>
-            <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-widest"
-              style={{
-                background: 'rgba(34,197,94,0.12)', color: '#22c55e',
-                border: '1px solid rgba(34,197,94,0.25)', backdropFilter: 'blur(6px)',
-              }}>
-              SIMULATION MODE
-            </span>
-          </div>
-        )}
+
 
         {/* Simulation progress bar */}
         {isSimulated && activeDroneId && (

@@ -36,10 +36,9 @@ export default function SettingsWorkspace() {
   const groups = [...new Set(TABS.map(t => t.group!))]
 
   return (
-    <div className="h-full flex overflow-hidden">
+    <div className="da-settings-layout flex h-full overflow-x-auto overflow-y-hidden">
       {/* Left sub-nav */}
-      <div className="shrink-0 py-4 flex flex-col gap-1 px-2"
-        style={{ width: 180, background: 'var(--da-surface)', borderRight: '1px solid var(--da-border)' }}>
+      <div className="da-settings-nav flex shrink-0 flex-col gap-1 px-2 py-4">
         {groups.map(g => (
           <div key={g} className="mb-2">
             <p className="text-[10px] font-semibold px-2 mb-1 mt-2" style={{ color: '#4b5563' }}>{g}</p>
@@ -65,7 +64,7 @@ export default function SettingsWorkspace() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="min-w-[480px] flex-1 overflow-auto p-6">
         {tab === 'types'     && <DroneTypeManager />}
         {tab === 'instances' && <DroneInstanceManager />}
         {tab === 'payloads'  && <PayloadManager />}

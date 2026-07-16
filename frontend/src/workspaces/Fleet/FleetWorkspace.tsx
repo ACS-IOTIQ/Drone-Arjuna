@@ -210,7 +210,7 @@ export default function FleetWorkspace() {
   return (
     <div className="h-full flex flex-col p-5 overflow-auto">
       {/* Header row */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Fleet Overview</h2>
           <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
@@ -290,7 +290,7 @@ export default function FleetWorkspace() {
       </div>
 
       {/* Summary bar */}
-      <div className="grid grid-cols-5 gap-3 mb-5">
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         {[
           { label: 'Registered',  val: instances.length,    color: '#3b82f6' },
           { label: 'Connected',   val: Object.values(connections).filter(c => c.connected).length, color: '#22c55e' },

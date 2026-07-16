@@ -1,14 +1,14 @@
 """Add must_change_password to users
 
-Revision ID: 010
+Revision ID: 010_must_change_password
 Revises: 009
 Create Date: 2026-07-02 00:00:00
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = '010'
-down_revision = ('009', '49341d048fb9')
+revision = '010_must_change_password'
+down_revision = '009'
 branch_labels = None
 depends_on = None
 

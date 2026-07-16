@@ -1,8 +1,5 @@
-// ═══════════════════════════════════════════════════════════════
-// src/components/layout/TopBar.tsx — status chip bar
-// ═══════════════════════════════════════════════════════════════
 import { useEffect, useState } from 'react'
-import { Bell } from 'lucide-react'
+import { Bell, UserRound } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
@@ -11,19 +8,18 @@ import { droneControlApi } from '@/api/droneControl'
 import type { Workspace } from './AppShell'
 
 const LABELS: Record<Workspace, string> = {
-  fleet:    'Fleet Ops',
-  plan:     'Mission Plan',
-  fly:      'Flight Control',
-  monitor:  'Telemetry',
+  fleet: 'Fleet Ops',
+  plan: 'Mission Plan',
+  fly: 'Flight Control',
+  monitor: 'Telemetry',
   settings: 'Master Data',
 }
 
 interface Props {
-  workspace:    Workspace
+  workspace: Workspace
   onNotifClick: () => void
 }
 
-// ── tiny chip primitives ───────────────────────────────────────
 function Chip({ tone, dot = true, children }: {
   tone: 'ok' | 'warn' | 'danger' | 'blue' | 'teal' | ''
   dot?: boolean
@@ -38,130 +34,85 @@ function Chip({ tone, dot = true, children }: {
 }
 
 export function TopBar({ workspace, onNotifClick }: Props) {
-  const { user }    = useAuthStore()
+  const { user } = useAuthStore()
   const unreadCount = useNotificationStore(s => s.unreadCount)
-
-  // Primary telemetry — first frame available across all drones
   const frames = useTelemetryStore(s => s.frames)
   const primary = Object.values(frames)[0] ?? null
-
-  const [time, setTime]       = useState(new Date())
+  const [time, setTime] = useState(new Date())
   const [connected, setConnected] = useState(0)
   const timezone = useTimezoneStore(s => s.timezone)
   const formatTime = useTimezoneStore(s => s.formatTime)
 
   useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000)
-    return () => clearInterval(t)
+    const timer = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(timer)
   }, [])
 
   useEffect(() => {
     const poll = async () => {
       try {
         const { data } = await droneControlApi.status()
-        setConnected(data.drones?.filter((d: any) => d.connected).length ?? 0)
-      } catch { /* offline */ }
+        setConnected(data.drones?.filter((drone: any) => drone.connected).length ?? 0)
+      } catch {
+        setConnected(0)
+      }
     }
     poll()
-    const t = setInterval(poll, 5000)
-    return () => clearInterval(t)
+    const timer = setInterval(poll, 5000)
+    return () => clearInterval(timer)
   }, [])
 
-  const localTime = formatTime(time)
-
-  // ── chip state derivations ──
-  const linkTone   = connected > 0 ? 'ok' : 'danger'
-  const linkLabel  = connected > 0 ? `${connected} LINK${connected > 1 ? 'S' : ''}` : 'OFFLINE'
-
-  const armedTone  = primary?.is_armed ? 'danger' : 'ok'
+  const linkTone = connected > 0 ? 'ok' : 'danger'
+  const linkLabel = connected > 0 ? `${connected} LINK${connected > 1 ? 'S' : ''}` : 'OFFLINE'
+  const armedTone = primary?.is_armed ? 'danger' : 'ok'
   const armedLabel = primary?.is_armed ? 'ARMED' : 'SAFE'
-
-  const mode        = primary?.flight_mode ?? null
-  const modeTone: 'ok'|'warn'|'teal'|'' =
+  const mode = primary?.flight_mode ?? null
+  const modeTone: 'ok' | 'warn' | 'teal' | '' =
     mode === 'AUTO' ? 'ok' : (mode === 'RTL' || mode === 'LAND') ? 'warn' : mode ? 'teal' : ''
-
-  const bat     = primary?.battery_remaining_pct ?? -1
-  const batTone = bat < 0 ? '' : bat <= 15 ? 'danger' : bat <= 25 ? 'warn' : 'ok'
-  const batLabel = bat >= 0 ? `BAT ${bat}%` : 'BAT —'
-
-  const sats      = primary?.gps_satellites ?? -1
-  const gpsTone: 'ok'|'warn'|'' = sats >= 6 ? 'ok' : sats >= 0 ? 'warn' : ''
-  const gpsLabel  = sats >= 0 ? `${sats} SAT` : 'GPS —'
+  const battery = primary?.battery_remaining_pct ?? -1
+  const batteryTone = battery < 0 ? '' : battery <= 15 ? 'danger' : battery <= 25 ? 'warn' : 'ok'
+  const satellites = primary?.gps_satellites ?? -1
+  const gpsTone: 'ok' | 'warn' | '' = satellites >= 6 ? 'ok' : satellites >= 0 ? 'warn' : ''
 
   return (
-    <header
-      className="flex items-center gap-3 px-4 shrink-0 overflow-x-auto"
-      style={{
-        height: 44,
-        background: '#ffffff',
-        borderBottom: '1px solid var(--da-border)',
-      }}>
-
-      {/* Workspace label — display font */}
-      <span className="display font-semibold text-sm shrink-0" style={{ color: '#0f172a', minWidth: 180 }}>
-        DRONEARJUNA / {LABELS[workspace]}
-      </span>
-
-      {/* ── Status chip strip ── */}
-      <div className="flex items-center gap-1.5 flex-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-
-        {/* LINK */}
-        <Chip tone={linkTone}>
-          {linkLabel}
-        </Chip>
-
-        {/* ARMED — only show when telemetry is present */}
-        {primary && (
-          <Chip tone={armedTone}>{armedLabel}</Chip>
-        )}
-
-        {/* FLIGHT MODE */}
-        {mode && (
-          <Chip tone={modeTone} dot={false}>{mode}</Chip>
-        )}
-
-        {/* BATTERY */}
-        {bat >= 0 && (
-          <Chip tone={batTone as any}>{batLabel}</Chip>
-        )}
-
-        {/* GPS */}
-        {sats >= 0 && (
-          <Chip tone={gpsTone as any}>{gpsLabel}</Chip>
-        )}
+    <header className="da-topbar">
+      <div className="da-workspace-title">
+        <span className="da-workspace-kicker">Operations</span>
+        <span className="da-workspace-name">{LABELS[workspace]}</span>
       </div>
 
-      {/* Local clock */}
-      <div className="text-right shrink-0" style={{ color: '#475569' }}>
-        <div className="mono text-xs">{localTime}</div>
-        <div className="text-[10px] uppercase tracking-[0.2em]">{timezone}</div>
+      <div className="da-status-strip">
+        <Chip tone={linkTone}>{linkLabel}</Chip>
+        {primary && <Chip tone={armedTone}>{armedLabel}</Chip>}
+        {mode && <Chip tone={modeTone} dot={false}>{mode}</Chip>}
+        {battery >= 0 && <Chip tone={batteryTone as 'ok' | 'warn' | 'danger'}>BAT {battery}%</Chip>}
+        {satellites >= 0 && <Chip tone={gpsTone}>{satellites} SAT</Chip>}
       </div>
 
-      {/* Notification bell */}
+      <div className="da-clock">
+        <span className="mono text-xs font-medium">{formatTime(time)}</span>
+        <span className="text-[9px] uppercase">{timezone}</span>
+      </div>
+
       <button
         onClick={onNotifClick}
-        className="relative w-8 h-8 flex items-center justify-center rounded transition-colors shrink-0"
-        style={{ color: unreadCount > 0 ? '#f59e0b' : '#6b7280' }}>
-        <Bell size={16} />
+        className="da-icon-button relative shrink-0"
+        aria-label={unreadCount ? `Open notifications, ${unreadCount} unread` : 'Open notifications'}
+        title="Notifications"
+        style={{ color: unreadCount > 0 ? 'var(--da-warning)' : 'var(--da-muted)' }}>
+        <Bell size={17} />
         {unreadCount > 0 && (
-          <span
-            className="absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full"
-            style={{
-              width: 16, height: 16,
-              background: '#ef4444',
-              fontSize: 9, fontWeight: 700, color: 'white',
-            }}>
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
+          <span className="da-notification-count">{unreadCount > 9 ? '9+' : unreadCount}</span>
         )}
       </button>
 
-      {/* User info */}
-      <div className="text-xs shrink-0" style={{ color: '#64748b' }}>
-        <span style={{ color: '#0f172a' }}>{(user as any)?.username ?? 'operator'}</span>
-        <span className="ml-2 mono text-[10px] px-1.5 py-0.5 rounded"
-          style={{ background: '#dbeafe', color: '#2563eb' }}>
-          {(user as any)?.role ?? 'viewer'}
+      <div className="da-user-summary">
+        <span className="da-user-avatar"><UserRound size={14} /></span>
+        <span className="min-w-0">
+          <span className="block truncate text-xs font-semibold">{(user as any)?.username ?? 'operator'}</span>
+          <span className="block text-[9px] uppercase" style={{ color: 'var(--da-muted)' }}>
+            {(user as any)?.role ?? 'viewer'}
+          </span>
         </span>
       </div>
     </header>

@@ -7,7 +7,7 @@
  * when battery, RSSI, or GPS thresholds are breached.
  */
 import { useEffect, useRef } from 'react'
-import { X, Bell, BatteryLow, Wifi, Satellite, AlertTriangle, CheckCircle, Info } from 'lucide-react'
+import { X, Bell, AlertTriangle, CheckCircle, Info, Trash2 } from 'lucide-react'
 import { useNotificationStore, NotifLevel, notify } from '@/store/notificationStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import { useFleetStore } from '@/store/fleetStore'
@@ -35,10 +35,10 @@ const LEVEL_ICON: Record<NotifLevel, React.ReactNode> = {
 }
 
 const LEVEL_BORDER: Record<NotifLevel, string> = {
-  danger:  'rgba(239,68,68,0.2)',
-  warning: 'rgba(245,158,11,0.2)',
-  success: 'rgba(34,197,94,0.15)',
-  info:    'rgba(59,130,246,0.15)',
+  danger:  '#dc2626',
+  warning: '#d97706',
+  success: '#16a34a',
+  info:    '#2563eb',
 }
 
 // Missions this drone might be flying, best guess first — used to find
@@ -131,89 +131,89 @@ export default function NotificationDrawer({ open, onClose }: Props) {
   // Mark read when drawer opens
   useEffect(() => {
     if (open) markAllRead()
-  }, [open])
+  }, [open, markAllRead])
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [open, onClose])
 
   return (
     <>
-      {/* Backdrop */}
       {open && (
         <div
-          className="fixed inset-0 z-40"
-          style={{ background: 'rgba(0,0,0,0.3)' }}
+          className="da-notification-backdrop fixed inset-0"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
 
-      {/* Drawer */}
       <div
-        className="fixed top-0 right-0 z-50 h-screen flex flex-col"
-        style={{
-          width:      320,
-          background: 'var(--da-surface)',
-          borderLeft: '1px solid var(--da-border)',
-          transform:  open ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform 0.22s ease',
-        }}>
-
-        {/* Header */}
-        <div
-          className="flex items-center justify-between px-4 shrink-0"
-          style={{ height: 52, borderBottom: '1px solid var(--da-border)' }}>
-          <div className="flex items-center gap-2">
-            <Bell size={15} style={{ color: '#6b7280' }} />
-            <span className="text-sm font-semibold">Notifications</span>
+        className={`da-notification-panel fixed flex flex-col ${open ? 'is-open' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-hidden={!open}
+        aria-label="Notifications">
+        <div className="da-notification-header">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="da-notification-header-icon"><Bell size={17} /></span>
+            <div className="min-w-0">
+              <span className="block text-sm font-semibold">Notifications</span>
+              <span className="block text-[10px]" style={{ color: 'var(--da-muted)' }}>
+                System health and mission activity
+              </span>
+            </div>
             {unreadCount > 0 && (
-              <span
-                className="text-xs font-bold px-1.5 py-0.5 rounded-full"
-                style={{ background: '#ef4444', color: 'white', fontSize: 10 }}>
+              <span className="da-badge bg-red-50 text-red-700">
                 {unreadCount}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1">
             {notifications.length > 0 && (
               <button
                 onClick={clear}
-                className="text-xs"
-                style={{ color: '#6b7280' }}>
-                Clear all
+                className="da-icon-button"
+                title="Clear all notifications"
+                aria-label="Clear all notifications">
+                <Trash2 size={15} />
               </button>
             )}
-            <button onClick={onClose}>
-              <X size={16} style={{ color: '#6b7280' }} />
+            <button onClick={onClose} className="da-icon-button" title="Close notifications" aria-label="Close notifications">
+              <X size={17} />
             </button>
           </div>
         </div>
 
-        {/* List */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           {notifications.length === 0 ? (
-            <div
-              className="flex flex-col items-center justify-center h-48 gap-2"
-              style={{ color: '#374151' }}>
-              <Bell size={28} style={{ opacity: 0.3 }} />
-              <p className="text-xs">No notifications</p>
+            <div className="flex h-52 flex-col items-center justify-center gap-3 text-center">
+              <span className="da-empty-icon"><Bell size={21} /></span>
+              <div>
+                <p className="text-sm font-semibold">All clear</p>
+                <p className="mt-1 text-xs" style={{ color: 'var(--da-muted)' }}>New operational alerts will appear here.</p>
+              </div>
             </div>
           ) : (
             notifications.map(n => (
               <div
                 key={n.id}
-                className="px-4 py-3 flex gap-3"
-                style={{
-                  borderBottom: `1px solid var(--da-border)`,
-                  borderLeft:   `3px solid ${LEVEL_BORDER[n.level]}`,
-                  background:   n.read ? 'transparent' : 'rgba(255,255,255,0.02)',
-                }}>
-                <div className="mt-0.5">{LEVEL_ICON[n.level]}</div>
+                className={`da-notification-item ${n.read ? '' : 'is-unread'}`}
+                style={{ borderLeftColor: LEVEL_BORDER[n.level] }}>
+                <div className="mt-0.5 shrink-0">{LEVEL_ICON[n.level]}</div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold" style={{ color: '#e2e8f0' }}>
-                    {n.title}
-                  </p>
-                  <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-xs font-semibold" style={{ color: 'var(--da-text)' }}>{n.title}</p>
+                    <p className="mono shrink-0 text-[9px]" style={{ color: 'var(--da-muted)' }}>
+                      {n.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <p className="mt-1 break-words text-xs leading-relaxed" style={{ color: 'var(--da-muted)' }}>
                     {n.message}
-                  </p>
-                  <p className="text-xs mt-1 mono" style={{ color: '#374151' }}>
-                    {n.timestamp.toLocaleTimeString()}
                   </p>
                 </div>
               </div>

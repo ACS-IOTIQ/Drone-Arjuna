@@ -1,0 +1,12 @@
+{
+  "fingerprint": "cad5f0298b760980d9e22d3292b47be1f355b66d364cf258a532333561df46f2",
+  "nodeids": [
+    "app/tests/test_waypoint_geofence_validation.py::test_get_geofence_echoes_stored_fence",
+    "app/tests/test_waypoint_geofence_validation.py::test_get_geofence_no_fence_returns_null",
+    "app/tests/test_waypoint_geofence_validation.py::test_get_geofence_unauthenticated_401",
+    "app/tests/test_waypoint_geofence_validation.py::test_mission_create_duplicate_sequence_422",
+    "app/tests/test_waypoint_geofence_validation.py::test_mission_create_latitude_out_of_range_422",
+    "app/tests/test_waypoint_geofence_validation.py::test_mission_create_longitude_out_of_range_422",
+    "app/tests/test_waypoint_geofence_validation.py::test_set_geofence_degenerate_polygon_422"
+  ]
+}

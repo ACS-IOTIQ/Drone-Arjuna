@@ -210,6 +210,51 @@ async def test_list_missions_unauthenticated_401(client: AsyncClient):
 # 2. DELETE /api/flight/missions/{id}
 # ═══════════════════════════════════════════════════════════════════════
 
+async def test_create_mission_rejects_waypoint_leg_touching_restricted_zone(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """
+    Waypoints can both be outside a restricted zone while the straight mission
+    leg between them clips it. Mission creation must reject that route.
+    """
+    hdrs = auth_headers(flight_controller_user, make_token)
+    waypoints = [
+        {
+            "sequence": 1,
+            "latitude": 28.5562,
+            "longitude": 76.9600,
+            "altitude_m": 0.0,
+            "altitude_ref": "AGL",
+            "action": "none",
+            "is_home": True,
+        },
+        {
+            "sequence": 2,
+            "latitude": 28.5562,
+            "longitude": 77.2400,
+            "altitude_m": 80.0,
+            "altitude_ref": "AGL",
+            "action": "none",
+        },
+    ]
+
+    resp = await client.post(
+        "/api/flight/missions",
+        json={
+            "name": "Restricted-Zone-Touch-Test",
+            "mission_type": "ISR",
+            "waypoints": waypoints,
+        },
+        headers=hdrs,
+    )
+
+    assert resp.status_code == 422
+    errors = resp.json()["detail"]["errors"]
+    assert any("Mission leg" in error for error in errors)
+    assert any("Delhi IGI Airport" in error for error in errors)
+    assert any("touches or crosses" in error for error in errors)
+
+
 async def test_delete_mission_204(
     client: AsyncClient, flight_controller_user, make_token
 ):

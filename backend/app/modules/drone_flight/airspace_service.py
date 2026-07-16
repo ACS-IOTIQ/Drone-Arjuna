@@ -328,6 +328,74 @@ def check_geofence_edges(
     return violations
 
 
+def check_waypoint_edges(
+    points: list[tuple[float, float, str]],
+) -> list[AirspaceViolation]:
+    """
+    Check whether any mission leg between consecutive waypoints touches or
+    crosses a restricted zone circle.
+
+    This catches paths where both endpoint waypoints are outside a zone but the
+    straight flight segment between them clips or passes through it.
+    """
+    if len(points) < 2:
+        return []
+
+    seen: set[str] = set()
+    violations: list[AirspaceViolation] = []
+
+    for i in range(len(points) - 1):
+        alat, alon, alabel = points[i]
+        blat, blon, blabel = points[i + 1]
+        leg_label = f"Mission leg {alabel} to {blabel}"
+
+        for zlat, zlon, red_m, yellow_m, zname in AIRPORT_ZONES:
+            dist = _segment_min_distance_m(alat, alon, blat, blon, zlat, zlon)
+            key_red = f"{zname}:red:{i}"
+            key_yellow = f"{zname}:yellow:{i}"
+            if dist <= red_m and key_red not in seen:
+                seen.add(key_red)
+                violations.append(AirspaceViolation(
+                    label=leg_label,
+                    zone_name=zname,
+                    zone_kind="red",
+                    message=(
+                        f"{leg_label} touches or crosses the red no-fly zone "
+                        f"(0-5 km) of {zname}. Move the waypoints to avoid all "
+                        f"restricted zones."
+                    ),
+                ))
+            elif dist <= yellow_m and key_yellow not in seen:
+                seen.add(key_yellow)
+                violations.append(AirspaceViolation(
+                    label=leg_label,
+                    zone_name=zname,
+                    zone_kind="yellow",
+                    message=(
+                        f"{leg_label} touches or crosses the controlled yellow zone "
+                        f"(5-12 km) of {zname}. Move the waypoints to avoid all "
+                        f"restricted zones."
+                    ),
+                ))
+
+        for zlat, zlon, radius_m, zname in SENSITIVE_ZONES:
+            dist = _segment_min_distance_m(alat, alon, blat, blon, zlat, zlon)
+            key = f"{zname}:sensitive:{i}"
+            if dist <= radius_m and key not in seen:
+                seen.add(key)
+                violations.append(AirspaceViolation(
+                    label=leg_label,
+                    zone_name=zname,
+                    zone_kind="sensitive",
+                    message=(
+                        f"{leg_label} touches or crosses the restricted zone of "
+                        f"{zname}. Move the waypoints to avoid all restricted zones."
+                    ),
+                ))
+
+    return violations
+
+
 def validate_mission_airspace(
     waypoints: list[tuple[float, float, str]],
     geofence: Optional[dict] = None,
@@ -350,6 +418,9 @@ def validate_mission_airspace(
 
     # 1. Waypoint point checks
     violations.extend(check_points(waypoints))
+
+    # 1b. Waypoint leg checks
+    violations.extend(check_waypoint_edges(waypoints))
 
     if geofence:
         ring = _geojson_to_ring(geofence)

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Lock, Shield } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Lock, Shield } from 'lucide-react'
 import { api } from '@/api/client'
 import { notify } from '@/store/notificationStore'
 import {
@@ -12,6 +12,7 @@ interface PasswordSetupScreenProps {
   email: string
   mobile: string
   onSetupComplete: (newPassword: string) => void
+  onBack: () => void
 }
 
 async function submitPasswordSetup(currentPassword: string, newPassword: string) {
@@ -28,6 +29,7 @@ export default function PasswordSetupScreen({
   email,
   mobile,
   onSetupComplete,
+  onBack,
 }: PasswordSetupScreenProps) {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -90,10 +92,9 @@ export default function PasswordSetupScreen({
   const strength = strengthIndicator(password)
 
   return (
-    <main className="min-h-screen w-screen overflow-y-auto px-4 py-8 text-slate-950"
+    <main className="da-password-setup-page text-slate-950"
       style={{
         background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%)',
-        position: 'relative',
       }}>
       {/* Animated background grid */}
       <div className="pointer-events-none absolute inset-0 opacity-10"
@@ -102,10 +103,19 @@ export default function PasswordSetupScreen({
           backgroundSize: '40px 40px',
         }} />
 
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md items-center relative z-10">
+      <div className="da-password-setup-content">
         <section className="da-card w-full p-6 sm:p-8" style={{
           boxShadow: '0 20px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
         }}>
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={isLoading}
+            className="da-btn da-btn-ghost mb-5 text-xs font-semibold"
+          >
+            <ArrowLeft size={15} /> Back to sign in
+          </button>
+
           <div className="mb-6 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-white">
               <Shield size={28} />
@@ -142,19 +152,22 @@ export default function PasswordSetupScreen({
               <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>
                 New Password *
               </span>
-              <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 flex items-center" />
+              <div className="da-input-shell">
+                <span className="da-input-icon"><Lock size={16} /></span>
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  className="da-input pl-9 pr-10 py-2.5"
+                  className="da-input da-input-embedded da-password-input"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Enter your new password"
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="pointer-events-auto absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="da-password-toggle"
+                  aria-label={showPassword ? 'Hide new password' : 'Show new password'}
+                  title={showPassword ? 'Hide new password' : 'Show new password'}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -211,19 +224,22 @@ export default function PasswordSetupScreen({
               <span className="text-sm font-semibold text-slate-700 leading-tight" style={{ letterSpacing: '0.5px', minHeight: '20px', display: 'block' }}>
                 Confirm Password *
               </span>
-              <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 flex items-center" />
+              <div className="da-input-shell">
+                <span className="da-input-icon"><Lock size={16} /></span>
                 <input
                   type={showConfirm ? 'text' : 'password'}
-                  className="da-input pl-9 pr-10 py-2.5"
+                  className="da-input da-input-embedded da-password-input"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
                   placeholder="Confirm your password"
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirm(!showConfirm)}
-                  className="pointer-events-auto absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="da-password-toggle"
+                  aria-label={showConfirm ? 'Hide confirmed password' : 'Show confirmed password'}
+                  title={showConfirm ? 'Hide confirmed password' : 'Show confirmed password'}
                 >
                   {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>

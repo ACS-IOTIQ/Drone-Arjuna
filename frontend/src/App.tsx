@@ -35,6 +35,7 @@ export default function App() {
         email={pendingEmail ?? ''}
         mobile={pendingMobile ?? ''}
         onSetupComplete={completePasswordSetup}
+        onBack={logout}
       />
     )
   }

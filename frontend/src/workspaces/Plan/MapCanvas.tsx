@@ -169,7 +169,31 @@ function MapClickHandler({ drawing, routeDrawing }: { drawing: boolean; routeDra
       }
 
       if (!routeDrawing) return
-      if (!validateGovernmentPlacement(e.latlng.lat, e.latlng.lng, 'waypoint')) return
+      const newWp = { lat: e.latlng.lat, lng: e.latlng.lng }
+
+      // 1. New waypoint itself inside a restricted zone
+      const rule = getRegulatoryRule(newWp.lat, newWp.lng, 100)
+      if (rule && (rule.kind === 'red' || rule.kind === 'orange')) {
+        notify.danger(
+          rule.kind === 'red' ? 'Waypoint blocked — restricted airspace' : 'Waypoint blocked — controlled airspace',
+          `Cannot place waypoint inside ${rule.name}. ${rule.restriction}`,
+        )
+        return
+      }
+
+      // 2. Flight line from previous waypoint to this one crosses a restricted zone
+      if (draftWaypoints.length > 0) {
+        const prev = draftWaypoints[draftWaypoints.length - 1]
+        const prevPt = { lat: prev.latitude, lng: prev.longitude }
+        const crossedZone = edgeCrossesRestrictedZone(prevPt, newWp)
+        if (crossedZone) {
+          notify.danger(
+            'Flight path crosses restricted airspace',
+            `The line from waypoint ${draftWaypoints.length} to the new point crosses ${crossedZone}. Place waypoints to avoid restricted zones.`,
+          )
+          return
+        }
+      }
 
       const seq = draftWaypoints.length + 1
       addWaypoint({
@@ -210,7 +234,7 @@ export default function MapCanvas() {
     const centerLng = geofence.reduce((sum, p) => sum + p.lng, 0) / geofence.length
     return buildZoneLayers(centerLat, centerLng, geofence)
   }, [geofence])
-  const regulatoryZones = useMemo(() => buildRegulatoryZoneLayers(), [])
+  const regulatoryZoneLayers = useMemo(() => buildRegulatoryZoneLayers(), [])
   useEffect(() => {
     if (activeMissionId && draftWaypoints.length > 0) setRouteDrawing(false)
   }, [activeMissionId, draftWaypoints.length])
@@ -350,7 +374,7 @@ export default function MapCanvas() {
           </LayersControl.Overlay>
           <LayersControl.Overlay checked name="Government airspace zones">
             <LayerGroup>
-              {regulatoryZones.map(layer => (
+              {regulatoryZoneLayers.map(layer => (
                 <Polygon
                   key={layer.id}
                   positions={layer.positions}

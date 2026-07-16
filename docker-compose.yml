@@ -193,7 +193,7 @@ services:
     privileged: true   # allows access to USB serial devices passed in via usbipd-win
     networks:
       - da_network
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
   # ── React Frontend ────────────────────────────────────────────────
   frontend:

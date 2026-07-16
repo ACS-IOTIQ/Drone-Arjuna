@@ -62,8 +62,7 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
   }
 
   return (
-    <div className="absolute bottom-4 left-1/2 z-[999]"
-      style={{ transform: 'translateX(-50%)', minWidth: 360, maxWidth: 420 }}>
+    <div className="da-sim-progress absolute bottom-4 left-1/2 z-[999]">
       <div className="da-card px-4 py-3 flex flex-col gap-2.5"
         style={{ background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(10px)' }}>
 

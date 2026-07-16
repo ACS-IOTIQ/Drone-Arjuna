@@ -312,7 +312,7 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
       ))}
 
       {hasPosition && frame && zoneRule && (
-        <div className="leaflet-top leaflet-left" style={{ zIndex: 1000 }}>
+        <div className="leaflet-top leaflet-left da-zone-advisory" style={{ zIndex: 1000 }}>
           <div className="leaflet-control" style={{ margin: 10, maxWidth: 280 }}>
             <div className="rounded-lg border px-3 py-2 text-xs shadow" style={{
               background: frame.geofence_breach ? 'rgba(254,242,242,0.97)' : 'rgba(255,255,255,0.96)',

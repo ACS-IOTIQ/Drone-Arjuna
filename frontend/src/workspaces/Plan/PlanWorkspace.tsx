@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Cpu, Send, XCircle } from 'lucide-react'
+import { CheckCircle2, Send, XCircle } from 'lucide-react'
 import { useMissionStore } from '@/store/missionStore'
 import { useFleetStore } from '@/store/fleetStore'
 import { useVesselStore } from '@/store/vesselStore'
@@ -46,19 +46,14 @@ export default function PlanWorkspace() {
   }
 
   return (
-    <div className="h-full flex overflow-hidden">
-      <div className="shrink-0 overflow-y-auto"
-        style={{
-          width: 320,
-          background: 'var(--da-surface)',
-          borderRight: '1px solid var(--da-border)',
-        }}>
+    <div className="da-plan-layout flex h-full overflow-x-auto overflow-y-hidden">
+      <div className="da-plan-editor shrink-0 overflow-y-auto">
         <MissionEditor />
       </div>
 
-      <div className="flex-1 relative overflow-hidden">
-        <MapCanvas />
-        <div className="absolute bottom-3 left-3 z-[1000] da-card px-3 py-2 flex flex-wrap items-center gap-2 max-w-[calc(100%-180px)]">
+      <div className="da-plan-map relative min-w-0 flex-1 overflow-hidden">
+        <MapCanvas onFleetAssign={() => setShowFleetAssign(true)} />
+        <div className="da-plan-actions absolute bottom-3 left-3 z-[1000] da-card flex max-w-[calc(100%-180px)] flex-wrap items-center gap-2 px-3 py-2">
           <div className="mr-1 min-w-[150px]">
             <div className="text-[10px] uppercase font-semibold" style={{ color: '#64748b' }}>Active Mission</div>
             <div className="text-xs font-semibold truncate">
@@ -85,15 +80,9 @@ export default function PlanWorkspace() {
             <XCircle size={14} /> {busyAction === 'Reject' ? 'Rejecting...' : 'Reject'}
           </button>
         </div>
-
-        <div className="absolute" style={{ top: 60, left: 12, zIndex: 1500 }}>
-          <button className="da-btn da-btn-teal" onClick={() => setShowFleetAssign(true)}>
-            <Cpu size={14} /> Fleet Assign
-          </button>
-        </div>
       </div>
 
-      <div className="shrink-0 overflow-y-auto" style={{ width: 260 }}>
+      <div className="da-plan-liveops shrink-0 overflow-y-auto">
         <LiveOpsPanel />
       </div>
 

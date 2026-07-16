@@ -29,17 +29,16 @@ export default function AppShell() {
   const [cameraOpen, setCameraOpen] = useState(false)
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden"
-      style={{ background: 'var(--da-bg)' }}>
+    <div className="da-app-shell flex h-screen w-screen flex-col overflow-hidden">
       <TopBar workspace={active} onNotifClick={() => setNotif(v => !v)} />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar
           active={active}
           onSelect={setActive}
           cameraOpen={cameraOpen}
           onCameraToggle={() => setCameraOpen(v => !v)}
         />
-        <main className="flex-1 overflow-hidden relative">
+        <main className="relative min-w-0 flex-1 overflow-hidden">
           <ErrorBoundary key={active}>
             {WORKSPACES[active]}
           </ErrorBoundary>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, useMapEvents, ZoomControl } from 'react-leaflet'
 import L, { type LeafletEvent } from 'leaflet'
-import { CheckCircle2, Pencil, PlusCircle, Route, Shield, Trash2 } from 'lucide-react'
+import { CheckCircle2, Cpu, Pencil, PlusCircle, Route, Shield, Trash2 } from 'lucide-react'
 import { useMissionStore, type GeoPoint } from '@/store/missionStore'
 import { notify } from '@/store/notificationStore'
 import { buildZoneLayers } from '@/utils/geofenceZones'
@@ -186,7 +186,11 @@ function MapClickHandler({ drawing, routeDrawing }: { drawing: boolean; routeDra
   return null
 }
 
-export default function MapCanvas() {
+type MapCanvasProps = {
+  onFleetAssign?: () => void
+}
+
+export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
   const {
     draftWaypoints,
     geofence,
@@ -465,57 +469,65 @@ export default function MapCanvas() {
         <MapClickHandler drawing={drawing} routeDrawing={routeDrawing} />
       </MapContainer>
 
-      <div className="absolute top-3 left-3 z-[999] da-card p-2 flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <button onClick={startRoute} disabled={routeDrawing && !drawing} className="da-btn da-btn-ghost">
-            <Route size={14} /> Plot Route
-          </button>
-          <button onClick={completeRoute} disabled={!routeDrawing || draftWaypoints.length === 0} className="da-btn da-btn-primary">
-            <CheckCircle2 size={14} /> Complete Path
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={startDrawing} className="da-btn da-btn-teal">
-            <Pencil size={14} /> Draw Geofence
-          </button>
-          <button onClick={finishDrawing} disabled={!drawing || geofence.length < 3} className="da-btn da-btn-primary">
-            <Shield size={14} /> Finish
-          </button>
-          <button onClick={deleteZone} disabled={geofence.length === 0} className="da-btn da-btn-ghost">
-            <Trash2 size={14} /> Delete
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            value={manualLat}
-            onChange={e => setManualLat(e.target.value)}
-            placeholder="Lat"
-            className="w-24 rounded border border-slate-300 px-2 py-1 text-xs"
-          />
-          <input
-            value={manualLng}
-            onChange={e => setManualLng(e.target.value)}
-            placeholder="Lng"
-            className="w-24 rounded border border-slate-300 px-2 py-1 text-xs"
-          />
-          <button onClick={addManualVertex} className="da-btn da-btn-ghost" style={{ padding: '4px 8px' }}>
-            <PlusCircle size={14} /> Add
-          </button>
-        </div>
-        <span className="text-xs mono px-2" style={{ color: outsideCount > 0 ? '#dc2626' : '#0f766e' }}>
-          {routeDrawing ? 'Route plotting active' : 'Route plotting complete'} - {geofence.length < 3 ? `${geofence.length}/3 vertices` : `${outsideCount} outside`}
-        </span>
-        {geofence.length > 0 && (
-          <div className="max-h-32 overflow-auto rounded border border-slate-200 bg-white/90 p-2 text-[11px] text-slate-600">
-            {geofence.map((point, idx) => (
-              <div key={`${idx}-${point.lat}-${point.lng}`} className="mb-1 flex items-center justify-between gap-2">
-                <span>#{idx + 1} {point.lat.toFixed(5)}, {point.lng.toFixed(5)}</span>
-                <button onClick={() => removeVertex(idx)} className="text-red-500" title="Remove point">
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))}
+      <div className="absolute top-3 left-3 right-3 z-[999] flex flex-wrap items-start gap-2 pointer-events-none">
+        <div className="da-card p-2 flex flex-col gap-2 pointer-events-auto">
+          <div className="flex items-center gap-2">
+            <button onClick={startRoute} disabled={routeDrawing && !drawing} className="da-btn da-btn-ghost">
+              <Route size={14} /> Plot Route
+            </button>
+            <button onClick={completeRoute} disabled={!routeDrawing || draftWaypoints.length === 0} className="da-btn da-btn-primary">
+              <CheckCircle2 size={14} /> Complete Path
+            </button>
           </div>
+          <div className="flex items-center gap-2">
+            <button onClick={startDrawing} className="da-btn da-btn-teal">
+              <Pencil size={14} /> Draw Geofence
+            </button>
+            <button onClick={finishDrawing} disabled={!drawing || geofence.length < 3} className="da-btn da-btn-primary">
+              <Shield size={14} /> Finish
+            </button>
+            <button onClick={deleteZone} disabled={geofence.length === 0} className="da-btn da-btn-ghost">
+              <Trash2 size={14} /> Delete
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              value={manualLat}
+              onChange={e => setManualLat(e.target.value)}
+              placeholder="Lat"
+              className="w-24 rounded border border-slate-300 px-2 py-1 text-xs"
+            />
+            <input
+              value={manualLng}
+              onChange={e => setManualLng(e.target.value)}
+              placeholder="Lng"
+              className="w-24 rounded border border-slate-300 px-2 py-1 text-xs"
+            />
+            <button onClick={addManualVertex} className="da-btn da-btn-ghost" style={{ padding: '4px 8px' }}>
+              <PlusCircle size={14} /> Add
+            </button>
+          </div>
+          <span className="text-xs mono px-2" style={{ color: outsideCount > 0 ? '#dc2626' : '#0f766e' }}>
+            {routeDrawing ? 'Route plotting active' : 'Route plotting complete'} - {geofence.length < 3 ? `${geofence.length}/3 vertices` : `${outsideCount} outside`}
+          </span>
+          {geofence.length > 0 && (
+            <div className="max-h-32 overflow-auto rounded border border-slate-200 bg-white/90 p-2 text-[11px] text-slate-600">
+              {geofence.map((point, idx) => (
+                <div key={`${idx}-${point.lat}-${point.lng}`} className="mb-1 flex items-center justify-between gap-2">
+                  <span>#{idx + 1} {point.lat.toFixed(5)}, {point.lng.toFixed(5)}</span>
+                  <button onClick={() => removeVertex(idx)} className="text-red-500" title="Remove point">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {onFleetAssign && (
+          <button className="da-btn da-btn-teal shrink-0 pointer-events-auto" onClick={onFleetAssign}>
+            <Cpu size={14} /> Fleet Assign
+          </button>
         )}
       </div>
 

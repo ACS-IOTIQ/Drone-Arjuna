@@ -195,6 +195,19 @@ function MapClickHandler({ drawing, routeDrawing }: { drawing: boolean; routeDra
         }
       }
 
+      // 3. Waypoints placed so far (including this one) surround/enclose a restricted zone
+      const routePts = [...draftWaypoints.map(w => ({ lat: w.latitude, lng: w.longitude })), newWp]
+      if (routePts.length >= 3) {
+        const enclosedZone = geofenceEnclosesRestrictedZone(routePts)
+        if (enclosedZone) {
+          notify.danger(
+            'Flight path surrounds restricted airspace',
+            `These waypoints surround ${enclosedZone}. Place waypoints so the route does not enclose restricted zones.`,
+          )
+          return
+        }
+      }
+
       const seq = draftWaypoints.length + 1
       addWaypoint({
         sequence: seq,
@@ -583,6 +596,13 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
           </button>
         </div>
       )}
+
+      <div className="absolute bottom-6 left-3 z-[999] max-w-[260px] rounded px-3 py-2 text-[11px] leading-snug pointer-events-none"
+        style={{ background: 'rgba(255,255,255,0.94)', color: '#475569', border: '1px solid var(--da-border)' }}>
+        <span style={{ fontWeight: 700, color: '#92400e' }}>Government airspace zones</span> are fixed real-world
+        restricted-airspace rings (airports etc.) — they do not move with your waypoints or geofence. Only the
+        teal geofence outline reflects what you draw.
+      </div>
     </div>
   )
 }

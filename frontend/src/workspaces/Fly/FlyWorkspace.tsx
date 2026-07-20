@@ -47,8 +47,11 @@ export default function FlyWorkspace() {
     setManualOpen(false)
   }
 
-  const handleSimStarted = () => {
-    fetchConnections()
+  const handleSimStarted = async (droneId: number) => {
+    subscribe(droneId)
+    setSelectedDroneId(droneId)
+    await fetchInstances()
+    await fetchConnections()
     setShowLauncher(false)
   }
 

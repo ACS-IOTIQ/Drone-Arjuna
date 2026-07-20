@@ -6,7 +6,7 @@ import { droneControlApi, SimStartPayload } from '@/api/droneControl'
 import { droneMasterApi } from '@/api/droneMaster'
 
 interface Props {
-  onStarted: () => void
+  onStarted: (droneId: number) => void
   onClose?: () => void
 }
 
@@ -82,9 +82,9 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
         drone_instance_id: Number(targetDroneId),
         speed_multiplier: speedMult,
       }
-      await droneControlApi.simulateStart(payload)
+      const started = await droneControlApi.simulateStart(payload)
       await useFleetStore.getState().fetchConnections()
-      onStarted()
+      onStarted(Number(started.data?.drone_id ?? targetDroneId))
     } catch (e: any) {
       setErr(e.response?.data?.detail ?? 'Failed to start simulation')
     } finally {

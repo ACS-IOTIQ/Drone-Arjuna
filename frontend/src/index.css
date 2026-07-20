@@ -352,7 +352,7 @@ textarea:focus-visible {
   display: grid;
   width: 100%;
   min-height: 100vh;
-  grid-template-columns: minmax(0, 1fr) minmax(390px, 42%);
+  grid-template-columns: minmax(0, 1fr) minmax(440px, 42%);
   overflow: hidden;
   background: #101a27;
 }
@@ -456,14 +456,14 @@ textarea:focus-visible {
   min-width: 0;
   align-items: center;
   justify-content: center;
-  padding: 24px clamp(20px, 4vw, 56px);
+  padding: 28px clamp(24px, 4vw, 64px);
 }
 
 .da-login-card {
   width: 100%;
-  max-width: 430px;
-  max-height: calc(100vh - 48px);
-  padding: 30px;
+  max-width: 480px;
+  max-height: calc(100vh - 56px);
+  padding: 34px;
   overflow-y: auto;
   border: 1px solid rgba(223, 230, 239, 0.94);
   border-radius: 8px;
@@ -474,7 +474,7 @@ textarea:focus-visible {
 }
 
 .da-login-card.is-request {
-  max-width: 560px;
+  max-width: 620px;
 }
 
 .da-password-setup-page {
@@ -1094,7 +1094,7 @@ select.da-input {
   }
 
   .da-login-page {
-    grid-template-columns: minmax(0, 1fr) minmax(370px, 46%);
+    grid-template-columns: minmax(0, 1fr) minmax(410px, 48%);
   }
 }
 
@@ -1150,7 +1150,7 @@ select.da-input {
   .da-login-card,
   .da-login-card.is-request {
     width: calc(100vw - 28px);
-    max-width: 520px;
+    max-width: 560px;
     max-height: calc(100dvh - 40px);
     padding: 24px 20px;
   }

@@ -100,6 +100,7 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
   const missionGeofence = useMissionStore(s => s.geofence)
   const [runtimeGeofence, setRuntimeGeofence] = useState<any | null>(null)
   const lastRegulatoryRef = useRef<string | null>(null)
+  const lastComplianceRef = useRef<string | null>(null)
   const autoActionRef = useRef<Map<string, number>>(new Map())
 
   // Breadcrumb trail — every 5th frame, only for the active/followed drone
@@ -143,6 +144,49 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     if (!frame) return null
     return getRegulatoryRule(frame.lat, frame.lon, frame.alt_agl ?? 0)
   }, [frame])
+
+  const activeCompliance = useMemo(() => {
+    if (!frame || !zoneRule) return null
+    const maxAltitudeM = Math.min(
+      zoneRule.maxAltitudeM,
+      currentRegulatoryZone?.maxAltitudeM ?? Number.POSITIVE_INFINITY,
+    )
+    const maxSpeedMs = Math.min(
+      zoneRule.maxSpeedMs,
+      currentRegulatoryZone?.maxSpeedMs ?? Number.POSITIVE_INFINITY,
+    )
+    const altitudeExceeded = frame.alt_agl > maxAltitudeM
+    const speedExceeded = frame.groundspeed_ms > maxSpeedMs
+    const geofenceExceeded = zoneRule.zone === 'red' || Boolean(frame.geofence_breach)
+    return {
+      maxAltitudeM,
+      maxSpeedMs,
+      altitudeExceeded,
+      speedExceeded,
+      geofenceExceeded,
+      hasViolation: altitudeExceeded || speedExceeded || geofenceExceeded,
+    }
+  }, [frame, zoneRule, currentRegulatoryZone])
+
+  useEffect(() => {
+    if (!droneId || !frame || !activeCompliance) return
+    const violations = [
+      activeCompliance.geofenceExceeded ? 'geofence' : '',
+      activeCompliance.altitudeExceeded ? 'altitude' : '',
+      activeCompliance.speedExceeded ? 'speed' : '',
+    ].filter(Boolean)
+    const key = violations.join(':')
+    if (!key || lastComplianceRef.current === key) {
+      if (!key) lastComplianceRef.current = null
+      return
+    }
+    lastComplianceRef.current = key
+    notify.warning(
+      'Live restriction limit exceeded',
+      `Drone ${droneId}: ${violations.join(', ')} limit active. Alt ${frame.alt_agl.toFixed(1)} / ${activeCompliance.maxAltitudeM} m, speed ${frame.groundspeed_ms.toFixed(1)} / ${activeCompliance.maxSpeedMs} m/s.`,
+      droneId,
+    )
+  }, [droneId, frame, activeCompliance])
 
   useEffect(() => {
     if (!droneId || !frame || !currentRegulatoryZone) return
@@ -291,12 +335,17 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
             eventHandlers={onSelectDrone ? { click: () => onSelectDrone(id) } : undefined}>
             <Tooltip permanent direction="top" offset={[0, -16]}>
               <div style={{ fontSize: 11, minWidth: 140 }}>
-                <div style={{ fontWeight: 700, color: frame.geofence_breach ? '#ef4444' : '#0f172a' }}>
-                  {frame.geofence_breach ? 'Boundary breach' : 'Within controlled airspace'}
+                <div style={{ fontWeight: 700, color: activeCompliance?.hasViolation ? '#ef4444' : '#0f172a' }}>
+                  {activeCompliance?.hasViolation ? 'Restriction active' : 'Within controlled airspace'}
                 </div>
                 {zoneRule && (
                   <div style={{ color: '#475569', marginTop: 2 }}>
                     {zoneRule.label} - {zoneRule.message}
+                  </div>
+                )}
+                {activeCompliance && (
+                  <div style={{ color: activeCompliance.hasViolation ? '#b91c1c' : '#475569', marginTop: 2 }}>
+                    Alt {f.alt_agl.toFixed(1)} / {activeCompliance.maxAltitudeM} m - Speed {f.groundspeed_ms.toFixed(1)} / {activeCompliance.maxSpeedMs} m/s
                   </div>
                 )}
               </div>
@@ -315,21 +364,31 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
         <div className="leaflet-top leaflet-left da-zone-advisory" style={{ zIndex: 1000 }}>
           <div className="leaflet-control" style={{ margin: 10, maxWidth: 280 }}>
             <div className="rounded-lg border px-3 py-2 text-xs shadow" style={{
-              background: frame.geofence_breach ? 'rgba(254,242,242,0.97)' : 'rgba(255,255,255,0.96)',
-              borderColor: frame.geofence_breach ? '#fda4af' : '#cbd5e1',
-              color: frame.geofence_breach ? '#b91c1c' : '#334155',
+              background: activeCompliance?.hasViolation ? 'rgba(254,242,242,0.97)' : 'rgba(255,255,255,0.96)',
+              borderColor: activeCompliance?.hasViolation ? '#fda4af' : '#cbd5e1',
+              color: activeCompliance?.hasViolation ? '#b91c1c' : '#334155',
             }}>
               <div className="font-semibold">{zoneRule.label}</div>
               <div className="mt-1">{zoneRule.message}</div>
               <div className="mt-1 text-[10px] uppercase tracking-wide">
-                Altitude limit: {zoneRule.maxAltitudeM} m - Speed limit: {zoneRule.maxSpeedMs} m/s
+                Altitude: {frame.alt_agl.toFixed(1)} / {activeCompliance?.maxAltitudeM ?? zoneRule.maxAltitudeM} m - Speed: {frame.groundspeed_ms.toFixed(1)} / {activeCompliance?.maxSpeedMs ?? zoneRule.maxSpeedMs} m/s
               </div>
+              {activeCompliance?.altitudeExceeded && (
+                <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                  Altitude limit exceeded
+                </div>
+              )}
+              {activeCompliance?.speedExceeded && (
+                <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                  Speed limit exceeded
+                </div>
+              )}
               {currentRegulatoryZone && (
                 <div className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-800">
                   Govt layer: {currentRegulatoryZone.name} - {currentRegulatoryZone.maxAltitudeM} m / {currentRegulatoryZone.maxSpeedMs} m/s
                 </div>
               )}
-              {frame.geofence_breach && (
+              {activeCompliance?.geofenceExceeded && (
                 <div className="mt-2 flex flex-col gap-1">
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-red-700">
                     Geofence block active. Auto-RTL is preventing boundary exit.

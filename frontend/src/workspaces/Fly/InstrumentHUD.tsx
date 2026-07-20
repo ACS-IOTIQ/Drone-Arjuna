@@ -20,6 +20,18 @@ export function InstrumentHUD({ droneId }: { droneId: number }) {
     if (!frame) return null
     return findRegulatoryZone(frame.lat, frame.lon)
   }, [frame])
+  const limits = useMemo(() => {
+    if (!frame || !zoneRule) return null
+    const maxAltitudeM = Math.min(zoneRule.maxAltitudeM, regulatoryZone?.maxAltitudeM ?? Number.POSITIVE_INFINITY)
+    const maxSpeedMs = Math.min(zoneRule.maxSpeedMs, regulatoryZone?.maxSpeedMs ?? Number.POSITIVE_INFINITY)
+    return {
+      maxAltitudeM,
+      maxSpeedMs,
+      altitudeExceeded: frame.alt_agl > maxAltitudeM,
+      speedExceeded: frame.groundspeed_ms > maxSpeedMs,
+      geofenceExceeded: zoneRule.zone === 'red' || Boolean(frame.geofence_breach),
+    }
+  }, [frame, zoneRule, regulatoryZone])
 
   if (!frame) return null
 
@@ -86,13 +98,21 @@ export function InstrumentHUD({ droneId }: { droneId: number }) {
 
         {zoneRule && (
           <div className="rounded border px-2 py-1.5 text-[10px]" style={{
-            background: frame.geofence_breach ? 'rgba(254,242,242,0.95)' : 'rgba(248,250,252,0.95)',
-            borderColor: frame.geofence_breach ? '#fda4af' : '#e2e8f0',
-            color: frame.geofence_breach ? '#b91c1c' : '#334155',
+            background: limits?.geofenceExceeded || limits?.altitudeExceeded || limits?.speedExceeded ? 'rgba(254,242,242,0.95)' : 'rgba(248,250,252,0.95)',
+            borderColor: limits?.geofenceExceeded || limits?.altitudeExceeded || limits?.speedExceeded ? '#fda4af' : '#e2e8f0',
+            color: limits?.geofenceExceeded || limits?.altitudeExceeded || limits?.speedExceeded ? '#b91c1c' : '#334155',
           }}>
             <div className="font-semibold">{zoneRule.label}</div>
             <div className="mt-0.5">Alt: ≤ {zoneRule.maxAltitudeM} m · Speed: ≤ {zoneRule.maxSpeedMs} m/s</div>
             <div className="mt-0.5 text-[9px] uppercase tracking-wide">Recommended: {zoneRule.recommendedAltitudeM} m / {zoneRule.recommendedSpeedMs} m/s</div>
+            <div className="mt-0.5 text-[9px] uppercase tracking-wide">
+              Live: {frame.alt_agl.toFixed(1)} / {limits?.maxAltitudeM ?? zoneRule.maxAltitudeM} m - {frame.groundspeed_ms.toFixed(1)} / {limits?.maxSpeedMs ?? zoneRule.maxSpeedMs} m/s
+            </div>
+            {(limits?.altitudeExceeded || limits?.speedExceeded) && (
+              <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-700">
+                {limits.altitudeExceeded && limits.speedExceeded ? 'Altitude and speed exceeded' : limits.altitudeExceeded ? 'Altitude exceeded' : 'Speed exceeded'}
+              </div>
+            )}
             {regulatoryZone && (
               <div className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[9px] text-amber-800">
                 Govt zone: {regulatoryZone.name}

@@ -477,6 +477,26 @@ textarea:focus-visible {
   max-width: 560px;
 }
 
+.da-password-setup-page {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 32px 16px;
+}
+
+.da-password-setup-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 448px;
+  margin: auto;
+  flex: 0 0 auto;
+}
+
 .da-login-mobile-brand {
   display: none;
   margin-bottom: 5px;
@@ -566,6 +586,10 @@ textarea:focus-visible {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+}
+
+.da-input.da-input-embedded.da-password-input {
+  padding-right: 42px;
 }
 
 .da-password-toggle {

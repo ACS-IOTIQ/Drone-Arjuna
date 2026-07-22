@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 
 from app.database import get_db
 from app.core.rbac import require_min_role, Role
@@ -56,6 +56,16 @@ def _enforce_airspace(waypoints_body, geofence_body):
 @router.post("/missions", response_model=MissionOut, status_code=201)
 async def create_mission(body: MissionCreate, db: DbDep, user: PilotDep):
     _enforce_airspace(body.waypoints, body.geofence)
+
+    existing_count = await db.scalar(
+        select(func.count()).select_from(Mission).where(
+            Mission.drone_instance_id == body.drone_instance_id
+        )
+    )
+    # A drone's first mission is auto-approved; any additional mission
+    # for the same drone must go through commander approval (stays "planning").
+    initial_status = "approved" if existing_count == 0 else "planning"
+
     m = Mission(
         name=body.name,
         description=body.description,
@@ -65,6 +75,7 @@ async def create_mission(body: MissionCreate, db: DbDep, user: PilotDep):
         notes=body.notes,
         geofence=body.geofence,
         payload_weight_kg=body.payload_weight_kg,
+        status=initial_status,
     )
     db.add(m)
     await db.flush()   # get m.id
@@ -159,11 +170,14 @@ async def update_mission_status(
         )
         target_wps = wps_result.scalars().all()
 
-        # Load all currently active missions (approved or executing), excluding this one
+        # Load all currently active missions (approved or executing), excluding this one.
+        # Missions assigned to a different drone can't physically collide, so only
+        # missions sharing the same assigned drone are considered for deconfliction.
         active_result = await db.execute(
             select(Mission).where(
                 Mission.status.in_(["approved", "executing"]),
                 Mission.id != mid,
+                Mission.drone_instance_id == m.drone_instance_id,
             )
         )
         active_missions = active_result.scalars().all()

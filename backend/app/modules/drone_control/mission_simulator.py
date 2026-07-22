@@ -274,12 +274,15 @@ class _SimulatedFlight:
                 self.phase    = SimPhase.IDLE
 
         elif action == "takeoff":
-            if self.phase == SimPhase.ARMED:
+            if self.phase in (SimPhase.IDLE, SimPhase.ARMED):
+                self.is_armed = True
                 alt = float(params.get("altitude", 30.0))
                 if self.waypoints:
                     alt = float(self.waypoints[0].get("altitude_m", alt))
                 self._target_alt = alt
                 self.phase = SimPhase.TAKEOFF
+            else:
+                log.warning("Takeoff rejected — invalid phase", drone_id=self.drone_id, phase=self.phase.value)
 
         elif action == "set_mode":
             mode = params.get("mode", "")
@@ -445,12 +448,25 @@ class _SimulatedFlight:
                 if self.wp_idx >= len(self.waypoints):
                     self.phase = SimPhase.LANDING
 
-        elif self.phase in (SimPhase.GUIDED, SimPhase.PAUSED):
+        elif self.phase == SimPhase.GUIDED:
             self.heading     = (self.heading + 3.0 * dt * self.speed_mult) % 360
             self.groundspeed = 4.0
             self.airspeed    = 4.0
             self.climb_rate  = 0.0
             self.pitch       = 2.0
+            self.roll        = 15.0
+            self.lat, self.lon = _move_toward(
+                self.lat, self.lon, self.heading, self.groundspeed * dt
+            )
+            self.battery_pct = max(0.0, self.battery_pct - self.BATT_DRAIN * 0.5 * dt)
+
+        elif self.phase == SimPhase.PAUSED:
+            # LOITER — intentionally holds position; heading and battery still tick.
+            self.heading     = (self.heading + 3.0 * dt * self.speed_mult) % 360
+            self.groundspeed = 0.0
+            self.airspeed    = 0.0
+            self.climb_rate  = 0.0
+            self.pitch       = 0.0
             self.roll        = 15.0
             self.battery_pct = max(0.0, self.battery_pct - self.BATT_DRAIN * 0.5 * dt)
 

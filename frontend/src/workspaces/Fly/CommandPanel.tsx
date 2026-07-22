@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { AlertTriangle, ChevronDown } from 'lucide-react'
 import { droneControlApi } from '@/api/droneControl'
 import { useTelemetryStore } from '@/store/telemetryStore'
+import { notify } from '@/store/notificationStore'
 
 const MODES = ['STABILIZE', 'ALT_HOLD', 'LOITER', 'AUTO', 'GUIDED', 'RTL', 'LAND']
 
@@ -18,6 +19,10 @@ export function CommandPanel({ droneId }: { droneId: number }) {
     setBusy(true)
     try {
       await droneControlApi.command({ drone_id: droneId, command: cmd as any, params })
+      notify.success('Command sent', `'${cmd.toUpperCase()}' accepted for drone ${droneId}`, droneId)
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'Unknown error'
+      notify.danger('Command failed', `'${cmd.toUpperCase()}' failed: ${detail}`, droneId)
     } finally {
       setBusy(false)
       setConfirm(null)

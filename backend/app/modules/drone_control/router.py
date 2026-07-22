@@ -675,7 +675,7 @@ async def telemetry_stream(drone_id: int, ws: WebSocket):
         """Reads client pings and enqueues pong replies."""
         try:
             while True:
-                data = await asyncio.wait_for(ws.receive_text(), timeout=30.0)
+                data = await asyncio.wait_for(ws.receive_text(), timeout=60.0)
                 if data and json.loads(data).get("type") == "ping":
                     queue.put_nowait('{"type":"pong"}')
         except (WebSocketDisconnect, asyncio.TimeoutError, Exception):

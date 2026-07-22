@@ -1,11 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, useMapEvents, ZoomControl } from 'react-leaflet'
 import L, { type LeafletEvent } from 'leaflet'
-import { CheckCircle2, Cpu, Pencil, PlusCircle, Route, Shield, Trash2 } from 'lucide-react'
+import { CheckCircle2, Cpu, Eye, Pencil, PlusCircle, Route, Shield, Trash2 } from 'lucide-react'
 import { useMissionStore, type GeoPoint } from '@/store/missionStore'
+import { useFleetStore } from '@/store/fleetStore'
 import { notify } from '@/store/notificationStore'
 import { buildZoneLayers } from '@/utils/geofenceZones'
 import { buildRegulatoryZoneLayers, getRegulatoryRule, regulatoryZones } from '@/utils/regulatoryZones'
+
+const FLEET_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d']
+
+function colorForDrone(droneId: number | null | undefined) {
+  if (droneId == null) return '#64748b'
+  return FLEET_COLORS[droneId % FLEET_COLORS.length]
+}
+
+function geofenceRingToLatLng(geofence: any): [number, number][] {
+  const ring = geofence?.coordinates?.[0]
+  if (!Array.isArray(ring)) return []
+  return ring
+    .map((p: number[]) => [Number(p[1]), Number(p[0])] as [number, number])
+    .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]))
+}
 
 function wpIcon(seq: number, isHome: boolean, outside: boolean) {
   const bg = outside ? '#dc2626' : isHome ? '#16a34a' : '#2563eb'
@@ -237,11 +253,22 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
     clearDraft,
     setGeofence,
     activeMissionId,
+    missions,
   } = useMissionStore()
+  const instances = useFleetStore(s => s.instances)
   const [drawing, setDrawing] = useState(false)
   const [routeDrawing, setRouteDrawing] = useState(true)
   const [manualLat, setManualLat] = useState('')
   const [manualLng, setManualLng] = useState('')
+  const [showAllMissions, setShowAllMissions] = useState(false)
+
+  const droneName = (id: number | null | undefined) =>
+    instances.find(i => i.id === id)?.call_sign ?? (id != null ? `Drone #${id}` : 'Unassigned')
+
+  const otherMissions = useMemo(
+    () => missions.filter(m => m.id !== activeMissionId && (m.waypoints?.length || m.geofence)),
+    [missions, activeMissionId],
+  )
 
   const routePositions = draftWaypoints.map(w => [w.latitude, w.longitude] as [number, number])
   const geofencePositions = geofence.map(p => [p.lat, p.lng] as [number, number])
@@ -411,6 +438,43 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
           </LayersControl.Overlay>
         </LayersControl>
 
+        {showAllMissions && (
+          <LayerGroup>
+            {otherMissions.map(m => {
+              const color = colorForDrone(m.drone_instance_id)
+              const route = (m.waypoints ?? [])
+                .slice()
+                .sort((a, b) => a.sequence - b.sequence)
+                .map(w => [w.latitude, w.longitude] as [number, number])
+              const fence = geofenceRingToLatLng(m.geofence)
+              return (
+                <LayerGroup key={m.id}>
+                  {route.length > 1 && (
+                    <Polyline positions={route} pathOptions={{ color, weight: 2.5, opacity: 0.75, dashArray: '2 6' }}>
+                      <Popup>
+                        <div style={{ padding: 4, minWidth: 160 }}>
+                          <div style={{ fontWeight: 700 }}>{m.name}</div>
+                          <div style={{ fontSize: 11, color: '#475569' }}>{droneName(m.drone_instance_id)} · {m.status}</div>
+                        </div>
+                      </Popup>
+                    </Polyline>
+                  )}
+                  {fence.length > 1 && (
+                    <Polygon positions={fence} pathOptions={{ color, weight: 1.5, fillColor: color, fillOpacity: 0.06, dashArray: '2 6' }}>
+                      <Popup>
+                        <div style={{ padding: 4, minWidth: 160 }}>
+                          <div style={{ fontWeight: 700 }}>{m.name} — geofence</div>
+                          <div style={{ fontSize: 11, color: '#475569' }}>{droneName(m.drone_instance_id)}</div>
+                        </div>
+                      </Popup>
+                    </Polygon>
+                  )}
+                </LayerGroup>
+              )
+            })}
+          </LayerGroup>
+        )}
+
         {geofence.map((point, idx) => (
           <Marker
             key={`vertex-${idx}`}
@@ -547,6 +611,31 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
           <span className="text-xs mono px-2" style={{ color: outsideCount > 0 ? '#dc2626' : '#0f766e' }}>
             {routeDrawing ? 'Route plotting active' : 'Route plotting complete'} - {geofence.length < 3 ? `${geofence.length}/3 vertices` : `${outsideCount} outside`}
           </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAllMissions(v => !v)}
+              className={showAllMissions ? 'da-btn da-btn-teal' : 'da-btn da-btn-ghost'}>
+              <Eye size={14} /> {showAllMissions ? 'Hide other drones' : 'Show all drone missions'}
+            </button>
+          </div>
+          {showAllMissions && otherMissions.length > 0 && (
+            <div className="max-h-28 overflow-auto rounded border border-slate-200 bg-white/90 p-2 text-[11px] text-slate-600">
+              {otherMissions.map(m => (
+                <div key={m.id} className="mb-1 flex items-center gap-2">
+                  <span
+                    style={{
+                      display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
+                      background: colorForDrone(m.drone_instance_id), flexShrink: 0,
+                    }}
+                  />
+                  <span className="truncate">{droneName(m.drone_instance_id)} — {m.name} ({m.status})</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {showAllMissions && otherMissions.length === 0 && (
+            <span className="text-[11px] px-2" style={{ color: '#64748b' }}>No other drone missions with waypoints/geofence yet.</span>
+          )}
           {geofence.length > 0 && (
             <div className="max-h-32 overflow-auto rounded border border-slate-200 bg-white/90 p-2 text-[11px] text-slate-600">
               {geofence.map((point, idx) => (

@@ -13,6 +13,7 @@ from app.utils.mavlink_utils import (
 )
 from app.utils.geofence import geofence_store
 from app.core.events import emit_geofence_breach, emit_geofence_recovered
+from app.modules.drone_control.mavlink_broadcaster import mavlink_broadcaster
 from pymavlink import mavutil
 
 log = structlog.get_logger()
@@ -63,6 +64,12 @@ class TelemetryProcessor(metaclass=_TelemetryProcessorCompat):
             update = handler(msg)
             if update:
                 await state.update(drone_id, update)
+                # Relay real-vehicle telemetry to the external-GCS broadcast port
+                # (Mission Planner etc.) — previously this only happened for
+                # simulated flights, so real/SITL arm state never reached an
+                # external GCS. Use the message's own source system id, not a
+                # hardcoded GCS id, so Mission Planner sees the real vehicle.
+                mavlink_broadcaster.send(drone_id, msg.get_srcSystem(), state.get(drone_id))
                 if msg_type == "GLOBAL_POSITION_INT":
                     await self._check_geofence(drone_id, update, state)
 

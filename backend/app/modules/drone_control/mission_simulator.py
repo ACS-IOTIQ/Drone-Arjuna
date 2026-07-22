@@ -120,6 +120,9 @@ class _SimulatedFlight:
         self.heading     = 0.0
         self.pitch       = 0.0
         self.roll        = 0.0
+        self.roll_rate_dps = 0.0
+        self.pitch_rate_dps = 0.0
+        self.yaw_rate_dps = 0.0
         self.airspeed    = 0.0
         self.groundspeed = 0.0
         self.climb_rate  = 0.0
@@ -181,6 +184,11 @@ class _SimulatedFlight:
         self.lon        = home_lon
         self.alt        = 0.0
         self.heading    = 0.0
+        self.pitch      = 0.0
+        self.roll       = 0.0
+        self.roll_rate_dps = 0.0
+        self.pitch_rate_dps = 0.0
+        self.yaw_rate_dps = 0.0
         self.battery_pct = 100.0
         self.is_armed   = False
         self.phase      = SimPhase.IDLE
@@ -247,7 +255,14 @@ class _SimulatedFlight:
                 while not self._cmds.empty():
                     action, params = self._cmds.get_nowait()
                     self._handle_cmd(action, params)
+                previous_roll = self.roll
+                previous_pitch = self.pitch
+                previous_heading = self.heading
                 self._tick(dt)
+                self.roll_rate_dps = (self.roll - previous_roll) / dt
+                self.pitch_rate_dps = (self.pitch - previous_pitch) / dt
+                heading_delta = ((self.heading - previous_heading + 180.0) % 360.0) - 180.0
+                self.yaw_rate_dps = heading_delta / dt
                 await self._push()
                 if self.phase == SimPhase.LANDED:
                     await asyncio.sleep(3.0)
@@ -525,6 +540,10 @@ class _SimulatedFlight:
             "roll_deg":              self.roll,
             "pitch_deg":             self.pitch,
             "yaw_deg":               self.heading,
+            "roll_rate_dps":         self.roll_rate_dps,
+            "pitch_rate_dps":        self.pitch_rate_dps,
+            "yaw_rate_dps":          self.yaw_rate_dps,
+            "sensor_gyro_ok":        True,
             "airspeed_ms":           self.airspeed,
             "groundspeed_ms":        self.groundspeed,
             "climb_rate_ms":         self.climb_rate,

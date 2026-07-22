@@ -1028,6 +1028,12 @@ select.da-input {
   transform: translateX(-50%);
 }
 
+.da-sim-launch-card {
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .da-zone-advisory {
   left: 232px !important;
 }
@@ -1067,6 +1073,13 @@ select.da-input {
   }
 }
 
+@media (max-width: 680px) {
+  /* Keep the bottom-left map control clear of the simulation flight bar. */
+  .simulation-is-active .leaflet-bottom.leaflet-left {
+    bottom: 144px;
+  }
+}
+
 @media (max-width: 560px) {
   .da-fly-top-overlay {
     right: 8px;
@@ -1085,6 +1098,10 @@ select.da-input {
   .da-fly-manual-panel {
     right: 8px !important;
     left: 8px;
+  }
+
+  .da-sim-launch-card {
+    padding: 16px;
   }
 }
 

@@ -7,7 +7,7 @@ import { useTelemetryStore } from '@/store/telemetryStore'
 import { useMissionStore } from '@/store/missionStore'
 import { getZoneRule } from '@/utils/geofenceZones'
 import { findRegulatoryZone } from '@/utils/regulatoryZones'
-import { Battery, Compass, Satellite, Wifi } from 'lucide-react'
+import { Battery, Compass, Gauge, Satellite, Wifi } from 'lucide-react'
 
 export function InstrumentHUD({ droneId }: { droneId: number }) {
   const frame = useTelemetryStore(s => s.frames[droneId])
@@ -49,6 +49,15 @@ export function InstrumentHUD({ droneId }: { droneId: number }) {
       <div className="da-card p-3"
         style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}>
         <CompassInstrument heading={frame.heading} roll={frame.roll_deg} pitch={frame.pitch_deg} />
+        <GyroscopeInstrument
+          roll={frame.roll_deg}
+          pitch={frame.pitch_deg}
+          yaw={frame.yaw_deg}
+          rollRate={frame.roll_rate_dps}
+          pitchRate={frame.pitch_rate_dps}
+          yawRate={frame.yaw_rate_dps}
+          healthy={frame.sensor_gyro_ok}
+        />
         {isSimulated && (
           <div className="mt-1.5 text-center text-[9px] font-bold tracking-widest"
             style={{ color: '#22c55e', opacity: 0.7 }}>
@@ -120,6 +129,65 @@ export function InstrumentHUD({ droneId }: { droneId: number }) {
             )}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function GyroscopeInstrument({ roll, pitch, yaw, rollRate, pitchRate, yawRate, healthy }: {
+  roll: number
+  pitch: number
+  yaw: number
+  rollRate?: number
+  pitchRate?: number
+  yawRate?: number
+  healthy?: boolean
+}) {
+  const pitchOffset = Math.max(-16, Math.min(16, pitch * 0.75))
+  const statusColor = healthy === false ? '#dc2626' : '#16a34a'
+  const hasRates = [rollRate, pitchRate, yawRate].some(value => value != null && Number.isFinite(value))
+
+  return (
+    <div className="mt-3 flex items-center gap-3 border-t border-slate-200 pt-3"
+      title="Gyroscope attitude and angular rate">
+      <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-slate-300 bg-sky-300 shadow-inner">
+        <div
+          className="absolute -inset-8 transition-transform duration-150"
+          style={{
+            background: 'linear-gradient(to bottom, #7dd3fc 0%, #7dd3fc 49.5%, #ffffff 49.5%, #ffffff 50.5%, #a16207 50.5%, #a16207 100%)',
+            transform: `translateY(${pitchOffset}px) rotate(${-roll}deg)`,
+          }}
+        />
+        <div className="absolute inset-x-2 top-1/2 h-px bg-white shadow-sm" />
+        <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-slate-800" />
+        <div className="absolute left-1 top-1/2 h-0.5 w-5 -translate-y-1/2 bg-white" />
+        <div className="absolute right-1 top-1/2 h-0.5 w-5 -translate-y-1/2 bg-white" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <Gauge size={12} /> Gyroscope
+          </div>
+          <span className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider" style={{ color: statusColor }}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: statusColor }} />
+            {healthy === false ? 'Fault' : 'Active'}
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-1 text-center">
+          {[
+            ['R', roll, rollRate],
+            ['P', pitch, pitchRate],
+            ['Y', yaw, yawRate],
+          ].map(([axis, angle, rate]) => (
+            <div key={String(axis)} className="rounded border border-slate-200 bg-white/70 px-1 py-1">
+              <div className="text-[8px] font-bold text-slate-400">{axis}</div>
+              <div className="mono text-[9px] font-semibold text-slate-700">
+                {hasRates && typeof rate === 'number' ? `${rate.toFixed(1)}°/s` : `${Number(angle).toFixed(0)}°`}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

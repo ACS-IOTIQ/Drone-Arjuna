@@ -171,6 +171,13 @@ function coordinate(primary: unknown, scaled: unknown, fallback: number): number
   return raw
 }
 
+function angularRateDps(degreesPerSecond: unknown, ...radiansPerSecond: unknown[]): number | undefined {
+  const direct = numeric(degreesPerSecond)
+  if (direct !== undefined) return direct
+  const radians = numeric(...radiansPerSecond)
+  return radians === undefined ? undefined : radians * (180 / Math.PI)
+}
+
 function normalizeTelemetryFrame(raw: unknown, prev?: TelemetryFrame): TelemetryFrame | null {
   if (!raw || typeof raw !== 'object') return null
   const data = raw as Record<string, any>
@@ -211,6 +218,9 @@ function normalizeTelemetryFrame(raw: unknown, prev?: TelemetryFrame): Telemetry
     geofence_breach: data.geofence_breach ?? base.geofence_breach,
     breach_lat: numeric(data.breach_lat, base.breach_lat),
     breach_lon: numeric(data.breach_lon, base.breach_lon),
+    roll_rate_dps: angularRateDps(data.roll_rate_dps, data.rollspeed, data.imu_xgyro) ?? base.roll_rate_dps,
+    pitch_rate_dps: angularRateDps(data.pitch_rate_dps, data.pitchspeed, data.imu_ygyro) ?? base.pitch_rate_dps,
+    yaw_rate_dps: angularRateDps(data.yaw_rate_dps, data.yawspeed, data.imu_zgyro) ?? base.yaw_rate_dps,
   }
 
   return frame

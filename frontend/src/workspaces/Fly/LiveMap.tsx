@@ -274,7 +274,7 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
       zoom={15}
       style={{ height: '100%', width: '100%' }}
       zoomControl={false}>
-      <LayersControl position="bottomright">
+      <LayersControl position="bottomleft">
         <LayersControl.BaseLayer checked name="OpenStreetMap">
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
         </LayersControl.BaseLayer>
@@ -318,8 +318,6 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
       </LayersControl>
 
       {hasPosition && <MapFollower lat={frame!.lat} lon={frame!.lon} />}
-      {hasPosition && frame && <MapCompass heading={frame.heading} />}
-
       {trail.length > 1 && (
         <Polyline
           positions={trail}
@@ -426,75 +424,5 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
         </Marker>
       ))}
     </MapContainer>
-  )
-}
-
-function MapCompass({ heading }: { heading: number }) {
-  const normalized = ((heading % 360) + 360) % 360
-  return (
-    <div className="leaflet-bottom leaflet-left" style={{ zIndex: 1000 }}>
-      <div className="leaflet-control" style={{ margin: 12 }}>
-        <div
-          title={`Heading ${normalized.toFixed(0)} deg`}
-          style={{
-            width: 86,
-            height: 86,
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,0.94)',
-            border: '1px solid rgba(15,23,42,0.16)',
-            boxShadow: '0 8px 22px rgba(15,23,42,0.16)',
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backdropFilter: 'blur(8px)',
-          }}>
-          {[
-            ['N', 0, '#dc2626'],
-            ['E', 90, '#475569'],
-            ['S', 180, '#475569'],
-            ['W', 270, '#475569'],
-          ].map(([label, deg, color]) => (
-            <span
-              key={label}
-              style={{
-                position: 'absolute',
-                transform: `rotate(${deg}deg) translateY(-34px) rotate(${-deg}deg)`,
-                fontSize: 10,
-                fontWeight: 800,
-                color: String(color),
-              }}>
-              {label}
-            </span>
-          ))}
-          <div
-            style={{
-              position: 'absolute',
-              inset: 8,
-              borderRadius: '50%',
-              border: '1px dashed rgba(71,85,105,0.25)',
-              transform: `rotate(${normalized}deg)`,
-            }}>
-            <div
-              style={{
-                position: 'absolute',
-                left: '50%',
-                top: 6,
-                width: 0,
-                height: 0,
-                transform: 'translateX(-50%)',
-                borderLeft: '6px solid transparent',
-                borderRight: '6px solid transparent',
-                borderBottom: '22px solid #2563eb',
-              }}
-            />
-          </div>
-          <div style={{ textAlign: 'center', lineHeight: 1 }}>
-            <div className="mono" style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>{normalized.toFixed(0)}</div>
-            <div style={{ fontSize: 8, fontWeight: 700, color: '#64748b', marginTop: 2 }}>HDG</div>
-          </div>
-        </div>
-      </div>
-    </div>
   )
 }

@@ -19,6 +19,7 @@ export default function FlyWorkspace() {
   const [selectedDroneId, setSelectedDroneId] = useState<number | null>(null)
   const [manualOpen, setManualOpen]           = useState(false)
   const [showLauncher, setShowLauncher]       = useState(false)
+  const [hasEverConnected, setHasEverConnected] = useState(false)
 
   // Load instances + connections on mount, poll every 5 s
   useEffect(() => {
@@ -30,6 +31,13 @@ export default function FlyWorkspace() {
 
   const connectedDrones = instances.filter(d => connections[d.id])
   const activeDroneId   = selectedDroneId ?? connectedDrones[0]?.id ?? null
+
+  // Track whether we've ever had a live drone, so a mission completing and its
+  // connection auto-cleaning up doesn't get mistaken for "no drones yet" and
+  // reopen the launcher on its own.
+  useEffect(() => {
+    if (connectedDrones.length > 0) setHasEverConnected(true)
+  }, [connectedDrones.length])
 
   // Subscribe to telemetry for every connected drone (not just the active one)
   // so the map can render the whole fleet flying simultaneously.
@@ -55,7 +63,7 @@ export default function FlyWorkspace() {
     setShowLauncher(false)
   }
 
-  const launcherVisible = !activeDroneId || showLauncher
+  const launcherVisible = (!activeDroneId && !hasEverConnected) || showLauncher
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -154,7 +162,7 @@ export default function FlyWorkspace() {
         {launcherVisible && (
           <SimLaunchPanel
             onStarted={handleSimStarted}
-            onClose={activeDroneId ? () => setShowLauncher(false) : undefined}
+            onClose={() => setShowLauncher(false)}
           />
         )}
       </div>

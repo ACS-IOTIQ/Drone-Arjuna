@@ -408,7 +408,10 @@ class _SimulatedFlight:
 
         elif self.phase == SimPhase.FLYING:
             if not self.waypoints or self.wp_idx >= len(self.waypoints):
-                self.phase = SimPhase.LANDING
+                # Mission complete — hold position at the destination (as ArduPilot's
+                # AUTO mode does at the end of a mission) instead of auto-landing, so
+                # the operator still has a live drone to send RTL/LAND/etc to.
+                self.phase = SimPhase.PAUSED
                 return
             wp     = self.waypoints[self.wp_idx]
             t_lat  = float(wp["latitude"])
@@ -446,7 +449,8 @@ class _SimulatedFlight:
             if dist < self.WP_RADIUS_M and abs(alt_err) < 3.0:
                 self.wp_idx += 1
                 if self.wp_idx >= len(self.waypoints):
-                    self.phase = SimPhase.LANDING
+                    # Hold at destination instead of auto-landing — see FLYING branch above.
+                    self.phase = SimPhase.PAUSED
 
         elif self.phase == SimPhase.GUIDED:
             self.heading     = (self.heading + 3.0 * dt * self.speed_mult) % 360

@@ -93,9 +93,9 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
   }
 
   return (
-    <div className="absolute inset-0 z-[998] flex items-center justify-center p-4"
+    <div className="absolute inset-0 z-[1200] flex items-center justify-center p-4"
       style={{ background: 'rgba(241,245,249,0.86)' }}>
-      <div className="da-card w-full max-w-sm p-6 flex flex-col gap-4">
+      <div className="da-sim-launch-card da-card w-full max-w-sm p-6 flex flex-col gap-4">
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded"
             style={{ background: '#dbeafe', border: '1px solid #bfdbfe' }}>

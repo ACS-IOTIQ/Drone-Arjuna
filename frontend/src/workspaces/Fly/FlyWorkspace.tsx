@@ -105,7 +105,7 @@ export default function FlyWorkspace() {
       )}
 
       {/* ── Main content ── */}
-      <div className={`relative flex-1 overflow-hidden ${manualOpen ? 'manual-is-open' : ''}`}>
+      <div className={`relative flex-1 overflow-hidden ${manualOpen ? 'manual-is-open' : ''} ${isSimulated ? 'simulation-is-active' : ''}`}>
         <LiveMap
           droneId={activeDroneId}
           onSelectDrone={setSelectedDroneId}
@@ -136,7 +136,7 @@ export default function FlyWorkspace() {
           <button
             onClick={() => setManualOpen(v => !v)}
             title={manualOpen ? 'Hide manual control' : 'Show manual control'}
-            className="absolute bottom-3 right-3 z-[999] flex items-center gap-1.5 da-btn text-xs"
+            className="da-fly-manual-toggle absolute bottom-3 right-3 z-[999] flex items-center gap-1.5 da-btn text-xs"
             style={{
               background: manualOpen
                 ? 'rgba(32,208,180,0.18)'
@@ -154,7 +154,7 @@ export default function FlyWorkspace() {
 
 
         {/* Simulation progress bar */}
-        {isSimulated && activeDroneId && (
+        {isSimulated && activeDroneId && !launcherVisible && (
           <SimProgressOverlay droneId={activeDroneId} onStopped={handleSimStopped} />
         )}
 

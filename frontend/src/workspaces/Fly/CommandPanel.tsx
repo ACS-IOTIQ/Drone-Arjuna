@@ -103,7 +103,24 @@ export function CommandPanel({ droneId }: { droneId: number }) {
       </button>
 
       {/* Confirm dialog */}
-      {confirm && (
+      {confirm && confirm === 'rtl' ? (
+        <div className="mt-1 p-2 rounded flex flex-col gap-2"
+          style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: '#f59e0b' }}>
+            <AlertTriangle size={12} />
+            Return via shortest path or as per waypoints?
+          </div>
+          <div className="flex gap-1.5">
+            <button onClick={() => send('rtl', { shortest_path: false })}
+              className="da-btn da-btn-ghost text-xs py-1 flex-1">As per waypoints</button>
+            <button onClick={() => send('rtl', { shortest_path: true })}
+              className="da-btn text-xs py-1 flex-1"
+              style={{ background: 'rgba(245,158,11,0.2)', color: '#f59e0b' }}>Shortest path</button>
+          </div>
+          <button onClick={() => setConfirm(null)}
+            className="da-btn da-btn-ghost text-[10px] py-0.5">Cancel</button>
+        </div>
+      ) : confirm && (
         <div className="mt-1 p-2 rounded flex flex-col gap-2"
           style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
           <div className="flex items-center gap-1.5 text-xs" style={{ color: '#f87171' }}>

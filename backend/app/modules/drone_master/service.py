@@ -192,6 +192,26 @@ class DroneInstanceService:
 
         inst = DroneInstance(**body.model_dump())
         inst.call_sign = inst.call_sign.upper()
+
+        # MAVLink identifies vehicles by system_id, not by our drone_instance_id —
+        # two drones sharing one (e.g. both left at the schema default of 1) show
+        # up as a single merged/overwritten vehicle in any external GCS (Mission
+        # Planner, QGroundControl) once both are connected/simulating at once.
+        existing_ids = {
+            row[0] for row in
+            (await self.db.execute(select(DroneInstance.mavlink_system_id))).all()
+            if row[0] is not None
+        }
+        if inst.mavlink_system_id in existing_ids:
+            next_id = max(existing_ids, default=0) + 1
+            while next_id in existing_ids:
+                next_id += 1
+            log.warning(
+                "mavlink_system_id collision on registration — reassigning",
+                call_sign=inst.call_sign, requested=inst.mavlink_system_id, assigned=next_id,
+            )
+            inst.mavlink_system_id = next_id
+
         self.db.add(inst)
         await self.db.flush()
         await self.db.refresh(inst)

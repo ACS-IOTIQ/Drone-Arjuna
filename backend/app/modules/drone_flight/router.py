@@ -9,7 +9,7 @@ from app.models.user import User
 from app.models.mission import Mission, Waypoint
 from app.schemas.mission import (
     MissionCreate, MissionOut, MissionSummary,
-    MissionStatusUpdate, MissionUpdate, WaypointOut,
+    MissionStatusUpdate, MissionUpdate, WaypointOut, LiveWaypointSync,
 )
 from app.modules.drone_control import mavlink_manager
 from app.modules.drone_flight.geo_service import compute_mission_summary
@@ -259,6 +259,22 @@ async def upload_mission(
     )
     wps = wps_result.scalars().all()
     return await MissionPlanner(db).upload_to_drone(m, wps)
+
+
+@router.post("/missions/live-sync/{drone_instance_id}")
+async def live_sync_waypoints(
+    drone_instance_id: int, body: LiveWaypointSync, _: PilotDep,
+):
+    """
+    Pushes the waypoints currently being drawn/dragged in the UI straight to
+    the connected drone over its live MAVLink link (e.g. UDP to ArduPilot
+    SITL) — no saved Mission required. Meant to be called repeatedly
+    (debounced) while the operator edits the route on the map, so the
+    vehicle's onboard mission stays in sync in real time.
+    """
+    if body.waypoints:
+        _enforce_airspace(body.waypoints, body.geofence)
+    return await MissionPlanner.upload_live_waypoints(drone_instance_id, body.waypoints)
 
 
 @router.get("/missions/{mid}/simulate")

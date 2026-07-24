@@ -247,7 +247,10 @@ class CommandController:
             )
 
         elif command == "rtl":
-            mode_id = mav.mode_mapping().get("RTL")
+            # shortest_path=True flies a direct line home (RTL); False follows
+            # the mission waypoints back to the launch point (SMART_RTL).
+            mode_name = "RTL" if params.get("shortest_path", True) else "SMART_RTL"
+            mode_id = mav.mode_mapping().get(mode_name)
             mav.mav.set_mode_send(
                 mav.target_system,
                 mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,

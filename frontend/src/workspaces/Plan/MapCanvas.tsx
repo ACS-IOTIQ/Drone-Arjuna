@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, useMapEvents, ZoomControl } from 'react-leaflet'
+import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, Tooltip, useMapEvents, ZoomControl } from 'react-leaflet'
 import L, { type LeafletEvent } from 'leaflet'
 import { CheckCircle2, Cpu, Eye, Pencil, PlusCircle, Route, Shield, Trash2 } from 'lucide-react'
 import { useMissionStore, type GeoPoint } from '@/store/missionStore'
 import { useFleetStore } from '@/store/fleetStore'
+import { useTelemetryStore } from '@/store/telemetryStore'
+import { droneFlightApi } from '@/api/droneFlight'
 import { notify } from '@/store/notificationStore'
 import { buildZoneLayers } from '@/utils/geofenceZones'
 import { buildRegulatoryZoneLayers, getRegulatoryRule, regulatoryZones } from '@/utils/regulatoryZones'
@@ -38,6 +40,31 @@ function wpIcon(seq: number, isHome: boolean, outside: boolean) {
       color:white; font-size:11px; font-weight:700;
       box-shadow:0 2px 8px rgba(15,23,42,0.35);
     ">${outside ? '!' : isHome ? 'H' : seq}</div>`,
+  })
+}
+
+function liveDroneIcon(heading: number, callSign?: string) {
+  const size = 32
+  return L.divIcon({
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    html: `<div style="position:relative; width:${size}px; height:${size}px;">
+      <div style="
+        width:${size}px; height:${size}px;
+        display:flex; align-items:center; justify-content:center;
+        transform: rotate(${heading}deg);
+      ">
+        <svg viewBox="0 0 24 24" width="${size - 6}" height="${size - 6}">
+          <polygon points="12,2 7,22 12,18 17,22" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1"/>
+        </svg>
+      </div>
+      ${callSign ? `<div style="
+        position:absolute; top:100%; left:50%; transform:translateX(-50%);
+        white-space:nowrap; font-size:9px; font-weight:700; color:#1d4ed8;
+        background:rgba(255,255,255,0.9); padding:0 3px; border-radius:2px;
+      ">${callSign}</div>` : ''}
+    </div>`,
   })
 }
 
@@ -264,6 +291,37 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
 
   const droneName = (id: number | null | undefined) =>
     instances.find(i => i.id === id)?.call_sign ?? (id != null ? `Drone #${id}` : 'Unassigned')
+
+  const activeMission = useMemo(
+    () => missions.find(m => m.id === activeMissionId),
+    [missions, activeMissionId],
+  )
+  const liveDroneId = activeMission?.drone_instance_id ?? null
+  const liveFrame = useTelemetryStore(s => (liveDroneId != null ? s.frames[liveDroneId] : null))
+  const hasLivePosition = Boolean(liveFrame && (liveFrame.lat !== 0 || liveFrame.lon !== 0))
+
+  // While the operator draws/drags waypoints, mirror the draft route straight
+  // to the drone over its live MAVLink link (UDP for SITL) — debounced so
+  // dragging a vertex doesn't flood the link with a re-upload every frame.
+  const connections = useFleetStore(s => s.connections)
+  const isMavlinkConnected = liveDroneId != null
+    && connections[liveDroneId]?.connected
+    && connections[liveDroneId]?.transport !== 'simulation'
+
+  useEffect(() => {
+    if (!isMavlinkConnected || liveDroneId == null || draftWaypoints.length === 0) return
+    const handle = setTimeout(() => {
+      droneFlightApi
+        .liveSyncWaypoints(liveDroneId, draftWaypoints, geofence.length >= 3 ? { geofence } : null)
+        .catch((err: any) => {
+          notify.danger(
+            'Live waypoint sync failed',
+            err?.response?.data?.detail || err?.message || 'Could not push waypoints to the drone',
+          )
+        })
+    }, 500)
+    return () => clearTimeout(handle)
+  }, [draftWaypoints, geofence, isMavlinkConnected, liveDroneId])
 
   const otherMissions = useMemo(
     () => missions.filter(m => m.id !== activeMissionId && (m.waypoints?.length || m.geofence)),
@@ -566,6 +624,17 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
             </Marker>
           )
         })}
+
+        {hasLivePosition && liveFrame && (
+          <Marker
+            position={[liveFrame.lat, liveFrame.lon]}
+            icon={liveDroneIcon(liveFrame.heading ?? 0, droneName(liveDroneId))}
+            zIndexOffset={1000}>
+            <Tooltip direction="top" offset={[0, -16]}>
+              {droneName(liveDroneId)} · {liveFrame.flight_mode} · {Math.round(liveFrame.alt_agl ?? 0)} m AGL
+            </Tooltip>
+          </Marker>
+        )}
 
         <MapClickHandler drawing={drawing} routeDrawing={routeDrawing} />
       </MapContainer>

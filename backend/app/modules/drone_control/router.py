@@ -144,6 +144,30 @@ async def list_available_ports(
     }
 
 
+async def _apply_ui_home_on_connect(drone_id: int, db: AsyncSession):
+    """
+    After a fresh MAVLink connection, push whatever home point the UI has
+    configured (the home waypoint of this drone's most recently created
+    mission) straight to the vehicle via MAV_CMD_DO_SET_HOME — so RTL/home
+    matches the map immediately, without needing a manual "Set Home Here"
+    in an external GCS.
+    """
+    result = await db.execute(
+        select(Waypoint)
+        .join(Mission, Mission.id == Waypoint.mission_id)
+        .where(Mission.drone_instance_id == drone_id, Waypoint.is_home == True)  # noqa: E712
+        .order_by(Mission.created_at.desc())
+        .limit(1)
+    )
+    home_wp = result.scalar_one_or_none()
+    if not home_wp:
+        return
+    ok = await mavlink_manager.send_set_home(drone_id, home_wp.latitude, home_wp.longitude)
+    if ok:
+        log.info("UI home location pushed to drone on connect", drone_id=drone_id,
+                 lat=home_wp.latitude, lon=home_wp.longitude)
+
+
 @router.post("/autoconnect", status_code=status.HTTP_200_OK)
 async def autoconnect_drone(
     req: AutoConnectRequest,
@@ -253,6 +277,7 @@ async def autoconnect_drone(
             log.info("Autoconnect succeeded", drone_id=drone_instance_id,
                      transport=transport, host=host, port=port,
                      serial_port=serial_port, baud_rate=baud_rate)
+            await _apply_ui_home_on_connect(drone_instance_id, db)
             return {
                 "detail":    "Connected",
                 "drone_id":  drone_instance_id,
@@ -311,6 +336,7 @@ async def _require_live_drone(drone_id: int, db: AsyncSession):
 async def connect_drone(
     req: ConnectRequest,
     _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
+    db: AsyncSession = Depends(get_db),
 ):
     """Establish MAVLink connection to a drone."""
     ok = await mavlink_manager.connect(
@@ -325,6 +351,7 @@ async def connect_drone(
     )
     if not ok:
         raise HTTPException(status_code=503, detail="Connection failed or heartbeat timed out")
+    await _apply_ui_home_on_connect(req.drone_instance_id, db)
     return {"detail": "Connected", "drone_id": req.drone_instance_id}
 
 

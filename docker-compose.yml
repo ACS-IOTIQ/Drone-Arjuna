@@ -87,7 +87,8 @@ services:
 
   # ── RabbitMQ (event bus) ──────────────────────────────────────────
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    # Pin to a current official tag to avoid stale/corrupted image metadata on Docker Desktop.
+    image: rabbitmq:4.3.3-management-alpine
     container_name: da_rabbitmq
     restart: unless-stopped
     environment:

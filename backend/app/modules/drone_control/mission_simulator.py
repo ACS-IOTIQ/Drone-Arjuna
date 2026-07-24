@@ -108,6 +108,7 @@ class _SimulatedFlight:
 
         self.phase      = SimPhase.IDLE
         self.drone_id:  Optional[int] = None
+        self.mission_id: Optional[int] = None
         self.mavlink_system_id = 1
         self.call_sign  = ""
         self.waypoints: list = []
@@ -149,6 +150,7 @@ class _SimulatedFlight:
             "active":           self.active,
             "phase":            self.phase.value,
             "drone_id":         self.drone_id,
+            "mission_id":       self.mission_id,
             "call_sign":        self.call_sign,
             "waypoint_index":   self.wp_idx,
             "waypoint_count":   len(self.waypoints),
@@ -166,6 +168,7 @@ class _SimulatedFlight:
         speed_mult: float = 1.0,
         state_mgr=None,
         mavlink_system_id: int = 1,
+        mission_id: Optional[int] = None,
     ):
         if self.active:
             await self.stop()
@@ -174,6 +177,7 @@ class _SimulatedFlight:
             self._sm = state_mgr
 
         self.drone_id   = drone_id
+        self.mission_id = mission_id
         self.mavlink_system_id = mavlink_system_id
         self.call_sign  = call_sign
         self.waypoints  = waypoints
@@ -559,6 +563,7 @@ class _SimulatedFlight:
             "rssi":                  95,
             "cpu_load_pct":          12.0,
             "call_sign":             self.call_sign,
+            "mission_id":            self.mission_id,
             "connected":             True,
             # Simulation-specific extras (read by frontend overlay)
             "sim_phase":             self.phase.value,
@@ -651,6 +656,7 @@ class SimulationManager:
         speed_mult: float = 1.0,
         state_mgr=None,
         mavlink_system_id: int = 1,
+        mission_id: Optional[int] = None,
     ):
         existing = self._flights.get(drone_id)
         if existing and existing.active:
@@ -662,6 +668,7 @@ class SimulationManager:
             home_lat=home_lat, home_lon=home_lon,
             speed_mult=speed_mult, state_mgr=state_mgr,
             mavlink_system_id=mavlink_system_id,
+            mission_id=mission_id,
         )
 
     async def command(self, drone_id: int, action: str, params: dict = {}):

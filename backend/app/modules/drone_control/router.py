@@ -555,12 +555,14 @@ async def start_simulation(
         speed_mult=req.speed_multiplier,
         state_mgr=mavlink_manager.state,
         mavlink_system_id=drone.mavlink_system_id,
+        mission_id=req.mission_id,
     )
 
     return {
         "detail": "Simulation started",
         "drone_id": drone_id,
         "call_sign": drone.call_sign,
+        "mission_id": req.mission_id,
         "waypoint_count": len(waypoint_dicts),
         "speed_multiplier": req.speed_multiplier,
     }

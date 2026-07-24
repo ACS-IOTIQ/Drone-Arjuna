@@ -3,6 +3,7 @@ import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Til
 import L from 'leaflet'
 import { droneControlApi } from '@/api/droneControl'
 import { useMissionStore, type GeoPoint } from '@/store/missionStore'
+import type { WaypointInput } from '@/api/droneFlight'
 import { notify } from '@/store/notificationStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import { useVesselStore } from '@/store/vesselStore'
@@ -56,6 +57,22 @@ function vesselIcon(heading: number) {
   })
 }
 
+function simWaypointIcon(seq: number) {
+  return L.divIcon({
+    className: '',
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+    html: `<div style="
+      width:18px; height:18px; border-radius:50%;
+      background:#ffffff;
+      border:2px solid #2563eb;
+      display:flex; align-items:center; justify-content:center;
+      color:#1d4ed8; font-size:8px; font-weight:800;
+      box-shadow:0 1px 5px rgba(15,23,42,0.22);
+    ">${seq}</div>`,
+  })
+}
+
 function normalizeGeofence(geofence: any): GeoPoint[] | null {
   if (!geofence) return null
   if (Array.isArray(geofence)) return geofence.filter(Boolean) as GeoPoint[]
@@ -97,6 +114,8 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
   const frame   = droneId ? frames[droneId] : null
   const history = useTelemetryStore(s => droneId ? s.history[droneId] : [])
   const vessels = useVesselStore(s => s.vessels)
+  const missions = useMissionStore(s => s.missions)
+  const fetchMissions = useMissionStore(s => s.fetchMissions)
   const missionGeofence = useMissionStore(s => s.geofence)
   const [runtimeGeofence, setRuntimeGeofence] = useState<any | null>(null)
   const lastRegulatoryRef = useRef<string | null>(null)
@@ -108,6 +127,12 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     .filter((_, i) => i % 5 === 0)
     .map(f => [f.lat, f.lon] as [number, number])
     .filter(([lat, lon]) => lat !== 0 || lon !== 0)
+
+  useEffect(() => {
+    if (frame?.sim_phase && missions.length === 0) {
+      fetchMissions()
+    }
+  }, [frame?.sim_phase, missions.length, fetchMissions])
 
   useEffect(() => {
     if (!droneId) {
@@ -130,6 +155,27 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     [runtimeGeofence, missionGeofence],
   )
   const hasPosition = Boolean(frame && (frame.lat !== 0 || frame.lon !== 0))
+  const simMission = useMemo(() => {
+    if (!frame?.sim_phase) return null
+    if (frame.mission_id != null) {
+      return missions.find(m => m.id === frame.mission_id) ?? null
+    }
+    if (droneId != null) {
+      return missions.find(m => m.drone_instance_id === droneId) ?? null
+    }
+    return null
+  }, [frame?.sim_phase, frame?.mission_id, missions, droneId])
+  const simWaypoints = useMemo<WaypointInput[]>(() => (
+    (simMission?.waypoints ?? [])
+      .filter(w => !w.is_home)
+      .filter(w => Number.isFinite(w.latitude) && Number.isFinite(w.longitude))
+      .slice()
+      .sort((a, b) => a.sequence - b.sequence)
+  ), [simMission])
+  const simRoute = useMemo(() => (
+    simWaypoints
+      .map(w => [w.latitude, w.longitude] as [number, number])
+  ), [simWaypoints])
   const zoneRule = useMemo(() => {
     if (!frame) return null
     return getZoneRule(frame.lat, frame.lon, displayGeofence)
@@ -323,6 +369,20 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
           positions={trail}
           pathOptions={{ color: '#3b82f6', weight: 1.5, opacity: 0.5 }} />
       )}
+
+      {simRoute.length > 1 && (
+        <Polyline
+          positions={simRoute}
+          pathOptions={{ color: '#2563eb', weight: 2, opacity: 0.68, dashArray: '4 6' }} />
+      )}
+
+      {simWaypoints.map(wp => (
+        <Marker
+          key={`sim-wp-${wp.sequence}`}
+          position={[wp.latitude, wp.longitude]}
+          icon={simWaypointIcon(wp.sequence)}
+          interactive={false} />
+      ))}
 
       {allDrones.map(({ id, frame: f }) => (
         id === droneId && frame ? (

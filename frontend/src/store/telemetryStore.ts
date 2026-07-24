@@ -56,6 +56,10 @@ export interface TelemetryFrame {
 
   // Simulation metadata
   sim_phase?: string
+  mission_id?: number
+  sim_progress?: number
+  sim_waypoint_idx?: number
+  sim_waypoint_count?: number
 
   // ── Extended telemetry fields (optional — sent when backend has them) ──
 

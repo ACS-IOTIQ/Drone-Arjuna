@@ -1,42 +1,66 @@
 import { useState } from 'react'
-import { Save, Trash2, Play, Anchor, FolderOpen } from 'lucide-react'
+import {
+  Anchor,
+  FileText,
+  FolderOpen,
+  MapPin,
+  Play,
+  Route,
+  Save,
+  Trash2,
+} from 'lucide-react'
 import { useMissionStore } from '@/store/missionStore'
 import { useFleetStore } from '@/store/fleetStore'
 import { useVesselStore } from '@/store/vesselStore'
 import { droneFlightApi } from '@/api/droneFlight'
 import { notify } from '@/store/notificationStore'
 
+type EditorSection = 'details' | 'waypoints' | 'geofence' | 'missions'
+
 export default function MissionEditor() {
-  const { draftWaypoints, geofence, missions, saveMission, removeWaypoint, loadMission } = useMissionStore()
+  const {
+    draftWaypoints,
+    geofence,
+    missions,
+    saveMission,
+    removeWaypoint,
+    loadMission,
+    setGeofence,
+  } = useMissionStore()
   const { instances } = useFleetStore()
   const { vessels } = useVesselStore()
 
-  const [name, setName]               = useState('')
-  const [type, setType]               = useState('ISR')
-  const [droneId, setDroneId]         = useState<number | undefined>()
-  const [homeType, setHomeType]       = useState<'fixed' | 'dynamic_vessel'>('fixed')
+  const [section, setSection] = useState<EditorSection>('details')
+  const [name, setName] = useState('')
+  const [type, setType] = useState('ISR')
+  const [droneId, setDroneId] = useState<number | undefined>()
+  const [homeType, setHomeType] = useState<'fixed' | 'dynamic_vessel'>('fixed')
   const [homeVesselId, setHomeVesselId] = useState<number | undefined>()
-  const [saving, setSaving]           = useState(false)
-  const [loading, setLoading]         = useState(false)
-  const [summary, setSummary]         = useState<any>(null)
-  const [err, setErr]                 = useState('')
+  const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [summary, setSummary] = useState<any>(null)
+  const [err, setErr] = useState('')
 
-  // Estimate summary from draft
   const estimate = async () => {
     if (draftWaypoints.length < 2) return
-    // Save temp mission to get server-side calculation
     try {
-      const { data: m } = await droneFlightApi.createMission({
-        name: '_preview', waypoints: draftWaypoints,
+      const { data: mission } = await droneFlightApi.createMission({
+        name: '_preview',
+        waypoints: draftWaypoints,
       })
-      const { data: s } = await droneFlightApi.getMissionSummary(m.id)
-      setSummary(s)
-      await droneFlightApi.deleteMission(m.id)
-    } catch { /* ignore */ }
+      const { data } = await droneFlightApi.getMissionSummary(mission.id)
+      setSummary(data)
+      await droneFlightApi.deleteMission(mission.id)
+      setSection('details')
+    } catch {
+      // Estimation is optional and does not block editing.
+    }
   }
 
   const load = async (id: number) => {
-    setLoading(true); setErr(''); setSummary(null)
+    setLoading(true)
+    setErr('')
+    setSummary(null)
     try {
       const meta = await loadMission(id)
       setName(meta.name)
@@ -44,6 +68,7 @@ export default function MissionEditor() {
       setDroneId(meta.drone_instance_id ?? undefined)
       setHomeType((meta.home_point_type as 'fixed' | 'dynamic_vessel') ?? 'fixed')
       setHomeVesselId(meta.home_vessel_id ?? undefined)
+      setSection('details')
     } catch {
       setErr('Failed to load mission')
     } finally {
@@ -51,11 +76,10 @@ export default function MissionEditor() {
     }
   }
 
-  const extractApiError = (e: any): string => {
-    const detail = e?.response?.data?.detail
+  const extractApiError = (error: any): string => {
+    const detail = error?.response?.data?.detail
     if (!detail) return 'Save failed'
     if (typeof detail === 'string') return detail
-    // 422 airspace errors: { errors: [...] }
     if (Array.isArray(detail?.errors)) return detail.errors.join('\n')
     if (detail?.message) return detail.message
     return 'Save failed'
@@ -64,197 +88,257 @@ export default function MissionEditor() {
   const save = async () => {
     if (!name.trim() || draftWaypoints.length === 0) return
     if (homeType === 'dynamic_vessel' && !homeVesselId) {
-      setErr('Select a home vessel for ship-based operations'); return
+      setErr('Select a home vessel for ship-based operations')
+      return
     }
-    setSaving(true); setErr('')
+    setSaving(true)
+    setErr('')
     try {
       await saveMission(name, type, droneId, homeType, homeVesselId)
       setName('')
-    } catch (e: any) {
-      const msg = extractApiError(e)
-      setErr(msg)
-      notify.danger('Mission save blocked', msg)
+    } catch (error: any) {
+      const message = extractApiError(error)
+      setErr(message)
+      notify.danger('Mission save blocked', message)
     } finally {
       setSaving(false)
     }
   }
 
+  const tabs: Array<{ id: EditorSection; label: string; icon: React.ReactNode; count?: number }> = [
+    { id: 'details', label: 'Details', icon: <FileText size={14} /> },
+    { id: 'waypoints', label: 'Route', icon: <Route size={14} />, count: draftWaypoints.length },
+    { id: 'geofence', label: 'Fence', icon: <MapPin size={14} />, count: geofence.length },
+    { id: 'missions', label: 'Saved', icon: <FolderOpen size={14} />, count: missions.length },
+  ]
+
   return (
-    <div className="flex flex-col h-full">
-      {/* Panel header */}
-      <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--da-border)' }}>
-        <h3 className="text-sm font-semibold">Mission Editor</h3>
-        <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
-          {loading ? 'Loading mission...' : `${draftWaypoints.length} waypoints - ${geofence.length} geofence vertices`}
-        </p>
+    <div className="da-mission-editor">
+      <div className="da-mission-editor-header">
+        <div className="min-w-0">
+          <h2>Mission Editor</h2>
+          <p>{loading ? 'Loading mission...' : `${draftWaypoints.length} waypoints / ${geofence.length} fence vertices`}</p>
+        </div>
       </div>
 
-      {/* Mission meta */}
-      <div className="p-4 flex flex-col gap-3" style={{ borderBottom: '1px solid var(--da-border)' }}>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs" style={{ color: '#94a3b8' }}>MISSION NAME</span>
-          <input className="da-input" placeholder="ALPHA-7" value={name}
-            onChange={e => setName(e.target.value)} />
-        </label>
+      <nav className="da-mission-tabs" aria-label="Mission editor sections">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            className={section === tab.id ? 'is-active' : ''}
+            onClick={() => setSection(tab.id)}
+            aria-current={section === tab.id ? 'page' : undefined}>
+            {tab.icon}
+            <span>{tab.label}</span>
+            {tab.count !== undefined && <b>{tab.count}</b>}
+          </button>
+        ))}
+      </nav>
 
-        <label className="flex flex-col gap-1">
-          <span className="text-xs" style={{ color: '#94a3b8' }}>TYPE</span>
-          <select className="da-input" value={type} onChange={e => setType(e.target.value)}>
-            {['ISR', 'Strike', 'Patrol', 'Logistics', 'SAR', 'Training'].map(t => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </label>
+      <div className="da-mission-editor-scroll">
+        {err && <div className="da-mission-error" role="alert">{err}</div>}
 
-        <label className="flex flex-col gap-1">
-          <span className="text-xs" style={{ color: '#94a3b8' }}>ASSIGN DRONE</span>
-          <select className="da-input" value={droneId ?? ''}
-            onChange={e => setDroneId(e.target.value ? Number(e.target.value) : undefined)}>
-            <option value="">— Unassigned —</option>
-            {instances.map(d => (
-              <option key={d.id} value={d.id}>{d.call_sign}</option>
-            ))}
-          </select>
-        </label>
+        {section === 'details' && (
+          <div className="da-mission-section">
+            <label className="da-mission-field">
+              <span>Mission name</span>
+              <input
+                className="da-input"
+                placeholder="ALPHA-7"
+                value={name}
+                onChange={event => setName(event.target.value)}
+              />
+            </label>
 
-        {/* Home point type */}
-        <label className="flex flex-col gap-1">
-          <span className="text-xs" style={{ color: '#94a3b8' }}>HOME POINT</span>
-          <select className="da-input" value={homeType}
-            onChange={e => {
-              setHomeType(e.target.value as any)
-              if (e.target.value === 'fixed') setHomeVesselId(undefined)
-            }}>
-            <option value="fixed">Fixed (ground base)</option>
-            <option value="dynamic_vessel">Dynamic — Return to Ship (HF)</option>
-          </select>
-        </label>
+            <label className="da-mission-field">
+              <span>Type</span>
+              <select className="da-input" value={type} onChange={event => setType(event.target.value)}>
+                {['ISR', 'Strike', 'Patrol', 'Logistics', 'SAR', 'Training'].map(item => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </label>
 
-        {homeType === 'dynamic_vessel' && (
-          <div className="flex flex-col gap-2 p-3 rounded"
-            style={{ background: 'rgba(6,182,212,0.07)', border: '1px solid rgba(6,182,212,0.2)' }}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <Anchor size={12} style={{ color: '#06b6d4' }} />
-              <span className="text-xs font-medium" style={{ color: '#06b6d4' }}>Home Vessel</span>
-            </div>
-            <select className="da-input" value={homeVesselId ?? ''}
-              onChange={e => setHomeVesselId(e.target.value ? Number(e.target.value) : undefined)}>
-              <option value="">— Select vessel —</option>
-              {vessels.map(v => (
-                <option key={v.id} value={v.id}>
-                  {v.vessel_id} — {v.name}
-                  {v.latitude != null ? ` (pos known)` : ' (no position)'}
-                </option>
-              ))}
-            </select>
-            {vessels.length === 0 && (
-              <p className="text-[11px]" style={{ color: '#f59e0b' }}>
-                No vessels registered. Add one in Settings → Naval Vessels.
-              </p>
+            <label className="da-mission-field">
+              <span>Assigned drone</span>
+              <select
+                className="da-input"
+                value={droneId ?? ''}
+                onChange={event => setDroneId(event.target.value ? Number(event.target.value) : undefined)}>
+                <option value="">Unassigned</option>
+                {instances.map(drone => (
+                  <option key={drone.id} value={drone.id}>{drone.call_sign}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="da-mission-field">
+              <span>Home point</span>
+              <select
+                className="da-input"
+                value={homeType}
+                onChange={event => {
+                  const next = event.target.value as 'fixed' | 'dynamic_vessel'
+                  setHomeType(next)
+                  if (next === 'fixed') setHomeVesselId(undefined)
+                }}>
+                <option value="fixed">Fixed ground base</option>
+                <option value="dynamic_vessel">Dynamic return to ship</option>
+              </select>
+            </label>
+
+            {homeType === 'dynamic_vessel' && (
+              <div className="da-mission-vessel">
+                <div className="da-mission-vessel-title">
+                  <Anchor size={14} /> Home vessel
+                </div>
+                <select
+                  className="da-input"
+                  value={homeVesselId ?? ''}
+                  onChange={event => setHomeVesselId(event.target.value ? Number(event.target.value) : undefined)}>
+                  <option value="">Select vessel</option>
+                  {vessels.map(vessel => (
+                    <option key={vessel.id} value={vessel.id}>
+                      {vessel.vessel_id} - {vessel.name} {vessel.latitude != null ? '(position known)' : '(no position)'}
+                    </option>
+                  ))}
+                </select>
+                {vessels.length === 0 && <p>No vessels registered.</p>}
+                {homeVesselId && vessels.find(vessel => vessel.id === homeVesselId)?.latitude == null && (
+                  <p>The selected vessel has no current position.</p>
+                )}
+              </div>
             )}
-            {homeVesselId && vessels.find(v => v.id === homeVesselId)?.latitude == null && (
-              <p className="text-[11px]" style={{ color: '#f59e0b' }}>
-                Vessel has no current position — range estimation will be unavailable.
-              </p>
+
+            {summary && (
+              <div className="da-mission-summary">
+                <span>Distance</span><strong>{summary.total_distance_km} km</strong>
+                <span>Estimated time</span><strong>{summary.estimated_flight_time_min} min</strong>
+                <span>Battery estimate</span>
+                <strong className={summary.estimated_battery_pct > 80 ? 'is-danger' : ''}>
+                  {summary.estimated_battery_pct}%
+                </strong>
+              </div>
             )}
-            <p className="text-[11px]" style={{ color: '#4b5563' }}>
-              Home waypoint will be set to the vessel's current GPS position at upload time.
-              The return coordinate updates continuously via the HF position feed.
-            </p>
+          </div>
+        )}
+
+        {section === 'waypoints' && (
+          <div className="da-mission-section da-mission-list-section">
+            {draftWaypoints.length === 0 ? (
+              <EmptyState icon={<Route size={20} />} label="No waypoints plotted" />
+            ) : (
+              draftWaypoints.map((waypoint, index) => (
+                <WaypointRow
+                  key={waypoint.sequence}
+                  wp={waypoint}
+                  idx={index}
+                  onRemove={() => removeWaypoint(waypoint.sequence)}
+                />
+              ))
+            )}
+          </div>
+        )}
+
+        {section === 'geofence' && (
+          <div className="da-mission-section da-mission-list-section">
+            {geofence.length === 0 ? (
+              <EmptyState icon={<MapPin size={20} />} label="No geofence vertices" />
+            ) : (
+              <>
+                {geofence.map((point, index) => (
+                  <div className="da-coordinate-row" key={`${index}-${point.lat}-${point.lng}`}>
+                    <span className="da-coordinate-index">{index + 1}</span>
+                    <div>
+                      <span>Longitude {point.lng.toFixed(6)}</span>
+                      <span>Latitude {point.lat.toFixed(6)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setGeofence(geofence.filter((_, itemIndex) => itemIndex !== index))}
+                      title={`Remove geofence vertex ${index + 1}`}>
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+                <button type="button" className="da-btn da-btn-ghost justify-center" onClick={() => setGeofence([])}>
+                  <Trash2 size={13} /> Clear geofence
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {section === 'missions' && (
+          <div className="da-mission-section da-mission-list-section">
+            {missions.length === 0 ? (
+              <EmptyState icon={<FolderOpen size={20} />} label="No saved missions" />
+            ) : (
+              missions.map(mission => (
+                <div className="da-saved-mission-row" key={mission.id}>
+                  <div className="min-w-0 flex-1">
+                    <strong>{mission.name}</strong>
+                    <span>{mission.mission_type} / {mission.waypoints?.length ?? 0} waypoints</span>
+                  </div>
+                  <span className={`da-plan-status-chip ${mission.status}`}>{mission.status}</span>
+                  <button
+                    type="button"
+                    className="da-plan-icon-btn"
+                    onClick={() => load(mission.id)}
+                    disabled={loading}
+                    title={`Load ${mission.name}`}>
+                    <FolderOpen size={14} />
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>
 
-      {/* Summary estimate */}
-      {summary && (
-        <div className="mx-4 mt-3 p-3 rounded text-xs grid grid-cols-2 gap-2"
-          style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}>
-          <span style={{ color: '#6b7280' }}>Distance</span>
-          <span className="mono text-right">{summary.total_distance_km} km</span>
-          <span style={{ color: '#6b7280' }}>Est. time</span>
-          <span className="mono text-right">{summary.estimated_flight_time_min} min</span>
-          <span style={{ color: '#6b7280' }}>Battery est.</span>
-          <span className="mono text-right" style={{ color: summary.estimated_battery_pct > 80 ? '#ef4444' : '#94a3b8' }}>
-            {summary.estimated_battery_pct}%
-          </span>
-        </div>
-      )}
-
-      {/* Waypoint list */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1">
-        {draftWaypoints.length === 0 ? (
-          <p className="text-xs text-center py-8" style={{ color: '#374151' }}>
-            Click the map to add waypoints
-          </p>
-        ) : (
-          draftWaypoints.map((wp, i) => (
-            <WaypointRow key={wp.sequence} wp={wp} idx={i}
-              onRemove={() => removeWaypoint(wp.sequence)} />
-          ))
-        )}
-      </div>
-
-      {/* Action buttons */}
-      <div className="p-4 flex flex-col gap-2" style={{ borderTop: '1px solid var(--da-border)' }}>
-        {err && <p className="text-xs" style={{ color: '#ef4444' }}>{err}</p>}
-        <button className="da-btn da-btn-ghost justify-center text-xs"
-          onClick={estimate} disabled={draftWaypoints.length < 2}>
-          <Play size={12} /> Estimate flight
+      <footer className="da-mission-editor-footer">
+        <button
+          type="button"
+          className="da-btn da-btn-ghost justify-center"
+          onClick={estimate}
+          disabled={draftWaypoints.length < 2}>
+          <Play size={13} /> Estimate
         </button>
-        <button className="da-btn da-btn-primary justify-center"
-          onClick={save} disabled={saving || !name || draftWaypoints.length === 0}>
-          <Save size={14} />
-          {saving ? 'Saving...' : 'Save Mission'}
+        <button
+          type="button"
+          className="da-btn da-btn-primary justify-center"
+          onClick={save}
+          disabled={saving || !name.trim() || draftWaypoints.length === 0}>
+          <Save size={14} /> {saving ? 'Saving...' : 'Save Mission'}
         </button>
-      </div>
+      </footer>
+    </div>
+  )
+}
 
-      {/* Saved missions list */}
-      {missions.length > 0 && (
-        <div className="px-4 pb-4">
-          <p className="text-xs font-medium mb-2" style={{ color: '#6b7280' }}>SAVED MISSIONS</p>
-          {missions.slice(0, 5).map(m => (
-            <div key={m.id} className="flex items-center gap-2 py-1.5 border-b text-xs"
-              style={{ borderColor: 'var(--da-border)' }}>
-              <span className="flex-1 truncate" style={{ color: '#94a3b8' }}>{m.name}</span>
-              <span className="da-badge shrink-0" style={{
-                background: m.status === 'planning' ? 'rgba(107,114,128,0.2)' : 'rgba(34,197,94,0.15)',
-                color: m.status === 'planning' ? '#6b7280' : '#22c55e',
-              }}>{m.status}</span>
-              <button
-                onClick={() => load(m.id)}
-                disabled={loading}
-                title="Load into editor"
-                className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors"
-                style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}>
-                <FolderOpen size={10} />
-                Load
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+function EmptyState({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <div className="da-mission-empty">
+      {icon}
+      <span>{label}</span>
     </div>
   )
 }
 
 function WaypointRow({ wp, idx, onRemove }: { wp: any; idx: number; onRemove: () => void }) {
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs group"
-      style={{ background: 'rgba(255,255,255,0.02)' }}>
-      <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-        style={{ background: wp.is_home ? '#22c55e' : '#3b82f6', color: 'white' }}>
-        {wp.is_home ? 'H' : wp.sequence}
+    <div className="da-waypoint-row">
+      <span className={wp.is_home ? 'da-waypoint-index is-home' : 'da-waypoint-index'}>
+        {wp.is_home ? 'H' : idx + 1}
       </span>
-      <div className="flex-1 min-w-0">
-        <span className="mono" style={{ color: '#94a3b8' }}>
-          {wp.latitude.toFixed(4)}, {wp.longitude.toFixed(4)}
-        </span>
-        <span className="ml-2" style={{ color: '#4b5563' }}>{wp.altitude_m}m {wp.altitude_ref}</span>
+      <div className="min-w-0 flex-1">
+        <strong>{wp.is_home ? 'Home / Takeoff' : `Waypoint ${idx + 1}`}</strong>
+        <span className="mono">{wp.longitude.toFixed(6)}, {wp.latitude.toFixed(6)}</span>
+        <span>{wp.altitude_m} m {wp.altitude_ref}</span>
       </div>
-      <button onClick={onRemove}
-        className="opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ color: '#ef4444' }}>
-        <Trash2 size={12} />
+      <button type="button" onClick={onRemove} title={`Remove waypoint ${idx + 1}`}>
+        <Trash2 size={13} />
       </button>
     </div>
   )

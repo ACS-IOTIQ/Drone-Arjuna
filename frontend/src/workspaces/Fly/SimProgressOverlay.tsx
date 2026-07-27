@@ -62,79 +62,61 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
   }
 
   return (
-    <div className="da-sim-progress absolute bottom-4 left-1/2 z-[999]">
-      <div className="da-card px-4 py-3 flex flex-col gap-2.5"
-        style={{ background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(10px)' }}>
-
-        {/* Phase badge + drone name */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-widest"
-              style={{ background: color + '22', color, border: `1px solid ${color}44` }}>
-              {PHASE_LABEL[phase] ?? phase.toUpperCase()}
-            </span>
-            <span className="text-xs font-medium" style={{ color: '#94a3b8' }}>
-              SIM - {frame.call_sign}
-            </span>
-          </div>
-          <span className="text-[10px] mono" style={{ color: '#374151' }}>
-            {frame.battery_remaining_pct >= 0 ? `${frame.battery_remaining_pct}%` : ''}
-          </span>
+    <footer className="da-sim-progress">
+      <div className="da-sim-progress-identity">
+        <span className="da-sim-phase"
+          style={{ background: color + '18', color, borderColor: color + '55' }}>
+          {PHASE_LABEL[phase] ?? phase.toUpperCase()}
+        </span>
+        <div>
+          <strong>{frame.call_sign}</strong>
+          <span>{frame.battery_remaining_pct >= 0 ? `${frame.battery_remaining_pct}% battery` : 'Simulation'}</span>
         </div>
+      </div>
 
-        {/* Waypoint progress bar */}
-        {wpCount > 0 && (
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px]" style={{ color: '#4b5563' }}>
-                Waypoint {Math.min(wpIdx + 1, wpCount)} / {wpCount}
-              </span>
-              <span className="text-[10px] mono" style={{ color: '#4b5563' }}>
-                {Math.round(progress * 100)}%
-              </span>
-            </div>
-            <div className="h-1 rounded-full overflow-hidden"
-              style={{ background: '#e2e8f0' }}>
-              <div className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${progress * 100}%`, background: color }} />
-            </div>
-          </div>
-        )}
+      <div className="da-sim-progress-track">
+        <div>
+          <span>{wpCount > 0 ? `Waypoint ${Math.min(wpIdx + 1, wpCount)} / ${wpCount}` : 'Mission progress'}</span>
+          <b>{Math.round(progress * 100)}%</b>
+        </div>
+        <div className="da-sim-progress-rail">
+          <i style={{ width: `${Math.max(0, Math.min(100, progress * 100))}%`, background: color }} />
+        </div>
+      </div>
 
-        {/* Context-sensitive controls */}
-        <div className="flex items-center gap-1.5">
+      <div className="da-sim-progress-actions">
 
           {phase === 'idle' && (
             <button onClick={() => cmd('arm')}
-              className="da-btn da-btn-success text-xs py-1.5 flex-1 justify-center">
+              className="da-btn da-btn-success justify-center">
               Arm
             </button>
           )}
 
           {phase === 'armed' && (
             <button onClick={() => cmd('takeoff', { altitude: 30 })}
-              className="da-btn da-btn-primary text-xs py-1.5 flex-1 justify-center">
+              className="da-btn da-btn-primary justify-center">
               <Play size={11} /> Takeoff
             </button>
           )}
 
           {phase === 'flying' && (
             <button onClick={() => cmd('set_mode', { mode: 'LOITER' })}
-              className="da-btn da-btn-ghost text-xs py-1.5 flex-1 justify-center">
+              className="da-btn da-btn-ghost justify-center">
               <Pause size={11} /> Pause
             </button>
           )}
 
           {phase === 'paused' && (
             <button onClick={() => cmd('set_mode', { mode: 'AUTO' })}
-              className="da-btn da-btn-ghost text-xs py-1.5 flex-1 justify-center">
+              className="da-btn da-btn-ghost justify-center">
               <Play size={11} /> Resume
             </button>
           )}
 
           {['flying', 'paused', 'takeoff'].includes(phase) && (
             <button onClick={() => cmd('rtl')}
-              className="da-btn text-xs py-1.5 flex-1 justify-center"
+              className="da-btn justify-center"
               style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b',
                 border: '1px solid rgba(245,158,11,0.25)' }}>
               <SkipForward size={11} /> RTL
@@ -143,7 +125,7 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
 
           {['flying', 'paused', 'takeoff'].includes(phase) && (
             <button onClick={() => cmd('land')}
-              className="da-btn text-xs py-1.5 flex-1 justify-center"
+              className="da-btn justify-center"
               style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4',
                 border: '1px solid rgba(6,182,212,0.2)' }}>
               Land
@@ -151,15 +133,13 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
           )}
 
           <button onClick={stopSim} disabled={stopping}
-            className="da-btn text-xs py-1.5 px-3 justify-center shrink-0"
+            className="da-btn justify-center shrink-0"
             style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444',
               border: '1px solid rgba(239,68,68,0.2)' }}>
             <Square size={11} />
             {stopping ? '...' : 'Stop'}
           </button>
-        </div>
-
       </div>
-    </div>
+    </footer>
   )
 }

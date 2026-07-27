@@ -1,8 +1,5 @@
-// ═══════════════════════════════════════════
-// FlyWorkspace.tsx
-// ═══════════════════════════════════════════
 import { useEffect, useState } from 'react'
-import { Gamepad2, Plus } from 'lucide-react'
+import { Activity, Gamepad2, Gauge, Plus, SlidersHorizontal, X } from 'lucide-react'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import LiveMap from './LiveMap'
@@ -12,16 +9,23 @@ import ManualControlPanel from './ManualControlPanel'
 import SimLaunchPanel from './SimLaunchPanel'
 import SimProgressOverlay from './SimProgressOverlay'
 
+type FlightPanel = 'telemetry' | 'commands' | 'manual'
+
+const PANEL_LABELS: Record<FlightPanel, string> = {
+  telemetry: 'Flight instruments',
+  commands: 'Flight commands',
+  manual: 'Manual control',
+}
+
 export default function FlyWorkspace() {
   const { instances, connections, fetchConnections, fetchInstances } = useFleetStore()
   const { subscribe, unsubscribe } = useTelemetryStore()
 
   const [selectedDroneId, setSelectedDroneId] = useState<number | null>(null)
-  const [manualOpen, setManualOpen]           = useState(false)
-  const [showLauncher, setShowLauncher]       = useState(false)
+  const [activePanel, setActivePanel] = useState<FlightPanel | null>(null)
+  const [showLauncher, setShowLauncher] = useState(false)
   const [hasEverConnected, setHasEverConnected] = useState(false)
 
-  // Load instances + connections on mount, poll every 5 s
   useEffect(() => {
     fetchInstances()
     fetchConnections()
@@ -29,30 +33,30 @@ export default function FlyWorkspace() {
     return () => clearInterval(poll)
   }, [])
 
-  const connectedDrones = instances.filter(d => connections[d.id])
-  const activeDroneId   = selectedDroneId ?? connectedDrones[0]?.id ?? null
+  const connectedDrones = instances.filter(drone => connections[drone.id])
+  const activeDroneId = selectedDroneId ?? connectedDrones[0]?.id ?? null
 
-  // Track whether we've ever had a live drone, so a mission completing and its
-  // connection auto-cleaning up doesn't get mistaken for "no drones yet" and
-  // reopen the launcher on its own.
   useEffect(() => {
     if (connectedDrones.length > 0) setHasEverConnected(true)
   }, [connectedDrones.length])
 
-  // Subscribe to telemetry for every connected drone (not just the active one)
-  // so the map can render the whole fleet flying simultaneously.
   useEffect(() => {
-    connectedDrones.forEach(d => subscribe(d.id))
-    return () => connectedDrones.forEach(d => unsubscribe(d.id))
-  }, [connectedDrones.map(d => d.id).join(',')])
+    connectedDrones.forEach(drone => subscribe(drone.id))
+    return () => connectedDrones.forEach(drone => unsubscribe(drone.id))
+  }, [connectedDrones.map(drone => drone.id).join(',')])
+
+  useEffect(() => {
+    setActivePanel(activeDroneId ? 'telemetry' : null)
+  }, [activeDroneId])
 
   const activeConnection = activeDroneId ? connections[activeDroneId] : null
-  const isSimulated      = (activeConnection as any)?.transport === 'simulation'
+  const isSimulated = (activeConnection as any)?.transport === 'simulation'
+  const activeDrone = instances.find(drone => drone.id === activeDroneId) ?? null
 
   const handleSimStopped = async () => {
     await fetchConnections()
     setSelectedDroneId(null)
-    setManualOpen(false)
+    setActivePanel(null)
   }
 
   const handleSimStarted = async (droneId: number) => {
@@ -65,107 +69,114 @@ export default function FlyWorkspace() {
 
   const launcherVisible = (!activeDroneId && !hasEverConnected) || showLauncher
 
+  const togglePanel = (panel: FlightPanel) => {
+    setActivePanel(current => current === panel ? null : panel)
+  }
+
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-
-      {/* ── Drone selector strip (multi-drone) ── */}
-      {connectedDrones.length > 0 && (
-        <div className="flex items-center gap-1 px-3 py-1.5 shrink-0"
-          style={{ background: 'var(--da-surface)', borderBottom: '1px solid var(--da-border)' }}>
-          {connectedDrones.length > 1 && (
-            <span className="text-xs mr-2" style={{ color: '#6b7280' }}>Viewing:</span>
+    <div className={`da-fly-workspace ${activePanel ? 'control-open' : ''}`}>
+      <header className="da-fly-header">
+        <div className="da-fly-drone-strip" aria-label="Connected drones">
+          {connectedDrones.length === 0 ? (
+            <div className="da-fly-no-drone"><Activity size={14} /> No active drone</div>
+          ) : (
+            connectedDrones.map(drone => {
+              const connection = connections[drone.id] as any
+              const simulated = connection?.transport === 'simulation'
+              return (
+                <button
+                  key={drone.id}
+                  type="button"
+                  className={drone.id === activeDroneId ? 'da-fly-drone is-active' : 'da-fly-drone'}
+                  onClick={() => setSelectedDroneId(drone.id)}>
+                  <span>{drone.call_sign}</span>
+                  {simulated && <b>SIM</b>}
+                </button>
+              )
+            })
           )}
-          {connectedDrones.map(d => {
-            const conn = connections[d.id] as any
-            const sim  = conn?.transport === 'simulation'
-            return (
-              <button key={d.id}
-                onClick={() => setSelectedDroneId(d.id)}
-                className="da-btn text-xs py-1 px-3 flex items-center gap-1.5"
-                style={{
-                  background: d.id === activeDroneId ? 'rgba(59,130,246,0.2)' : 'transparent',
-                  color:      d.id === activeDroneId ? '#3b82f6' : '#6b7280',
-                  border: `1px solid ${d.id === activeDroneId ? '#3b82f6' : 'var(--da-border)'}`,
-                }}>
-                {d.call_sign}
-                {sim && (
-                  <span className="text-[9px] font-bold px-1 rounded"
-                    style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>SIM</span>
-                )}
-              </button>
-            )
-          })}
-          <button
-            onClick={() => setShowLauncher(true)}
-            className="da-btn da-btn-ghost text-xs py-1 px-2 flex items-center gap-1 ml-1"
-            title="Launch another simulated drone">
-            <Plus size={12} /> Add Sim
-          </button>
         </div>
-      )}
 
-      {/* ── Main content ── */}
-      <div className={`relative flex-1 overflow-hidden ${manualOpen ? 'manual-is-open' : ''} ${isSimulated ? 'simulation-is-active' : ''}`}>
-        <LiveMap
-          droneId={activeDroneId}
-          onSelectDrone={setSelectedDroneId}
-          onManualControlRequest={() => setManualOpen(true)}
-        />
-
-        {/* HUD — top-left overlay */}
-        {activeDroneId && (
-          <div className="da-fly-top-overlay">
-            <div className="da-fly-overlay-item"><InstrumentHUD droneId={activeDroneId} /></div>
-            {isSimulated && (
-              <div className="da-fly-sim-badge"><span>SIMULATION MODE</span></div>
-            )}
-            <div className="da-fly-overlay-item da-fly-command"><CommandPanel droneId={activeDroneId} /></div>
-          </div>
-        )}
-
-        {/* Command panel — top-right overlay */}
-        {/* Manual control — bottom-right overlay, shown when toggled */}
-        {activeDroneId && manualOpen && (
-          <div className="da-fly-manual-panel absolute bottom-14 right-3 z-[999]">
-            <ManualControlPanel droneId={activeDroneId} />
-          </div>
-        )}
-
-        {/* Manual control toggle button — bottom-right */}
-        {activeDroneId && (
+        <div className="da-fly-header-actions">
           <button
-            onClick={() => setManualOpen(v => !v)}
-            title={manualOpen ? 'Hide manual control' : 'Show manual control'}
-            className="da-fly-manual-toggle absolute bottom-3 right-3 z-[999] flex items-center gap-1.5 da-btn text-xs"
-            style={{
-              background: manualOpen
-                ? 'rgba(32,208,180,0.18)'
-                : 'rgba(255,255,255,0.94)',
-              border: `1px solid ${manualOpen ? 'rgba(32,208,180,0.45)' : 'var(--da-border)'}`,
-              color: manualOpen ? 'var(--da-teal)' : '#334155',
-              backdropFilter: 'blur(8px)',
-            }}>
-            <Gamepad2 size={13} />
-            {manualOpen ? 'Manual ON' : 'Manual'}
+            type="button"
+            className="da-fly-header-btn"
+            onClick={() => setShowLauncher(true)}
+            title="Launch another simulation">
+            <Plus size={15} /><span>Simulation</span>
           </button>
-        )}
 
-        {/* SIM mode banner */}
+          {activeDroneId && (
+            <>
+              <span className="da-fly-header-divider" />
+              <button
+                type="button"
+                className={activePanel === 'telemetry' ? 'da-fly-header-btn is-active' : 'da-fly-header-btn'}
+                onClick={() => togglePanel('telemetry')}
+                title="Flight instruments"
+                aria-pressed={activePanel === 'telemetry'}>
+                <Gauge size={15} /><span>Instruments</span>
+              </button>
+              <button
+                type="button"
+                className={activePanel === 'commands' ? 'da-fly-header-btn is-active' : 'da-fly-header-btn'}
+                onClick={() => togglePanel('commands')}
+                title="Flight commands"
+                aria-pressed={activePanel === 'commands'}>
+                <SlidersHorizontal size={15} /><span>Commands</span>
+              </button>
+              <button
+                type="button"
+                className={activePanel === 'manual' ? 'da-fly-header-btn is-active' : 'da-fly-header-btn'}
+                onClick={() => togglePanel('manual')}
+                title="Manual control"
+                aria-pressed={activePanel === 'manual'}>
+                <Gamepad2 size={15} /><span>Manual</span>
+              </button>
+            </>
+          )}
+        </div>
+      </header>
 
-
-        {/* Simulation progress bar */}
-        {isSimulated && activeDroneId && !launcherVisible && (
-          <SimProgressOverlay droneId={activeDroneId} onStopped={handleSimStopped} />
-        )}
-
-        {/* Simulation launcher — first-time (no drones) or opened via "Add Sim" */}
-        {launcherVisible && (
-          <SimLaunchPanel
-            onStarted={handleSimStarted}
-            onClose={() => setShowLauncher(false)}
+      <div className="da-fly-body">
+        <main className="da-fly-map-stage">
+          <LiveMap
+            droneId={activeDroneId}
+            onSelectDrone={setSelectedDroneId}
+            onManualControlRequest={() => setActivePanel('manual')}
           />
+        </main>
+
+        {activeDroneId && activePanel && (
+          <aside className="da-fly-control-panel" aria-label={PANEL_LABELS[activePanel]}>
+            <header>
+              <div className="min-w-0">
+                <strong>{PANEL_LABELS[activePanel]}</strong>
+                <span>{activeDrone?.call_sign ?? `Drone #${activeDroneId}`}{isSimulated ? ' / Simulation' : ''}</span>
+              </div>
+              <button type="button" onClick={() => setActivePanel(null)} title="Close flight panel">
+                <X size={16} />
+              </button>
+            </header>
+            <div className="da-fly-control-scroll">
+              {activePanel === 'telemetry' && <InstrumentHUD droneId={activeDroneId} />}
+              {activePanel === 'commands' && <CommandPanel droneId={activeDroneId} />}
+              {activePanel === 'manual' && <ManualControlPanel droneId={activeDroneId} />}
+            </div>
+          </aside>
         )}
       </div>
+
+      {isSimulated && activeDroneId && !launcherVisible && (
+        <SimProgressOverlay droneId={activeDroneId} onStopped={handleSimStopped} />
+      )}
+
+      {launcherVisible && (
+        <SimLaunchPanel
+          onStarted={handleSimStarted}
+          onClose={activeDroneId || hasEverConnected ? () => setShowLauncher(false) : undefined}
+        />
+      )}
     </div>
   )
 }

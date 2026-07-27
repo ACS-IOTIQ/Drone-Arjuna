@@ -254,7 +254,7 @@ export default function FleetWorkspace() {
       </div>
 
       {/* Local weather card */}
-      <div className="mb-4 rounded-lg border border-sky-200 bg-slate-900 px-3 py-2 text-white shadow-sm">
+      <div className="da-weather-panel mb-4 rounded-lg border px-3 py-2 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex min-w-[210px] items-center gap-2">
             <Cloud size={14} className="text-sky-200" />
@@ -278,7 +278,7 @@ export default function FleetWorkspace() {
               { label: 'Wind', value: weather ? `${weather.windSpeedKph.toFixed(0)} kph` : '--', icon: <Wind size={12} /> },
               { label: 'Feels', value: weather ? `${(weather.temperatureC + 1.5).toFixed(0)}C` : '--', icon: <Thermometer size={12} /> },
             ].map(item => (
-              <div key={item.label} className="rounded border border-white/10 bg-white/10 px-2 py-1">
+              <div key={item.label} className="da-weather-stat rounded border px-2 py-1">
                 <div className="flex items-center gap-1.5 text-[9px] uppercase text-slate-300">
                   {item.icon} <span className="truncate">{item.label}</span>
                 </div>

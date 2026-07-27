@@ -41,15 +41,11 @@ export default function SettingsWorkspace() {
       <div className="da-settings-nav flex shrink-0 flex-col gap-1 px-2 py-4">
         {groups.map(g => (
           <div key={g} className="mb-2">
-            <p className="text-[10px] font-semibold px-2 mb-1 mt-2" style={{ color: '#4b5563' }}>{g}</p>
+            <p className="da-settings-group-label text-[10px] font-semibold px-2 mb-1 mt-2">{g}</p>
             {TABS.filter(t => t.group === g).map(t => (
               <button key={t.id}
                 onClick={() => setTab(t.id)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-left transition-all"
-                style={{
-                  background: tab === t.id ? 'rgba(59,130,246,0.12)' : 'transparent',
-                  color: tab === t.id ? '#3b82f6' : '#6b7280',
-                }}>
+                className={`da-settings-tab w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-left transition-all ${tab === t.id ? 'is-active' : ''}`}>
                 {t.icon}
                 {t.label}
                 {t.id === 'users' && pendingRequests > 0 && (

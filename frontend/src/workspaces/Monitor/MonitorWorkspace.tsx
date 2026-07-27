@@ -38,12 +38,7 @@ export default function MonitorWorkspace() {
           {instances.filter(d => connections[d.id]).map(d => (
             <button key={d.id}
               onClick={() => setSelDrone(d.id)}
-              className="da-btn text-xs"
-              style={{
-                background: d.id === activeDroneId ? 'rgba(59,130,246,0.2)' : 'transparent',
-                color:      d.id === activeDroneId ? '#3b82f6' : '#6b7280',
-                border:     `1px solid ${d.id === activeDroneId ? '#3b82f6' : 'var(--da-border)'}`,
-              }}>
+              className={`da-btn da-monitor-selector text-xs ${d.id === activeDroneId ? 'is-active' : ''}`}>
               {d.call_sign}
             </button>
           ))}

@@ -2353,6 +2353,479 @@ select.da-input {
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
+
+/* Authenticated application visual system. Kept below .da-app-shell so login is unchanged. */
+.da-app-shell {
+  --da-bg: #f2f4f7;
+  --da-surface: #ffffff;
+  --da-surface-soft: #f8fafc;
+  --da-card: #ffffff;
+  --da-border: #e0e5ec;
+  --da-border-strong: #c5ced9;
+  --da-accent: #2563eb;
+  --da-accent-dark: #1d4ed8;
+  --da-teal: #0f766e;
+  --da-success: #16803c;
+  --da-warning: #b35c00;
+  --da-danger: #c93636;
+  --da-muted: #667085;
+  --da-text: #172033;
+  --da-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.035), 0 1px 3px rgba(16, 24, 40, 0.055);
+  --da-shadow-md: 0 12px 28px rgba(16, 24, 40, 0.11), 0 2px 6px rgba(16, 24, 40, 0.05);
+  background: var(--da-bg);
+}
+
+.da-app-shell main {
+  background: var(--da-bg);
+}
+
+.da-app-shell .da-topbar {
+  border-bottom-color: rgba(208, 215, 225, 0.9);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+  backdrop-filter: blur(14px) saturate(135%);
+}
+
+.da-app-shell .da-workspace-kicker,
+.da-app-shell .da-sidebar-caption {
+  color: #7b8798;
+  letter-spacing: 0;
+}
+
+.da-app-shell .da-workspace-name,
+.da-app-shell .da-sidebar-name {
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0;
+}
+
+.da-app-shell .da-workspace-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.da-app-shell .da-sidebar {
+  border-right-color: #dde3eb;
+  background: #ffffff;
+  box-shadow: 1px 0 3px rgba(16, 24, 40, 0.025);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .da-app-shell .da-sidebar:hover,
+  .da-app-shell .da-sidebar:focus-within {
+    box-shadow: 10px 0 30px rgba(16, 24, 40, 0.09);
+  }
+}
+
+.da-app-shell .da-brand-mark {
+  border-color: rgba(37, 99, 235, 0.22);
+  border-radius: 8px;
+  background: #2563eb;
+  box-shadow: 0 5px 12px rgba(37, 99, 235, 0.2);
+}
+
+.da-app-shell .da-nav-item {
+  color: #687588;
+}
+
+.da-app-shell .da-nav-item:hover {
+  border-color: #edf0f4;
+  color: #243044;
+  background: #f6f8fa;
+}
+
+.da-app-shell .da-nav-item.is-active {
+  border-color: #dbe6ff;
+  color: #1f5bd8;
+  background: #f0f5ff;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.025);
+}
+
+.da-app-shell .da-nav-indicator {
+  width: 2px;
+  background: #2563eb;
+}
+
+.da-app-shell .da-icon-button,
+.da-app-shell .da-plan-icon-btn,
+.da-app-shell .da-fly-control-panel > header button,
+.da-app-shell .da-live-map-detail > header button {
+  border-color: #e2e7ee;
+  color: #667085;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.da-app-shell .da-icon-button:hover,
+.da-app-shell .da-plan-icon-btn:hover,
+.da-app-shell .da-plan-icon-btn.is-active,
+.da-app-shell .da-fly-control-panel > header button:hover,
+.da-app-shell .da-live-map-detail > header button:hover {
+  border-color: #cbd5e1;
+  color: #1f2937;
+  background: #f8fafc;
+}
+
+.da-app-shell .da-user-avatar {
+  border-color: #dbe4f2;
+  color: #245bcc;
+  background: #f1f5fd;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.025);
+}
+
+.da-app-shell .da-card {
+  border-color: #e0e5ec;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: var(--da-shadow-sm);
+}
+
+.da-app-shell .da-card:hover {
+  border-color: #d2d9e3;
+  box-shadow: 0 4px 12px rgba(16, 24, 40, 0.065);
+}
+
+.da-app-shell .da-btn {
+  border-color: #d8dee8;
+  border-radius: 7px;
+  color: #344054;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.045);
+  font-weight: 650;
+}
+
+.da-app-shell .da-btn:hover {
+  border-color: #bcc7d5;
+  color: #172033;
+  background: #f8fafc;
+  box-shadow: 0 2px 5px rgba(16, 24, 40, 0.075);
+}
+
+.da-app-shell .da-btn:active {
+  background: #f1f4f7;
+  box-shadow: inset 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
+.da-app-shell .da-btn-primary {
+  border-color: #2563eb;
+  color: #ffffff;
+  background: #2563eb;
+  box-shadow: 0 1px 2px rgba(29, 78, 216, 0.22);
+}
+
+.da-app-shell .da-btn-primary:hover {
+  border-color: #1d4ed8;
+  color: #ffffff;
+  background: #1d4ed8;
+  box-shadow: 0 3px 8px rgba(29, 78, 216, 0.22);
+}
+
+.da-app-shell .da-btn-success {
+  border-color: #16803c;
+  color: #ffffff;
+  background: #16803c;
+}
+
+.da-app-shell .da-btn-success:hover {
+  border-color: #116b34;
+  color: #ffffff;
+  background: #116b34;
+}
+
+.da-app-shell .da-btn-teal {
+  border-color: #0f766e;
+  color: #ffffff;
+  background: #0f766e;
+}
+
+.da-app-shell .da-btn-teal:hover {
+  border-color: #0a625c;
+  color: #ffffff;
+  background: #0a625c;
+}
+
+.da-app-shell .da-btn-danger {
+  border-color: #c93636;
+  color: #ffffff;
+  background: #c93636;
+}
+
+.da-app-shell .da-btn-danger:hover {
+  border-color: #ac2929;
+  color: #ffffff;
+  background: #ac2929;
+}
+
+.da-app-shell .da-btn-ghost {
+  border-color: #d8dee8;
+  color: #475467;
+  background: #ffffff;
+}
+
+.da-app-shell .da-input {
+  border-color: #d5dce6;
+  border-radius: 7px;
+  color: #1d2939;
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.025);
+}
+
+.da-app-shell .da-input:hover:not(:disabled) {
+  border-color: #bfc9d6;
+}
+
+.da-app-shell .da-input:focus {
+  border-color: #4d7ee8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.11), 0 1px 2px rgba(16, 24, 40, 0.03);
+}
+
+.da-app-shell .da-input:disabled {
+  color: #98a2b3;
+  background: #f3f5f7;
+}
+
+.da-app-shell .da-chip {
+  border-color: #dfe4eb;
+  color: #667085;
+  background: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-weight: 650;
+}
+
+.da-app-shell .da-chip.ok { border-color: #c9e8d2; color: #157638; background: #f2fbf5; }
+.da-app-shell .da-chip.warn { border-color: #efd8b7; color: #a85200; background: #fff9ef; }
+.da-app-shell .da-chip.danger { border-color: #efcccc; color: #bb3030; background: #fff5f5; }
+.da-app-shell .da-chip.blue { border-color: #cfddfa; color: #245bcc; background: #f3f7ff; }
+.da-app-shell .da-chip.teal { border-color: #c6e2df; color: #0f7068; background: #f1faf8; }
+
+.da-app-shell .da-badge {
+  border: 1px solid currentColor;
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+.da-app-shell table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.da-app-shell table thead tr,
+.da-app-shell table thead tr[style] {
+  background: #f7f9fb !important;
+}
+
+.da-app-shell table th {
+  color: #526176 !important;
+  font-size: 10px;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.da-app-shell table td {
+  color: #344054;
+}
+
+.da-app-shell table tbody tr {
+  background: #ffffff;
+  transition: background-color 140ms ease;
+}
+
+.da-app-shell table tbody tr:hover,
+.da-app-shell table tbody tr.hover\:bg-slate-50:hover,
+.da-app-shell table tbody tr.hover\:bg-white\/\[0\.02\]:hover {
+  background: #f8fafc !important;
+}
+
+.da-app-shell .da-plan-layout,
+.da-app-shell .da-fly-workspace,
+.da-app-shell .da-settings-layout {
+  background: var(--da-bg);
+}
+
+.da-app-shell .da-plan-header,
+.da-app-shell .da-fly-header,
+.da-app-shell .da-mission-editor-header,
+.da-app-shell .da-mission-editor-footer,
+.da-app-shell .da-fly-control-panel > header,
+.da-app-shell .da-map-detail-panel > header,
+.da-app-shell .da-live-map-detail > header,
+.da-app-shell .da-sim-progress {
+  border-color: #dde3eb;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.025);
+}
+
+.da-app-shell .da-plan-editor,
+.da-app-shell .da-plan-liveops,
+.da-app-shell .da-fly-control-panel,
+.da-app-shell .da-map-detail-panel,
+.da-app-shell .da-live-map-detail {
+  border-color: #dce2ea;
+  background: #fbfcfd;
+}
+
+.da-app-shell .da-mission-tabs,
+.da-app-shell .da-map-toolbar,
+.da-app-shell .da-live-map-alerts {
+  border-color: #dce3eb;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 3px 12px rgba(16, 24, 40, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.da-app-shell .da-mission-tabs {
+  box-shadow: inset 0 -1px 0 #e2e7ee;
+}
+
+.da-app-shell .da-mission-tabs button {
+  color: #687588;
+  background: transparent;
+}
+
+.da-app-shell .da-mission-tabs button:hover {
+  color: #263247;
+  background: #f7f9fb;
+}
+
+.da-app-shell .da-mission-tabs button.is-active {
+  color: #245bcc;
+  background: #f3f7ff;
+}
+
+.da-app-shell .da-map-tool,
+.da-app-shell .da-fly-header-btn,
+.da-app-shell .da-live-map-alerts button {
+  border-color: #dbe2eb;
+  color: #526176;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.da-app-shell .da-map-tool:hover,
+.da-app-shell .da-fly-header-btn:hover,
+.da-app-shell .da-live-map-alerts button:hover {
+  border-color: #bcc8d6;
+  color: #1d2939;
+  background: #f8fafc;
+}
+
+.da-app-shell .da-map-tool.is-active,
+.da-app-shell .da-fly-header-btn.is-active,
+.da-app-shell .da-live-map-alerts button[aria-pressed='true'] {
+  border-color: #b9cdf8;
+  color: #245bcc;
+  background: #eef4ff;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.04);
+}
+
+.da-app-shell .leaflet-control-zoom,
+.da-app-shell .leaflet-control-layers {
+  border-color: #d7dee8 !important;
+  box-shadow: 0 8px 20px rgba(16, 24, 40, 0.12) !important;
+}
+
+.da-app-shell .leaflet-control-zoom a:hover {
+  color: #245bcc !important;
+  background: #f5f8fd !important;
+}
+
+.da-app-shell .leaflet-popup-content-wrapper {
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(16, 24, 40, 0.15);
+}
+
+.da-app-shell .da-settings-nav {
+  border-right-color: #dce2ea;
+  background: #ffffff;
+}
+
+.da-app-shell .da-settings-group-label {
+  color: #8a95a5;
+  letter-spacing: 0;
+}
+
+.da-app-shell .da-settings-tab {
+  border: 1px solid transparent;
+  color: #667085;
+  background: transparent;
+  font-weight: 550;
+}
+
+.da-app-shell .da-settings-tab:hover {
+  border-color: #edf0f4;
+  color: #263247;
+  background: #f7f9fb;
+}
+
+.da-app-shell .da-settings-tab.is-active {
+  border-color: #dbe6ff;
+  color: #245bcc;
+  background: #f0f5ff;
+  box-shadow: inset 2px 0 0 #2563eb;
+}
+
+.da-app-shell .da-monitor-selector.is-active {
+  border-color: #b8ccf8;
+  color: #245bcc;
+  background: #eef4ff;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.035);
+}
+
+.da-app-shell .da-weather-panel {
+  border-color: #d7e0ec;
+  color: #1d2939;
+  background: #ffffff;
+  box-shadow: var(--da-shadow-sm);
+}
+
+.da-app-shell .da-weather-panel .text-sky-200 {
+  color: #3674df;
+}
+
+.da-app-shell .da-weather-panel .text-slate-100,
+.da-app-shell .da-weather-panel .text-white {
+  color: #1d2939;
+}
+
+.da-app-shell .da-weather-panel .text-slate-300 {
+  color: #667085;
+}
+
+.da-app-shell .da-weather-stat {
+  border-color: #e4e8ee;
+  background: #f7f9fb;
+}
+
+.da-app-shell .da-notification-panel {
+  border-color: #d9e0e9;
+  box-shadow: 0 20px 48px rgba(16, 24, 40, 0.17);
+}
+
+.da-app-shell .da-notification-header {
+  border-bottom-color: #e0e5ec;
+  background: #f8fafc;
+}
+
+.da-app-shell .da-notification-item {
+  border-color: #e1e6ed;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.025);
+}
+
+.da-app-shell ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.da-app-shell ::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #b7c0cd;
+  background-clip: padding-box;
+}
+
+.da-app-shell ::-webkit-scrollbar-thumb:hover {
+  background: #8d99a9;
+  background-clip: padding-box;
+}
 @media (max-width: 1120px) {
   .da-plan-editor { width: 300px; }
   .da-plan-liveops { width: 250px; }

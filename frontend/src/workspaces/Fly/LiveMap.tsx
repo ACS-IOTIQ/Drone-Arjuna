@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { droneControlApi } from '@/api/droneControl'
 import { useMissionStore, type GeoPoint } from '@/store/missionStore'
@@ -558,13 +558,30 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
                 )}
               </div>
             </Tooltip>
+            <Popup>
+              <div style={{ fontSize: 12, minWidth: 150 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>{f.call_sign ?? `Drone #${id}`}</div>
+                <div>Lat: {f.lat.toFixed(6)}</div>
+                <div>Lon: {f.lon.toFixed(6)}</div>
+                <div style={{ color: '#475569', marginTop: 4 }}>Alt AGL: {f.alt_agl.toFixed(1)} m</div>
+              </div>
+            </Popup>
           </Marker>
         ) : (
           <Marker
             key={`drone-${id}`}
             position={[f.lat, f.lon]}
             icon={droneIcon(f.heading, id === droneId, f.call_sign)}
-            eventHandlers={onSelectDrone ? { click: () => onSelectDrone(id) } : undefined} />
+            eventHandlers={onSelectDrone ? { click: () => onSelectDrone(id) } : undefined}>
+            <Popup>
+              <div style={{ fontSize: 12, minWidth: 150 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>{f.call_sign ?? `Drone #${id}`}</div>
+                <div>Lat: {f.lat.toFixed(6)}</div>
+                <div>Lon: {f.lon.toFixed(6)}</div>
+                <div style={{ color: '#475569', marginTop: 4 }}>Alt AGL: {f.alt_agl.toFixed(1)} m</div>
+              </div>
+            </Popup>
+          </Marker>
         )
       ))}
 

@@ -65,11 +65,12 @@ class CommandController:
 
     # ── Public API ────────────────────────────────────────────────
 
-    async def send(self, command: str, params: dict = {}) -> CommandRecord:
+    async def send(self, command: str, params: Optional[dict] = None) -> CommandRecord:
         """
         Validate, encode, dispatch, and await acknowledgment.
         Returns a CommandRecord with the final result.
         """
+        params = params or {}
         record = CommandRecord(drone_id=self.drone_id, command=command, params=params)
 
         # 1. Pre-flight validation
@@ -82,7 +83,20 @@ class CommandController:
                         command=command, reason=denial)
             return record
 
-        # 2. Dispatch with retry
+        # 2. Reject if an arm/disarm ACK is still outstanding — both share
+        # MAV_CMD_COMPONENT_ARM_DISARM as their ack command id, so a second
+        # in-flight request of either kind cannot be told apart from the first
+        # once COMMAND_ACK arrives.
+        cmd_id = self._command_to_mavlink_id(command)
+        if cmd_id is not None and cmd_id in self._pending:
+            record.result      = CommandResult.DENIED
+            record.ack_message = "A prior arm/disarm command is still awaiting acknowledgment"
+            self._append(record)
+            log.warning("Command denied: ack collision", drone_id=self.drone_id,
+                        command=command)
+            return record
+
+        # 3. Dispatch with retry
         loop = asyncio.get_event_loop()
         for attempt in range(1, MAX_RETRIES + 1):
             try:

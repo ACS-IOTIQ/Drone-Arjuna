@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, useMapEvents, ZoomControl } from 'react-leaflet'
 import L, { type LeafletEvent } from 'leaflet'
-import { CheckCircle2, Cpu, Eye, Pencil, PlusCircle, Route, Shield, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Cpu, Eye, Pencil, PlusCircle, Route, Shield, Trash2 } from 'lucide-react'
 import { useMissionStore, type GeoPoint } from '@/store/missionStore'
 import { useFleetStore } from '@/store/fleetStore'
 import { notify } from '@/store/notificationStore'
 import { buildZoneLayers } from '@/utils/geofenceZones'
 import { buildRegulatoryZoneLayers, getRegulatoryRule, regulatoryZones } from '@/utils/regulatoryZones'
+import { findRouteCollisions, formatCollisionCoord, type LatLngPoint } from '@/utils/routeCollision'
 
 const FLEET_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d']
 
@@ -53,6 +54,22 @@ function vertexIcon(idx: number) {
       color:#0f766e; font-size:9px; font-weight:800;
       box-shadow:0 1px 6px rgba(15,23,42,0.25);
     ">${idx + 1}</div>`,
+  })
+}
+
+function collisionIcon(idx: number) {
+  return L.divIcon({
+    className: '',
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    html: `<div style="
+      width:34px; height:34px; border-radius:50%;
+      background:#f97316;
+      border:3px solid #7c2d12;
+      display:flex; align-items:center; justify-content:center;
+      color:#ffffff; font-size:13px; font-weight:900;
+      box-shadow:0 0 0 4px rgba(249,115,22,0.22), 0 3px 10px rgba(15,23,42,0.38);
+    ">${idx}</div>`,
   })
 }
 
@@ -261,17 +278,45 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
   const [manualLat, setManualLat] = useState('')
   const [manualLng, setManualLng] = useState('')
   const [showAllMissions, setShowAllMissions] = useState(false)
+  const collisionNoticeKeyRef = useRef('')
 
   const droneName = (id: number | null | undefined) =>
     instances.find(i => i.id === id)?.call_sign ?? (id != null ? `Drone #${id}` : 'Unassigned')
+
+  const activeMission = useMemo(
+    () => missions.find(m => m.id === activeMissionId) ?? null,
+    [missions, activeMissionId],
+  )
 
   const otherMissions = useMemo(
     () => missions.filter(m => m.id !== activeMissionId && (m.waypoints?.length || m.geofence)),
     [missions, activeMissionId],
   )
 
-  const routePositions = draftWaypoints.map(w => [w.latitude, w.longitude] as [number, number])
+  const draftRoutePoints = useMemo<LatLngPoint[]>(
+    () => draftWaypoints.map(w => ({ lat: w.latitude, lng: w.longitude })),
+    [draftWaypoints],
+  )
+  const routePositions = draftRoutePoints.map(w => [w.lat, w.lng] as [number, number])
   const geofencePositions = geofence.map(p => [p.lat, p.lng] as [number, number])
+  const otherMissionRoutes = useMemo(
+    () => otherMissions
+      .map(m => ({
+        mission: m,
+        route: (m.waypoints ?? [])
+          .slice()
+          .sort((a, b) => a.sequence - b.sequence)
+          .map(w => ({ lat: w.latitude, lng: w.longitude })),
+      }))
+      .filter(item => item.route.length > 1),
+    [otherMissions],
+  )
+  const routeCollisions = useMemo(
+    () => otherMissionRoutes.flatMap(({ mission, route }) =>
+      findRouteCollisions(draftRoutePoints, route).map(collision => ({ ...collision, mission })),
+    ),
+    [draftRoutePoints, otherMissionRoutes],
+  )
   const zoneLayers = useMemo(() => {
     if (geofence.length < 3) return []
     const centerLat = geofence.reduce((sum, p) => sum + p.lat, 0) / geofence.length
@@ -286,6 +331,28 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
     () => draftWaypoints.filter(w => !isPointInsidePolygon({ lat: w.latitude, lng: w.longitude }, geofence)).length,
     [draftWaypoints, geofence],
   )
+
+  useEffect(() => {
+    if (routeCollisions.length === 0) {
+      collisionNoticeKeyRef.current = ''
+      return
+    }
+
+    const key = routeCollisions
+      .map(c => `${c.mission.id}:${c.id}`)
+      .sort()
+      .join('|')
+    if (collisionNoticeKeyRef.current === key) return
+
+    collisionNoticeKeyRef.current = key
+    const drones = Array.from(new Set(routeCollisions.map(c => droneName(c.mission.drone_instance_id)))).join(', ')
+    const coords = routeCollisions.slice(0, 3).map(c => formatCollisionCoord(c)).join('; ')
+    const suffix = routeCollisions.length > 3 ? `; +${routeCollisions.length - 3} more` : ''
+    notify.warning(
+      'Route collision warning',
+      `${activeMission?.name ?? 'Current path'} collides with ${drones} at ${routeCollisions.length} point(s): ${coords}${suffix}.`,
+    )
+  }, [activeMission?.name, routeCollisions, instances])
 
   const startDrawing = () => {
     clearGeofence()
@@ -533,6 +600,30 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
             pathOptions={{ color: '#2563eb', weight: 3, dashArray: '6 4', opacity: 0.85 }} />
         )}
 
+        {routeCollisions.map((collision, idx) => (
+          <Marker
+            key={`route-collision-${collision.mission.id}-${collision.id}`}
+            position={[collision.lat, collision.lng]}
+            icon={collisionIcon(idx + 1)}>
+            <Popup>
+              <div style={{ padding: 8, minWidth: 210 }}>
+                <div style={{ fontWeight: 800, color: '#9a3412', marginBottom: 4 }}>
+                  Collision point {idx + 1}
+                </div>
+                <div style={{ fontSize: 11, color: '#0f172a' }}>
+                  {formatCollisionCoord(collision)}
+                </div>
+                <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>
+                  Current path leg {collision.routeALegIndex + 1} near {droneName(collision.mission.drone_instance_id)} / {collision.mission.name}
+                </div>
+                <div style={{ fontSize: 11, color: '#475569' }}>
+                  Other path leg {collision.routeBLegIndex + 1} - separation {collision.distanceM.toFixed(1)} m
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
         {draftWaypoints.map(wp => {
           const outside = !isPointInsidePolygon({ lat: wp.latitude, lng: wp.longitude }, geofence)
           return (
@@ -611,6 +702,21 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
           <span className="text-xs mono px-2" style={{ color: outsideCount > 0 ? '#dc2626' : '#0f766e' }}>
             {routeDrawing ? 'Route plotting active' : 'Route plotting complete'} - {geofence.length < 3 ? `${geofence.length}/3 vertices` : `${outsideCount} outside`}
           </span>
+          {routeCollisions.length > 0 && (
+            <div className="max-h-32 overflow-auto rounded border border-orange-300 bg-orange-50/95 p-2 text-[11px] text-orange-950">
+              <div className="mb-1 flex items-center gap-1 font-semibold">
+                <AlertTriangle size={13} /> {routeCollisions.length} path collision point{routeCollisions.length === 1 ? '' : 's'}
+              </div>
+              {routeCollisions.map((collision, idx) => (
+                <div key={`collision-list-${collision.mission.id}-${collision.id}`} className="mb-1">
+                  #{idx + 1} {formatCollisionCoord(collision)}
+                  <span className="block text-orange-800">
+                    with {droneName(collision.mission.drone_instance_id)} - {collision.mission.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowAllMissions(v => !v)}

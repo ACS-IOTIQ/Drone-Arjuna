@@ -6,34 +6,67 @@ import { useMissionStore, type GeoPoint } from '@/store/missionStore'
 import type { WaypointInput } from '@/api/droneFlight'
 import { notify } from '@/store/notificationStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
+import { useFleetStore } from '@/store/fleetStore'
 import { useVesselStore } from '@/store/vesselStore'
 import { buildZoneLayers, getZoneRule } from '@/utils/geofenceZones'
 import { buildRegulatoryZoneLayers, getRegulatoryRule } from '@/utils/regulatoryZones'
+import { findRouteCollisions, formatCollisionCoord, type LatLngPoint } from '@/utils/routeCollision'
+
+const FLEET_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d']
+
+function colorForDrone(droneId: number | null | undefined) {
+  if (droneId == null) return '#64748b'
+  return FLEET_COLORS[droneId % FLEET_COLORS.length]
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char] ?? char))
+}
 
 function droneIcon(heading: number, active: boolean, callSign?: string) {
-  const size   = active ? 36 : 26
+  const size   = active ? 38 : 30
+  const boxW   = active ? 70 : 62
+  const boxH   = size + 20
   const fill   = active ? '#3b82f6' : '#94a3b8'
   const stroke = active ? '#1d4ed8' : '#64748b'
+  const label = callSign ? escapeHtml(callSign) : ''
   return L.divIcon({
     className: '',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    html: `<div style="position:relative; width:${size}px; height:${size}px;">
+    iconSize: [boxW, boxH],
+    iconAnchor: [boxW / 2, size / 2],
+    html: `<div style="position:relative; width:${boxW}px; height:${boxH}px;">
       <div style="
+        position:absolute; left:50%; top:0; margin-left:${-size / 2}px;
         width:${size}px; height:${size}px;
         display:flex; align-items:center; justify-content:center;
         transform: rotate(${heading}deg);
         opacity:${active ? 1 : 0.85};
       ">
-        <svg viewBox="0 0 24 24" width="${size - 8}" height="${size - 8}">
-          <polygon points="12,2 7,22 12,18 17,22" fill="${fill}" stroke="${stroke}" stroke-width="1"/>
+        <svg viewBox="0 0 48 48" width="${size}" height="${size}">
+          <line x1="14" y1="14" x2="34" y2="34" stroke="${stroke}" stroke-width="3" stroke-linecap="round"/>
+          <line x1="34" y1="14" x2="14" y2="34" stroke="${stroke}" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="11" cy="11" r="7" fill="rgba(255,255,255,0.92)" stroke="${stroke}" stroke-width="2"/>
+          <circle cx="37" cy="11" r="7" fill="rgba(255,255,255,0.92)" stroke="${stroke}" stroke-width="2"/>
+          <circle cx="11" cy="37" r="7" fill="rgba(255,255,255,0.92)" stroke="${stroke}" stroke-width="2"/>
+          <circle cx="37" cy="37" r="7" fill="rgba(255,255,255,0.92)" stroke="${stroke}" stroke-width="2"/>
+          <ellipse cx="24" cy="24" rx="9" ry="12" fill="${fill}" stroke="${stroke}" stroke-width="2"/>
+          <path d="M24 10 L29 22 L19 22 Z" fill="#ffffff" fill-opacity="0.9"/>
+          <circle cx="24" cy="27" r="2.4" fill="#0f172a" fill-opacity="0.55"/>
         </svg>
       </div>
-      ${callSign && !active ? `<div style="
-        position:absolute; top:100%; left:50%; transform:translateX(-50%);
-        white-space:nowrap; font-size:9px; font-weight:600; color:#475569;
-        background:rgba(255,255,255,0.85); padding:0 3px; border-radius:2px;
-      ">${callSign}</div>` : ''}
+      ${label ? `<div style="
+        position:absolute; top:${size}px; left:50%; transform:translateX(-50%);
+        max-width:${boxW}px; overflow:hidden; text-overflow:ellipsis;
+        white-space:nowrap; font-size:9px; font-weight:700; color:#0f172a;
+        background:rgba(255,255,255,0.9); padding:0 4px; border-radius:3px;
+        border:1px solid rgba(148,163,184,0.45);
+      ">${label}</div>` : ''}
     </div>`,
   })
 }
@@ -70,6 +103,22 @@ function simWaypointIcon(seq: number) {
       color:#1d4ed8; font-size:8px; font-weight:800;
       box-shadow:0 1px 5px rgba(15,23,42,0.22);
     ">${seq}</div>`,
+  })
+}
+
+function collisionIcon(idx: number) {
+  return L.divIcon({
+    className: '',
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    html: `<div style="
+      width:34px; height:34px; border-radius:50%;
+      background:#f97316;
+      border:3px solid #7c2d12;
+      display:flex; align-items:center; justify-content:center;
+      color:#ffffff; font-size:13px; font-weight:900;
+      box-shadow:0 0 0 4px rgba(249,115,22,0.22), 0 3px 10px rgba(15,23,42,0.38);
+    ">${idx}</div>`,
   })
 }
 
@@ -113,6 +162,7 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
   const frames  = useTelemetryStore(s => s.frames)
   const frame   = droneId ? frames[droneId] : null
   const history = useTelemetryStore(s => droneId ? s.history[droneId] : [])
+  const instances = useFleetStore(s => s.instances)
   const vessels = useVesselStore(s => s.vessels)
   const missions = useMissionStore(s => s.missions)
   const fetchMissions = useMissionStore(s => s.fetchMissions)
@@ -120,6 +170,7 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
   const [runtimeGeofence, setRuntimeGeofence] = useState<any | null>(null)
   const lastRegulatoryRef = useRef<string | null>(null)
   const lastComplianceRef = useRef<string | null>(null)
+  const liveCollisionNoticeKeyRef = useRef('')
   const autoActionRef = useRef<Map<string, number>>(new Map())
 
   // Breadcrumb trail — every 5th frame, only for the active/followed drone
@@ -129,10 +180,11 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     .filter(([lat, lon]) => lat !== 0 || lon !== 0)
 
   useEffect(() => {
-    if (frame?.sim_phase && missions.length === 0) {
+    const hasSimFrame = Object.values(frames).some(f => f?.sim_phase)
+    if (hasSimFrame && missions.length === 0) {
       fetchMissions()
     }
-  }, [frame?.sim_phase, missions.length, fetchMissions])
+  }, [frames, missions.length, fetchMissions])
 
   useEffect(() => {
     if (!droneId) {
@@ -172,10 +224,6 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
       .slice()
       .sort((a, b) => a.sequence - b.sequence)
   ), [simMission])
-  const simRoute = useMemo(() => (
-    simWaypoints
-      .map(w => [w.latitude, w.longitude] as [number, number])
-  ), [simWaypoints])
   const zoneRule = useMemo(() => {
     if (!frame) return null
     return getZoneRule(frame.lat, frame.lon, displayGeofence)
@@ -190,6 +238,57 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     if (!frame) return null
     return getRegulatoryRule(frame.lat, frame.lon, frame.alt_agl ?? 0)
   }, [frame])
+
+  const droneName = (id: number, callSign?: string) =>
+    callSign ?? instances.find(i => i.id === id)?.call_sign ?? `Drone #${id}`
+
+  const simDroneRoutes = useMemo(() => (
+    Object.entries(frames)
+      .map(([id, f]) => ({ id: Number(id), frame: f }))
+      .filter(({ frame: f }) => f?.sim_phase && (f.lat !== 0 || f.lon !== 0))
+      .map(({ id, frame: f }) => {
+        const mission = f.mission_id != null
+          ? missions.find(m => m.id === f.mission_id)
+          : missions.find(m => m.drone_instance_id === id)
+        const route = (mission?.waypoints ?? [])
+          .filter(w => !w.is_home)
+          .filter(w => Number.isFinite(w.latitude) && Number.isFinite(w.longitude))
+          .slice()
+          .sort((a, b) => a.sequence - b.sequence)
+          .map(w => ({ lat: w.latitude, lng: w.longitude } as LatLngPoint))
+        return { droneId: id, callSign: f.call_sign, mission, route }
+      })
+      .filter(item => item.route.length > 1)
+  ), [frames, missions])
+
+  const liveRouteCollisions = useMemo(() => {
+    const collisions: Array<ReturnType<typeof findRouteCollisions>[number] & {
+      droneAId: number
+      droneBId: number
+      droneAName: string
+      droneBName: string
+      missionAName: string
+      missionBName: string
+    }> = []
+
+    for (let i = 0; i < simDroneRoutes.length - 1; i++) {
+      for (let j = i + 1; j < simDroneRoutes.length; j++) {
+        const a = simDroneRoutes[i]
+        const b = simDroneRoutes[j]
+        collisions.push(...findRouteCollisions(a.route, b.route).map(collision => ({
+          ...collision,
+          droneAId: a.droneId,
+          droneBId: b.droneId,
+          droneAName: droneName(a.droneId, a.callSign),
+          droneBName: droneName(b.droneId, b.callSign),
+          missionAName: a.mission?.name ?? 'simulation route',
+          missionBName: b.mission?.name ?? 'simulation route',
+        })))
+      }
+    }
+
+    return collisions
+  }, [simDroneRoutes, instances])
 
   const activeCompliance = useMemo(() => {
     if (!frame || !zoneRule) return null
@@ -306,6 +405,28 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     runAutoAction()
   }, [droneId, frame, currentRegulatoryZone])
 
+  useEffect(() => {
+    if (liveRouteCollisions.length === 0) {
+      liveCollisionNoticeKeyRef.current = ''
+      return
+    }
+
+    const key = liveRouteCollisions
+      .map(c => `${c.droneAId}:${c.droneBId}:${c.id}`)
+      .sort()
+      .join('|')
+    if (liveCollisionNoticeKeyRef.current === key) return
+
+    liveCollisionNoticeKeyRef.current = key
+    const pairs = Array.from(new Set(liveRouteCollisions.map(c => `${c.droneAName} and ${c.droneBName}`))).join(', ')
+    const coords = liveRouteCollisions.slice(0, 3).map(c => formatCollisionCoord(c)).join('; ')
+    const suffix = liveRouteCollisions.length > 3 ? `; +${liveRouteCollisions.length - 3} more` : ''
+    notify.warning(
+      'Simulation path collision warning',
+      `${pairs} have ${liveRouteCollisions.length} path collision point(s): ${coords}${suffix}.`,
+    )
+  }, [liveRouteCollisions])
+
   // Every connected drone with a known position — rendered simultaneously
   const allDrones = Object.entries(frames)
     .map(([id, f]) => ({ id: Number(id), frame: f }))
@@ -370,11 +491,17 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
           pathOptions={{ color: '#3b82f6', weight: 1.5, opacity: 0.5 }} />
       )}
 
-      {simRoute.length > 1 && (
+      {simDroneRoutes.map(route => (
         <Polyline
-          positions={simRoute}
-          pathOptions={{ color: '#2563eb', weight: 2, opacity: 0.68, dashArray: '4 6' }} />
-      )}
+          key={`sim-route-${route.droneId}`}
+          positions={route.route.map(p => [p.lat, p.lng] as [number, number])}
+          pathOptions={{
+            color: colorForDrone(route.droneId),
+            weight: route.droneId === droneId ? 2.8 : 2,
+            opacity: route.droneId === droneId ? 0.82 : 0.58,
+            dashArray: route.droneId === droneId ? '4 6' : '2 7',
+          }} />
+      ))}
 
       {simWaypoints.map(wp => (
         <Marker
@@ -382,6 +509,29 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
           position={[wp.latitude, wp.longitude]}
           icon={simWaypointIcon(wp.sequence)}
           interactive={false} />
+      ))}
+
+      {liveRouteCollisions.map((collision, idx) => (
+        <Marker
+          key={`live-route-collision-${collision.droneAId}-${collision.droneBId}-${collision.id}`}
+          position={[collision.lat, collision.lng]}
+          icon={collisionIcon(idx + 1)}>
+          <Tooltip direction="top" offset={[0, -14]}>
+            <div style={{ fontSize: 11, minWidth: 210 }}>
+              <strong>Collision point {idx + 1}</strong>
+              <div>{formatCollisionCoord(collision)}</div>
+              <div style={{ color: '#475569', marginTop: 2 }}>
+                {collision.droneAName} / {collision.missionAName}
+              </div>
+              <div style={{ color: '#475569' }}>
+                {collision.droneBName} / {collision.missionBName}
+              </div>
+              <div style={{ color: '#475569' }}>
+                Separation {collision.distanceM.toFixed(1)} m
+              </div>
+            </div>
+          </Tooltip>
+        </Marker>
       ))}
 
       {allDrones.map(({ id, frame: f }) => (
@@ -459,6 +609,29 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {liveRouteCollisions.length > 0 && (
+        <div className="leaflet-top leaflet-right da-route-collision-advisory" style={{ zIndex: 1000 }}>
+          <div className="leaflet-control" style={{ margin: 10, maxWidth: 320 }}>
+            <div className="rounded-lg border border-orange-300 bg-orange-50/95 px-3 py-2 text-xs text-orange-950 shadow">
+              <div className="font-semibold">Path collision warning</div>
+              <div className="mt-1">
+                {liveRouteCollisions.length} collision point{liveRouteCollisions.length === 1 ? '' : 's'} between simulated drone paths.
+              </div>
+              <div className="mt-2 max-h-28 overflow-auto text-[11px]">
+                {liveRouteCollisions.map((collision, idx) => (
+                  <div key={`live-collision-list-${collision.droneAId}-${collision.droneBId}-${collision.id}`} className="mb-1">
+                    #{idx + 1} {formatCollisionCoord(collision)}
+                    <span className="block text-orange-800">
+                      {collision.droneAName} with {collision.droneBName}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

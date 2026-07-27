@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, Tooltip, useMapEvents, ZoomControl } from 'react-leaflet'
+import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents, ZoomControl } from 'react-leaflet'
 import L, { type LeafletEvent } from 'leaflet'
-import { AlertTriangle, CheckCircle2, Cpu, Eye, Pencil, PlusCircle, Route, Shield, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Cpu, Eye, Info, MapPin, Pencil, PlusCircle, Route, Shield, Trash2, X } from 'lucide-react'
 import { useMissionStore, type GeoPoint } from '@/store/missionStore'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
@@ -283,6 +283,23 @@ function MapClickHandler({ drawing, routeDrawing }: { drawing: boolean; routeDra
   return null
 }
 
+function MapResizeHandler() {
+  const map = useMap()
+
+  useEffect(() => {
+    const container = map.getContainer()
+    const observer = new ResizeObserver(() => map.invalidateSize({ animate: false }))
+    observer.observe(container)
+    const frame = requestAnimationFrame(() => map.invalidateSize({ animate: false }))
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [map])
+
+  return null
+}
+
 type MapCanvasProps = {
   onFleetAssign?: () => void
 }
@@ -305,6 +322,7 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
   const [manualLat, setManualLat] = useState('')
   const [manualLng, setManualLng] = useState('')
   const [showAllMissions, setShowAllMissions] = useState(false)
+  const [activePanel, setActivePanel] = useState<'coordinates' | 'collisions' | 'missions' | 'airspace' | null>(null)
   const collisionNoticeKeyRef = useRef('')
 
   const droneName = (id: number | null | undefined) =>
@@ -481,15 +499,45 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
     clearDraft()
     setDrawing(false)
     setRouteDrawing(true)
+    setActivePanel(null)
   }
 
+  const togglePanel = (panel: NonNullable<typeof activePanel>) => {
+    setActivePanel(current => current === panel ? null : panel)
+  }
+
+  const toggleOtherMissions = () => {
+    setShowAllMissions(current => {
+      const next = !current
+      setActivePanel(next ? 'missions' : null)
+      return next
+    })
+  }
+
+  const planningState = drawing
+    ? `Drawing geofence (${geofence.length}/3 minimum vertices)`
+    : routeDrawing
+      ? `Plotting route (${draftWaypoints.length} waypoints)`
+      : 'Route plotting complete'
+  const panelTitle = activePanel === 'coordinates'
+    ? 'Coordinates and geofence'
+    : activePanel === 'collisions'
+      ? 'Route collision points'
+      : activePanel === 'missions'
+        ? 'Other drone missions'
+        : 'Airspace information'
+
   return (
-    <div className="relative h-full w-full">
+    <div className="da-plan-canvas">
+      <div className="da-plan-map-content">
+        <div className="da-plan-map-stage">
       <MapContainer
         center={[17.385, 78.4867]}
         zoom={13}
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}>
+
+        <MapResizeHandler />
 
         <ZoomControl position="bottomright" />
 
@@ -725,142 +773,193 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
         <MapClickHandler drawing={drawing} routeDrawing={routeDrawing} />
       </MapContainer>
 
-      <div className="absolute top-3 left-3 right-3 z-[999] flex flex-wrap items-start gap-2 pointer-events-none">
-        <div className="da-card p-2 flex flex-col gap-2 pointer-events-auto">
-          <div className="flex items-center gap-2">
-            <button onClick={startRoute} disabled={routeDrawing && !drawing} className="da-btn da-btn-ghost">
-              <Route size={14} /> Plot Route
-            </button>
-            <button onClick={completeRoute} disabled={!routeDrawing || draftWaypoints.length === 0} className="da-btn da-btn-primary">
-              <CheckCircle2 size={14} /> Complete Path
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={startDrawing} className="da-btn da-btn-teal">
-              <Pencil size={14} /> Draw Geofence
-            </button>
-            <button onClick={finishDrawing} disabled={!drawing || geofence.length < 3} className="da-btn da-btn-primary">
-              <Shield size={14} /> Finish
-            </button>
-            <button onClick={deleteZone} disabled={geofence.length === 0} className="da-btn da-btn-ghost">
-              <Trash2 size={14} /> Delete
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              value={manualLat}
-              onChange={e => setManualLat(e.target.value)}
-              placeholder="Lat"
-              className="w-24 rounded border border-slate-300 px-2 py-1 text-xs"
-            />
-            <input
-              value={manualLng}
-              onChange={e => setManualLng(e.target.value)}
-              placeholder="Lng"
-              className="w-24 rounded border border-slate-300 px-2 py-1 text-xs"
-            />
-            <button onClick={addManualVertex} className="da-btn da-btn-ghost" style={{ padding: '4px 8px' }}>
-              <PlusCircle size={14} /> Add
-            </button>
-          </div>
-          <span className="text-xs mono px-2" style={{ color: outsideCount > 0 ? '#dc2626' : '#0f766e' }}>
-            {routeDrawing ? 'Route plotting active' : 'Route plotting complete'} - {geofence.length < 3 ? `${geofence.length}/3 vertices` : `${outsideCount} outside`}
-          </span>
-          {routeCollisions.length > 0 && (
-            <div className="max-h-32 overflow-auto rounded border border-orange-300 bg-orange-50/95 p-2 text-[11px] text-orange-950">
-              <div className="mb-1 flex items-center gap-1 font-semibold">
-                <AlertTriangle size={13} /> {routeCollisions.length} path collision point{routeCollisions.length === 1 ? '' : 's'}
-              </div>
-              {routeCollisions.map((collision, idx) => (
-                <div key={`collision-list-${collision.mission.id}-${collision.id}`} className="mb-1">
-                  #{idx + 1} {formatCollisionCoord(collision)}
-                  <span className="block text-orange-800">
-                    with {droneName(collision.mission.drone_instance_id)} - {collision.mission.name}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex items-center gap-2">
+          <div className="da-map-toolbar" role="toolbar" aria-label="Planning tools">
             <button
-              onClick={() => setShowAllMissions(v => !v)}
-              className={showAllMissions ? 'da-btn da-btn-teal' : 'da-btn da-btn-ghost'}>
-              <Eye size={14} /> {showAllMissions ? 'Hide other drones' : 'Show all drone missions'}
+              type="button"
+              className={routeDrawing ? 'da-map-tool is-active' : 'da-map-tool'}
+              onClick={routeDrawing ? completeRoute : startRoute}
+              disabled={routeDrawing && draftWaypoints.length === 0}
+              title={routeDrawing ? 'Complete route' : 'Plot route'}>
+              {routeDrawing ? <CheckCircle2 size={15} /> : <Route size={15} />}
+              <span>{routeDrawing ? 'Complete' : 'Plot Route'}</span>
             </button>
+            <button
+              type="button"
+              className={drawing ? 'da-map-tool is-active' : 'da-map-tool'}
+              onClick={drawing ? finishDrawing : startDrawing}
+              disabled={drawing && geofence.length < 3}
+              title={drawing ? 'Finish geofence' : 'Draw geofence'}>
+              {drawing ? <Shield size={15} /> : <Pencil size={15} />}
+              <span>{drawing ? 'Finish Fence' : 'Draw Fence'}</span>
+            </button>
+            <span className="da-map-toolbar-divider" />
+            <button
+              type="button"
+              className={activePanel === 'coordinates' ? 'da-map-tool is-active' : 'da-map-tool'}
+              onClick={() => togglePanel('coordinates')}
+              title="Coordinates and geofence vertices"
+              aria-pressed={activePanel === 'coordinates'}>
+              <MapPin size={15} /><span>Coordinates</span>
+            </button>
+            <button
+              type="button"
+              className={showAllMissions ? 'da-map-tool is-active' : 'da-map-tool'}
+              onClick={toggleOtherMissions}
+              title={showAllMissions ? 'Hide other drone missions' : 'Show other drone missions'}
+              aria-pressed={showAllMissions}>
+              <Eye size={15} /><span>Missions</span>
+            </button>
+            {routeCollisions.length > 0 && (
+              <button
+                type="button"
+                className="da-map-tool is-warning"
+                onClick={() => togglePanel('collisions')}
+                title="View route collision points"
+                aria-pressed={activePanel === 'collisions'}>
+                <AlertTriangle size={15} /><span>{routeCollisions.length} Conflicts</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className={activePanel === 'airspace' ? 'da-map-tool is-active' : 'da-map-tool'}
+              onClick={() => togglePanel('airspace')}
+              title="Airspace information"
+              aria-pressed={activePanel === 'airspace'}>
+              <Info size={15} /><span>Airspace</span>
+            </button>
+            {onFleetAssign && (
+              <button type="button" className="da-map-tool" onClick={onFleetAssign} title="Assign fleet">
+                <Cpu size={15} /><span>Fleet</span>
+              </button>
+            )}
+            {(draftWaypoints.length > 0 || geofence.length > 0) && (
+              <button type="button" className="da-map-tool is-danger" onClick={clearMission} title="Clear mission">
+                <Trash2 size={15} /><span>Clear</span>
+              </button>
+            )}
           </div>
-          {showAllMissions && otherMissions.length > 0 && (
-            <div className="max-h-28 overflow-auto rounded border border-slate-200 bg-white/90 p-2 text-[11px] text-slate-600">
-              {otherMissions.map(m => (
-                <div key={m.id} className="mb-1 flex items-center gap-2">
-                  <span
-                    style={{
-                      display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
-                      background: colorForDrone(m.drone_instance_id), flexShrink: 0,
-                    }}
-                  />
-                  <span className="truncate">{droneName(m.drone_instance_id)} — {m.name} ({m.status})</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {showAllMissions && otherMissions.length === 0 && (
-            <span className="text-[11px] px-2" style={{ color: '#64748b' }}>No other drone missions with waypoints/geofence yet.</span>
-          )}
-          {geofence.length > 0 && (
-            <div className="max-h-32 overflow-auto rounded border border-slate-200 bg-white/90 p-2 text-[11px] text-slate-600">
-              {geofence.map((point, idx) => (
-                <div key={`${idx}-${point.lat}-${point.lng}`} className="mb-1 flex items-center justify-between gap-2">
-                  <span>#{idx + 1} {point.lat.toFixed(5)}, {point.lng.toFixed(5)}</span>
-                  <button onClick={() => removeVertex(idx)} className="text-red-500" title="Remove point">
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
-        {onFleetAssign && (
-          <button className="da-btn da-btn-teal shrink-0 pointer-events-auto" onClick={onFleetAssign}>
-            <Cpu size={14} /> Fleet Assign
-          </button>
+        {activePanel && (
+          <aside className="da-map-detail-panel" aria-label={panelTitle}>
+            <header>
+              <strong>{panelTitle}</strong>
+              <button type="button" onClick={() => setActivePanel(null)} title="Close details">
+                <X size={16} />
+              </button>
+            </header>
+
+            <div className="da-map-detail-scroll">
+              {activePanel === 'coordinates' && (
+                <div className="da-map-detail-section">
+                  <div className="da-coordinate-entry">
+                    <label>
+                      <span>Latitude</span>
+                      <input value={manualLat} onChange={event => setManualLat(event.target.value)} placeholder="17.385000" />
+                    </label>
+                    <label>
+                      <span>Longitude</span>
+                      <input value={manualLng} onChange={event => setManualLng(event.target.value)} placeholder="78.486700" />
+                    </label>
+                    <button type="button" className="da-btn da-btn-primary justify-center" onClick={addManualVertex}>
+                      <PlusCircle size={14} /> Add vertex
+                    </button>
+                  </div>
+
+                  <div className="da-map-detail-heading">
+                    <span>Geofence vertices</span>
+                    <b>{geofence.length}</b>
+                  </div>
+                  {geofence.length === 0 ? (
+                    <div className="da-map-detail-empty">No geofence vertices</div>
+                  ) : (
+                    geofence.map((point, index) => (
+                      <div className="da-map-coordinate-row" key={index + '-' + point.lat + '-' + point.lng}>
+                        <span>{index + 1}</span>
+                        <div>
+                          <strong>Lon {point.lng.toFixed(6)}</strong>
+                          <small>Lat {point.lat.toFixed(6)}</small>
+                        </div>
+                        <button type="button" onClick={() => removeVertex(index)} title={'Remove vertex ' + (index + 1)}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                  {geofence.length > 0 && (
+                    <button type="button" className="da-btn da-btn-ghost justify-center" onClick={deleteZone}>
+                      <Trash2 size={13} /> Clear geofence
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {activePanel === 'collisions' && (
+                <div className="da-map-detail-section">
+                  <div className="da-collision-summary">
+                    <AlertTriangle size={17} />
+                    <span>{routeCollisions.length} collision point{routeCollisions.length === 1 ? '' : 's'} detected</span>
+                  </div>
+                  {routeCollisions.map((collision, index) => (
+                    <div className="da-collision-row" key={'collision-list-' + collision.mission.id + '-' + collision.id}>
+                      <span>{index + 1}</span>
+                      <div>
+                        <strong>{formatCollisionCoord(collision)}</strong>
+                        <small>{droneName(collision.mission.drone_instance_id)} / {collision.mission.name}</small>
+                        <small>Legs {collision.routeALegIndex + 1} and {collision.routeBLegIndex + 1} / {collision.distanceM.toFixed(1)} m separation</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {activePanel === 'missions' && (
+                <div className="da-map-detail-section">
+                  {otherMissions.length === 0 ? (
+                    <div className="da-map-detail-empty">No other missions with routes or geofences</div>
+                  ) : (
+                    otherMissions.map(mission => (
+                      <div className="da-other-mission-row" key={mission.id}>
+                        <span style={{ background: colorForDrone(mission.drone_instance_id) }} />
+                        <div>
+                          <strong>{mission.name}</strong>
+                          <small>{droneName(mission.drone_instance_id)} / {mission.status}</small>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  <button type="button" className="da-btn da-btn-ghost justify-center" onClick={toggleOtherMissions}>
+                    <Eye size={13} /> Hide mission paths
+                  </button>
+                </div>
+              )}
+
+              {activePanel === 'airspace' && (
+                <div className="da-map-detail-section">
+                  <div className="da-airspace-note">
+                    <strong>Government airspace zones</strong>
+                    <span>Fixed restricted and controlled airspace remains anchored to its real-world coordinates.</span>
+                  </div>
+                  <div className="da-airspace-key"><i className="red" /><span>Restricted airspace</span></div>
+                  <div className="da-airspace-key"><i className="orange" /><span>Controlled airspace</span></div>
+                  <div className="da-airspace-key"><i className="teal" /><span>Mission geofence</span></div>
+                </div>
+              )}
+            </div>
+          </aside>
         )}
       </div>
 
-      {draftWaypoints.length === 0 && !drawing && routeDrawing && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[999] px-4 py-2 rounded-full text-xs"
-          style={{ background: 'rgba(255,255,255,0.94)', color: '#334155', border: '1px solid var(--da-border)' }}>
-          Click the map to place waypoints
-        </div>
-      )}
-
-      {draftWaypoints.length > 0 && !drawing && !routeDrawing && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[999] px-4 py-2 rounded-full text-xs"
-          style={{ background: 'rgba(240,253,244,0.96)', color: '#166534', border: '1px solid #bbf7d0' }}>
-          Path complete. Use Plot Route to add more waypoints.
-        </div>
-      )}
-
-      {drawing && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[999] px-4 py-2 rounded-full text-xs"
-          style={{ background: '#ecfeff', color: '#0f766e', border: '1px solid #99f6e4' }}>
-          Click at least 3 points, drag vertices to adjust, then finish the geofence
-        </div>
-      )}
-
-      {(draftWaypoints.length > 0 || geofence.length > 0) && (
-        <div className="absolute bottom-6 right-3 z-[999]">
-          <button onClick={clearMission} className="da-btn da-btn-ghost" style={{ background: 'rgba(255,255,255,0.94)' }}>
-            <Trash2 size={14} /> Clear mission
+      <div className="da-plan-statusbar" role="status">
+        <strong className={drawing ? 'is-teal' : routeDrawing ? 'is-blue' : ''}>{planningState}</strong>
+        <span>{draftWaypoints.length} waypoints</span>
+        <span>{geofence.length} fence vertices</span>
+        {outsideCount > 0 && <span className="is-danger">{outsideCount} outside fence</span>}
+        {routeCollisions.length > 0 && (
+          <button type="button" onClick={() => setActivePanel('collisions')}>
+            <AlertTriangle size={12} /> {routeCollisions.length} route conflicts
           </button>
-        </div>
-      )}
-
-      <div className="absolute bottom-6 left-3 z-[999] max-w-[260px] rounded px-3 py-2 text-[11px] leading-snug pointer-events-none"
-        style={{ background: 'rgba(255,255,255,0.94)', color: '#475569', border: '1px solid var(--da-border)' }}>
-        <span style={{ fontWeight: 700, color: '#92400e' }}>Government airspace zones</span> are fixed real-world
-        restricted-airspace rings (airports etc.) — they do not move with your waypoints or geofence. Only the
-        teal geofence outline reflects what you draw.
+        )}
       </div>
     </div>
   )

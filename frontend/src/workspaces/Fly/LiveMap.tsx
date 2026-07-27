@@ -11,6 +11,7 @@ import { useVesselStore } from '@/store/vesselStore'
 import { buildZoneLayers, getZoneRule } from '@/utils/geofenceZones'
 import { buildRegulatoryZoneLayers, getRegulatoryRule } from '@/utils/regulatoryZones'
 import { findRouteCollisions, formatCollisionCoord, type LatLngPoint } from '@/utils/routeCollision'
+import { AlertTriangle, ShieldAlert, X } from 'lucide-react'
 
 const FLEET_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d']
 
@@ -152,6 +153,23 @@ function MapFollower({ lat, lon }: { lat: number; lon: number }) {
   return null
 }
 
+function MapResizeHandler() {
+  const map = useMap()
+
+  useEffect(() => {
+    const container = map.getContainer()
+    const observer = new ResizeObserver(() => map.invalidateSize({ animate: false }))
+    observer.observe(container)
+    const frame = requestAnimationFrame(() => map.invalidateSize({ animate: false }))
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [map])
+
+  return null
+}
+
 interface Props {
   droneId: number | null
   onSelectDrone?: (droneId: number) => void
@@ -168,6 +186,7 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
   const fetchMissions = useMissionStore(s => s.fetchMissions)
   const missionGeofence = useMissionStore(s => s.geofence)
   const [runtimeGeofence, setRuntimeGeofence] = useState<any | null>(null)
+  const [activeDetail, setActiveDetail] = useState<'airspace' | 'collisions' | null>(null)
   const lastRegulatoryRef = useRef<string | null>(null)
   const lastComplianceRef = useRef<string | null>(null)
   const liveCollisionNoticeKeyRef = useRef('')
@@ -427,6 +446,15 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     )
   }, [liveRouteCollisions])
 
+  useEffect(() => {
+    if (activeDetail === 'collisions' && liveRouteCollisions.length === 0) {
+      setActiveDetail(null)
+    }
+    if (activeDetail === 'airspace' && (!frame || !zoneRule)) {
+      setActiveDetail(null)
+    }
+  }, [activeDetail, liveRouteCollisions.length, frame, zoneRule])
+
   // Every connected drone with a known position — rendered simultaneously
   const allDrones = Object.entries(frames)
     .map(([id, f]) => ({ id: Number(id), frame: f }))
@@ -436,11 +464,14 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
   const positionedVessels = vessels.filter(v => v.latitude != null && v.longitude != null)
 
   return (
-    <MapContainer
+    <div className={activeDetail ? 'da-live-map-shell detail-open' : 'da-live-map-shell'}>
+      <div className="da-live-map-stage">
+        <MapContainer
       center={[17.385, 78.4867]}
       zoom={15}
       style={{ height: '100%', width: '100%' }}
       zoomControl={false}>
+      <MapResizeHandler />
       <LayersControl position="bottomleft">
         <LayersControl.BaseLayer checked name="OpenStreetMap">
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
@@ -541,7 +572,7 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
             position={[f.lat, f.lon]}
             icon={droneIcon(f.heading, true, f.call_sign)}
             eventHandlers={onSelectDrone ? { click: () => onSelectDrone(id) } : undefined}>
-            <Tooltip permanent direction="top" offset={[0, -16]}>
+            <Tooltip direction="top" offset={[0, -16]}>
               <div style={{ fontSize: 11, minWidth: 140 }}>
                 <div style={{ fontWeight: 700, color: activeCompliance?.hasViolation ? '#ef4444' : '#0f172a' }}>
                   {activeCompliance?.hasViolation ? 'Restriction active' : 'Within controlled airspace'}
@@ -568,75 +599,6 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
         )
       ))}
 
-      {hasPosition && frame && zoneRule && (
-        <div className="leaflet-top leaflet-left da-zone-advisory" style={{ zIndex: 1000 }}>
-          <div className="leaflet-control" style={{ margin: 10, maxWidth: 280 }}>
-            <div className="rounded-lg border px-3 py-2 text-xs shadow" style={{
-              background: activeCompliance?.hasViolation ? 'rgba(254,242,242,0.97)' : 'rgba(255,255,255,0.96)',
-              borderColor: activeCompliance?.hasViolation ? '#fda4af' : '#cbd5e1',
-              color: activeCompliance?.hasViolation ? '#b91c1c' : '#334155',
-            }}>
-              <div className="font-semibold">{zoneRule.label}</div>
-              <div className="mt-1">{zoneRule.message}</div>
-              <div className="mt-1 text-[10px] uppercase tracking-wide">
-                Altitude: {frame.alt_agl.toFixed(1)} / {activeCompliance?.maxAltitudeM ?? zoneRule.maxAltitudeM} m - Speed: {frame.groundspeed_ms.toFixed(1)} / {activeCompliance?.maxSpeedMs ?? zoneRule.maxSpeedMs} m/s
-              </div>
-              {activeCompliance?.altitudeExceeded && (
-                <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-red-700">
-                  Altitude limit exceeded
-                </div>
-              )}
-              {activeCompliance?.speedExceeded && (
-                <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-red-700">
-                  Speed limit exceeded
-                </div>
-              )}
-              {currentRegulatoryZone && (
-                <div className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-800">
-                  Govt layer: {currentRegulatoryZone.name} - {currentRegulatoryZone.maxAltitudeM} m / {currentRegulatoryZone.maxSpeedMs} m/s
-                </div>
-              )}
-              {activeCompliance?.geofenceExceeded && (
-                <div className="mt-2 flex flex-col gap-1">
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-red-700">
-                    Geofence block active. Auto-RTL is preventing boundary exit.
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onManualControlRequest}
-                    className="rounded border border-red-300 bg-white px-2 py-1 text-[11px] font-semibold text-red-700">
-                    Take manual control
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {liveRouteCollisions.length > 0 && (
-        <div className="leaflet-top leaflet-right da-route-collision-advisory" style={{ zIndex: 1000 }}>
-          <div className="leaflet-control" style={{ margin: 10, maxWidth: 320 }}>
-            <div className="rounded-lg border border-orange-300 bg-orange-50/95 px-3 py-2 text-xs text-orange-950 shadow">
-              <div className="font-semibold">Path collision warning</div>
-              <div className="mt-1">
-                {liveRouteCollisions.length} collision point{liveRouteCollisions.length === 1 ? '' : 's'} between simulated drone paths.
-              </div>
-              <div className="mt-2 max-h-28 overflow-auto text-[11px]">
-                {liveRouteCollisions.map((collision, idx) => (
-                  <div key={`live-collision-list-${collision.droneAId}-${collision.droneBId}-${collision.id}`} className="mb-1">
-                    #{idx + 1} {formatCollisionCoord(collision)}
-                    <span className="block text-orange-800">
-                      {collision.droneAName} with {collision.droneBName}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Naval vessel symbols */}
       {positionedVessels.map(v => (
         <Marker
@@ -656,6 +618,98 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
           </Tooltip>
         </Marker>
       ))}
-    </MapContainer>
+        </MapContainer>
+
+        {(hasPosition && zoneRule || liveRouteCollisions.length > 0) && (
+          <div className="da-live-map-alerts" role="toolbar" aria-label="Flight advisories">
+            {hasPosition && zoneRule && (
+              <button
+                type="button"
+                className={activeCompliance?.hasViolation ? 'is-danger' : ''}
+                onClick={() => setActiveDetail(current => current === 'airspace' ? null : 'airspace')}
+                aria-pressed={activeDetail === 'airspace'}>
+                <ShieldAlert size={14} />
+                <span>{activeCompliance?.hasViolation ? 'Restriction active' : zoneRule.label}</span>
+              </button>
+            )}
+            {liveRouteCollisions.length > 0 && (
+              <button
+                type="button"
+                className="is-warning"
+                onClick={() => setActiveDetail(current => current === 'collisions' ? null : 'collisions')}
+                aria-pressed={activeDetail === 'collisions'}>
+                <AlertTriangle size={14} />
+                <span>{liveRouteCollisions.length} path conflict{liveRouteCollisions.length === 1 ? '' : 's'}</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {activeDetail && (
+        <aside className="da-live-map-detail" aria-label={activeDetail === 'airspace' ? 'Airspace status' : 'Path collision points'}>
+          <header>
+            <strong>{activeDetail === 'airspace' ? 'Airspace status' : 'Path collision points'}</strong>
+            <button type="button" onClick={() => setActiveDetail(null)} title="Close map details">
+              <X size={16} />
+            </button>
+          </header>
+
+          <div className="da-live-map-detail-scroll">
+            {activeDetail === 'airspace' && frame && zoneRule && (
+              <div className="da-live-map-detail-section">
+                <div className={activeCompliance?.hasViolation ? 'da-live-zone-summary is-danger' : 'da-live-zone-summary'}>
+                  <ShieldAlert size={17} />
+                  <div>
+                    <strong>{zoneRule.label}</strong>
+                    <span>{zoneRule.message}</span>
+                  </div>
+                </div>
+                <div className="da-live-limit-grid">
+                  <div><span>Altitude</span><strong>{frame.alt_agl.toFixed(1)} m</strong><small>Limit {activeCompliance?.maxAltitudeM ?? zoneRule.maxAltitudeM} m</small></div>
+                  <div><span>Speed</span><strong>{frame.groundspeed_ms.toFixed(1)} m/s</strong><small>Limit {activeCompliance?.maxSpeedMs ?? zoneRule.maxSpeedMs} m/s</small></div>
+                </div>
+                {currentRegulatoryZone && (
+                  <div className="da-live-regulatory-note">
+                    <strong>{currentRegulatoryZone.name}</strong>
+                    <span>{currentRegulatoryZone.restriction}</span>
+                  </div>
+                )}
+                {activeCompliance?.altitudeExceeded && <div className="da-live-violation">Altitude limit exceeded</div>}
+                {activeCompliance?.speedExceeded && <div className="da-live-violation">Speed limit exceeded</div>}
+                {activeCompliance?.geofenceExceeded && (
+                  <>
+                    <div className="da-live-violation">Geofence block active / automatic RTL protection enabled</div>
+                    <button type="button" className="da-btn da-btn-danger justify-center" onClick={onManualControlRequest}>
+                      Take manual control
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {activeDetail === 'collisions' && (
+              <div className="da-live-map-detail-section">
+                <div className="da-live-collision-summary">
+                  <AlertTriangle size={17} />
+                  <span>{liveRouteCollisions.length} collision point{liveRouteCollisions.length === 1 ? '' : 's'} detected</span>
+                </div>
+                {liveRouteCollisions.map((collision, index) => (
+                  <div className="da-live-collision-row" key={'live-collision-' + collision.droneAId + '-' + collision.droneBId + '-' + collision.id}>
+                    <span>{index + 1}</span>
+                    <div>
+                      <strong>{formatCollisionCoord(collision)}</strong>
+                      <small>{collision.droneAName} / {collision.missionAName}</small>
+                      <small>{collision.droneBName} / {collision.missionBName}</small>
+                      <small>{collision.distanceM.toFixed(1)} m separation</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
+    </div>
   )
 }

@@ -946,30 +946,811 @@ select.da-input {
 
 /* Workspace geometry */
 .da-plan-layout {
-  min-width: 900px;
+  min-width: 0;
+  color: var(--da-text);
+  background: #f4f7fa;
+}
+
+.da-plan-header {
+  z-index: 1200;
+  display: flex;
+  min-width: 0;
+  min-height: 56px;
+  flex: 0 0 56px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--da-border);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.da-plan-header-primary,
+.da-plan-header-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.da-plan-header-actions {
+  flex: 0 0 auto;
+}
+
+.da-plan-mission-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.da-plan-mission-identity > span {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.da-plan-mission-identity > strong {
+  max-width: 220px;
+  overflow: hidden;
+  color: #172033;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.da-plan-icon-btn {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--da-border);
+  border-radius: 5px;
+  color: #526176;
+  background: #fff;
+  transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+}
+
+.da-plan-icon-btn:hover,
+.da-plan-icon-btn.is-active {
+  border-color: #8ab8ee;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.da-plan-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.da-plan-status-chip {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  padding: 2px 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  color: #526176;
+  background: #f8fafc;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.da-plan-status-chip.approved {
+  border-color: #a7e2b8;
+  color: #15803d;
+  background: #f0fdf4;
+}
+
+.da-plan-status-chip.planning {
+  border-color: #a9c9f5;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.da-plan-status-chip.aborted {
+  border-color: #fecaca;
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.da-plan-action-error {
+  max-height: 52px;
+  flex: 0 0 auto;
+  overflow-y: auto;
+  padding: 7px 14px;
+  border-bottom: 1px solid #fecaca;
+  color: #b91c1c;
+  background: #fef2f2;
+  font-size: 11px;
+  white-space: pre-line;
+}
+
+.da-plan-body {
+  position: relative;
 }
 
 .da-plan-editor {
-  width: 300px;
+  width: clamp(300px, 24vw, 350px);
   border-right: 1px solid var(--da-border);
   background: var(--da-surface);
 }
 
 .da-plan-map {
-  min-width: 390px;
+  min-width: 0;
 }
 
 .da-plan-liveops {
-  width: 240px;
+  width: clamp(240px, 20vw, 280px);
   border-left: 1px solid var(--da-border);
   background: var(--da-surface);
 }
 
-.da-plan-actions {
-  max-height: calc(100% - 24px);
+.da-mission-editor {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  background: #fff;
+}
+
+.da-mission-editor-header {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--da-border);
+}
+
+.da-mission-editor-header h2 {
+  color: #172033;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.da-mission-editor-header p {
+  margin-top: 2px;
+  overflow: hidden;
+  color: #6b7a8f;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.da-mission-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--da-border);
+  background: #f8fafc;
+}
+
+.da-mission-tabs button {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-right: 1px solid #e7edf3;
+  color: #64748b;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.da-mission-tabs button:last-child {
+  border-right: 0;
+}
+
+.da-mission-tabs button::after {
+  position: absolute;
+  right: 8px;
+  bottom: -1px;
+  left: 8px;
+  height: 2px;
+  background: transparent;
+  content: '';
+}
+
+.da-mission-tabs button.is-active {
+  color: #1d4ed8;
+  background: #fff;
+}
+
+.da-mission-tabs button.is-active::after {
+  background: #2563eb;
+}
+
+.da-mission-tabs button b {
+  min-width: 15px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  color: #64748b;
+  background: #e8eef5;
+  font-size: 8px;
+  line-height: 13px;
+}
+
+.da-mission-editor-scroll {
+  min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.da-mission-section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 13px;
+  padding: 14px;
+}
+
+.da-mission-list-section {
+  gap: 8px;
+}
+
+.da-mission-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.da-mission-field > span,
+.da-coordinate-entry label > span {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.da-mission-vessel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #a5e5df;
+  border-radius: 6px;
+  background: #f0fdfa;
+}
+
+.da-mission-vessel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.da-mission-vessel p {
+  color: #b45309;
+  font-size: 10px;
+}
+
+.da-mission-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  padding: 11px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  font-size: 11px;
+}
+
+.da-mission-summary span {
+  color: #64748b;
+}
+
+.da-mission-summary strong {
+  color: #172033;
+  text-align: right;
+}
+
+.da-mission-summary strong.is-danger {
+  color: #dc2626;
+}
+
+.da-mission-error {
+  margin: 12px 14px 0;
+  padding: 8px 10px;
+  border: 1px solid #fecaca;
+  border-radius: 5px;
+  color: #b91c1c;
+  background: #fef2f2;
+  font-size: 10px;
+  white-space: pre-line;
+}
+
+.da-mission-editor-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--da-border);
+  background: #fff;
+}
+
+.da-mission-empty {
+  display: flex;
+  min-height: 150px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.da-waypoint-row,
+.da-coordinate-row,
+.da-saved-mission-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  padding: 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.da-waypoint-row > div,
+.da-coordinate-row > div,
+.da-saved-mission-row > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.da-waypoint-row strong,
+.da-saved-mission-row strong {
+  overflow: hidden;
+  color: #263247;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.da-waypoint-row div > span,
+.da-coordinate-row div > span,
+.da-saved-mission-row div > span {
+  overflow: hidden;
+  color: #718096;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.da-waypoint-row > button,
+.da-coordinate-row > button,
+.da-map-coordinate-row > button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: #dc2626;
+}
+
+.da-waypoint-row > button:hover,
+.da-coordinate-row > button:hover,
+.da-map-coordinate-row > button:hover {
+  background: #fef2f2;
+}
+
+.da-waypoint-index,
+.da-coordinate-index {
+  display: inline-flex;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #2563eb;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.da-waypoint-index.is-home {
+  background: #16a34a;
+}
+
+.da-coordinate-index {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.da-plan-canvas {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.da-plan-map-content {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.da-plan-map-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.da-plan-map-stage > .leaflet-container {
+  width: 100%;
+  height: 100%;
+}
+
+.da-map-toolbar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 999;
+  display: flex;
+  max-width: calc(100% - 72px);
+  height: 38px;
+  align-items: center;
+  gap: 3px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px;
+  border: 1px solid rgba(203, 213, 225, 0.96);
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  scrollbar-width: none;
+  backdrop-filter: blur(8px);
+}
+
+.da-map-toolbar::-webkit-scrollbar,
+.da-plan-statusbar::-webkit-scrollbar {
+  display: none;
+}
+
+.da-map-tool {
+  display: inline-flex;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #526176;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.da-map-tool:hover {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.da-map-tool.is-active {
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.da-map-tool.is-warning {
+  border-color: #fdba74;
+  color: #9a3412;
+  background: #fff7ed;
+}
+
+.da-map-tool.is-danger {
+  color: #b91c1c;
+}
+
+.da-map-tool:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.da-map-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  flex: 0 0 1px;
+  margin: 0 2px;
+  background: #d9e1ea;
+}
+
+.da-map-detail-panel {
+  display: grid;
+  width: min(310px, 34vw);
+  min-width: 250px;
+  min-height: 0;
+  flex: 0 0 min(310px, 34vw);
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border-left: 1px solid var(--da-border);
+  background: #fff;
+}
+
+.da-map-detail-panel > header {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px 9px 13px;
+  border-bottom: 1px solid var(--da-border);
+}
+
+.da-map-detail-panel > header strong {
+  overflow: hidden;
+  color: #263247;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.da-map-detail-panel > header button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: #64748b;
+}
+
+.da-map-detail-panel > header button:hover {
+  background: #eef2f7;
+}
+
+.da-map-detail-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.da-map-detail-section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px;
+}
+
+.da-coordinate-entry {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5eaf0;
+}
+
+.da-coordinate-entry label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.da-coordinate-entry input {
+  width: 100%;
+  min-width: 0;
+  height: 31px;
+  padding: 0 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #172033;
+  background: #fff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+}
+
+.da-coordinate-entry > button {
+  grid-column: 1 / -1;
+}
+
+.da-map-detail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #526176;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.da-map-detail-heading b {
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #e8eef5;
+  font-size: 9px;
+}
+
+.da-map-coordinate-row,
+.da-collision-row,
+.da-other-mission-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.da-map-coordinate-row > span,
+.da-collision-row > span {
+  display: inline-flex;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 23px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #0f766e;
+  background: #ccfbf1;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.da-map-coordinate-row > div,
+.da-collision-row > div,
+.da-other-mission-row > div {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.da-map-coordinate-row strong,
+.da-collision-row strong,
+.da-other-mission-row strong {
+  overflow-wrap: anywhere;
+  color: #334155;
+  font-size: 10px;
+}
+
+.da-map-coordinate-row small,
+.da-collision-row small,
+.da-other-mission-row small {
+  overflow-wrap: anywhere;
+  color: #718096;
+  font-size: 9px;
+}
+
+.da-collision-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid #fdba74;
+  border-radius: 5px;
+  color: #9a3412;
+  background: #fff7ed;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.da-collision-row {
+  align-items: flex-start;
+  border-color: #fed7aa;
+}
+
+.da-collision-row > span {
+  color: #fff;
+  background: #f97316;
+}
+
+.da-other-mission-row > span {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+}
+
+.da-map-detail-empty {
+  display: flex;
+  min-height: 100px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  color: #94a3b8;
+  font-size: 10px;
+  text-align: center;
+}
+
+.da-airspace-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #fde68a;
+  border-radius: 5px;
+  color: #78350f;
+  background: #fffbeb;
+  font-size: 10px;
+}
+
+.da-airspace-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #526176;
+  font-size: 10px;
+}
+
+.da-airspace-key i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.da-airspace-key i.red { background: #dc2626; }
+.da-airspace-key i.orange { background: #f97316; }
+.da-airspace-key i.teal { background: #0f766e; }
+
+.da-plan-statusbar {
+  display: flex;
+  min-width: 0;
+  min-height: 34px;
+  align-items: center;
+  gap: 15px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 12px;
+  border-top: 1px solid var(--da-border);
+  color: #64748b;
+  background: #fff;
+  font-size: 9px;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.da-plan-statusbar strong {
+  color: #334155;
+  font-size: 10px;
+}
+
+.da-plan-statusbar strong.is-blue { color: #1d4ed8; }
+.da-plan-statusbar strong.is-teal { color: #0f766e; }
+.da-plan-statusbar .is-danger { color: #b91c1c; }
+
+.da-plan-statusbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #9a3412;
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .da-settings-layout {
@@ -982,124 +1763,813 @@ select.da-input {
   background: var(--da-surface);
 }
 
-.da-fly-top-overlay {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  left: 12px;
-  z-index: 999;
+.da-fly-workspace {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  background: #f4f7fa;
+}
+
+.da-fly-header {
+  z-index: 1200;
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  min-width: 0;
+  min-height: 50px;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
-  pointer-events: none;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--da-border);
+  background: rgba(255, 255, 255, 0.98);
 }
 
-.da-fly-overlay-item {
-  width: 220px;
-  flex: 0 0 220px;
-  pointer-events: auto;
-}
-
-.da-fly-command {
-  margin-left: auto;
-}
-
-.da-fly-sim-badge {
+.da-fly-drone-strip {
   display: flex;
-  min-height: 26px;
+  min-width: 0;
+  flex: 1 1 auto;
   align-items: center;
-  align-self: flex-start;
-  padding: 4px 10px;
-  border: 1px solid #bde3c8;
-  border-radius: 999px;
-  color: var(--da-success);
-  background: rgba(241, 251, 244, 0.94);
+  gap: 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.da-fly-drone-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.da-fly-no-drone {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.da-fly-drone {
+  display: inline-flex;
+  height: 32px;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid #d8e1eb;
+  border-radius: 5px;
+  color: #526176;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.da-fly-drone.is-active {
+  border-color: #8ab8ee;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.da-fly-drone b {
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: #15803d;
+  background: #dcfce7;
+  font-size: 8px;
+}
+
+.da-fly-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.da-fly-header-btn {
+  display: inline-flex;
+  height: 32px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #526176;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.da-fly-header-btn:hover {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.da-fly-header-btn.is-active {
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.da-fly-header-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 2px;
+  background: #d9e1ea;
+}
+
+.da-fly-body {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.da-fly-map-stage {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.da-fly-control-panel {
+  display: grid;
+  width: min(310px, 28vw);
+  min-width: 260px;
+  min-height: 0;
+  flex: 0 0 min(310px, 28vw);
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border-left: 1px solid var(--da-border);
+  background: #fff;
+}
+
+.da-fly-control-panel > header {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px 9px 13px;
+  border-bottom: 1px solid var(--da-border);
+}
+
+.da-fly-control-panel > header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.da-fly-control-panel > header strong {
+  overflow: hidden;
+  color: #263247;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.da-fly-control-panel > header span {
+  overflow: hidden;
+  color: #718096;
   font-size: 9px;
-  font-weight: 800;
-  pointer-events: auto;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.da-fly-control-panel > header button,
+.da-live-map-detail > header button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: #64748b;
+}
+
+.da-fly-control-panel > header button:hover,
+.da-live-map-detail > header button:hover {
+  background: #eef2f7;
+}
+
+.da-fly-control-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.da-fly-control-scroll > .da-card {
+  min-width: 0 !important;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent !important;
+}
+
+.da-live-map-shell {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.da-live-map-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.da-live-map-stage > .leaflet-container {
+  width: 100%;
+  height: 100%;
+}
+
+.da-live-map-alerts {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 999;
+  display: flex;
+  max-width: calc(100% - 20px);
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.da-live-map-alerts::-webkit-scrollbar {
+  display: none;
+}
+
+.da-live-map-alerts button {
+  display: inline-flex;
+  min-height: 31px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  color: #334155;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.12);
+  font-size: 10px;
+  font-weight: 700;
   backdrop-filter: blur(8px);
 }
 
-.da-sim-progress {
-  width: min(420px, calc(100% - 32px));
+.da-live-map-alerts button[aria-pressed='true'] {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.da-live-map-alerts button.is-warning {
+  border-color: #fdba74;
+  color: #9a3412;
+  background: rgba(255, 247, 237, 0.96);
+}
+
+.da-live-map-alerts button.is-danger {
+  border-color: #fda4af;
+  color: #b91c1c;
+  background: rgba(254, 242, 242, 0.96);
+}
+
+.da-live-map-detail {
+  display: grid;
+  width: min(310px, 34vw);
+  min-width: 250px;
+  min-height: 0;
+  flex: 0 0 min(310px, 34vw);
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border-left: 1px solid var(--da-border);
+  background: #fff;
+}
+
+.da-live-map-detail > header {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px 9px 13px;
+  border-bottom: 1px solid var(--da-border);
+}
+
+.da-live-map-detail > header strong {
+  overflow: hidden;
+  color: #263247;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.da-live-map-detail-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.da-live-map-detail-section {
+  display: flex;
   min-width: 0;
-  transform: translateX(-50%);
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px;
+}
+
+.da-live-zone-summary,
+.da-live-collision-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 5px;
+  color: #1e40af;
+  background: #eff6ff;
+}
+
+.da-live-zone-summary > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.da-live-zone-summary strong,
+.da-live-collision-summary span {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.da-live-zone-summary span {
+  overflow-wrap: anywhere;
+  color: #526176;
+  font-size: 9px;
+}
+
+.da-live-zone-summary.is-danger {
+  border-color: #fda4af;
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.da-live-limit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.da-live-limit-grid > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  background: #f8fafc;
+}
+
+.da-live-limit-grid span {
+  color: #64748b;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.da-live-limit-grid strong {
+  color: #263247;
+  font-size: 11px;
+}
+
+.da-live-limit-grid small {
+  color: #718096;
+  font-size: 8px;
+}
+
+.da-live-regulatory-note {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px;
+  border: 1px solid #fde68a;
+  border-radius: 5px;
+  color: #78350f;
+  background: #fffbeb;
+  font-size: 9px;
+}
+
+.da-live-violation {
+  padding: 8px;
+  border: 1px solid #fecaca;
+  border-radius: 5px;
+  color: #b91c1c;
+  background: #fef2f2;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.da-live-collision-summary {
+  border-color: #fdba74;
+  color: #9a3412;
+  background: #fff7ed;
+}
+
+.da-live-collision-row {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #fed7aa;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.da-live-collision-row > span {
+  display: inline-flex;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 23px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #f97316;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.da-live-collision-row > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.da-live-collision-row strong {
+  overflow-wrap: anywhere;
+  color: #334155;
+  font-size: 10px;
+}
+
+.da-live-collision-row small {
+  overflow-wrap: anywhere;
+  color: #718096;
+  font-size: 9px;
+}
+
+.da-sim-progress {
+  z-index: 1200;
+  display: grid;
+  min-width: 0;
+  min-height: 66px;
+  grid-template-columns: minmax(145px, auto) minmax(160px, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--da-border);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.da-sim-progress-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.da-sim-phase {
+  display: inline-flex;
+  min-height: 23px;
+  align-items: center;
+  padding: 2px 7px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.da-sim-progress-identity > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.da-sim-progress-identity strong {
+  overflow: hidden;
+  color: #263247;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.da-sim-progress-identity span:last-child {
+  color: #718096;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.da-sim-progress-track {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.da-sim-progress-track > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #526176;
+  font-size: 9px;
+}
+
+.da-sim-progress-track b {
+  color: #263247;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+}
+
+.da-sim-progress-rail {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.da-sim-progress-rail i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 500ms ease;
+}
+
+.da-sim-progress-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.da-sim-progress-actions .da-btn {
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 9px;
 }
 
 .da-sim-launch-card {
   max-height: calc(100% - 32px);
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
-
-.da-zone-advisory {
-  left: 232px !important;
-}
-
-.manual-is-open .da-sim-progress {
-  right: 220px;
-  left: auto;
-  transform: none;
-}
-
 @media (max-width: 1120px) {
-  .da-plan-editor { width: 280px; }
-  .da-plan-liveops { width: 230px; }
+  .da-plan-editor { width: 300px; }
+  .da-plan-liveops { width: 250px; }
+
+  .da-plan-mission-identity > strong {
+    max-width: 150px;
+  }
+
+  .da-map-tool span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .da-map-tool {
+    width: 29px;
+    padding: 0;
+  }
+}
+
+@media (max-width: 1180px) {
+  .da-plan-header {
+    gap: 8px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .da-plan-btn-label {
+    display: none;
+  }
+
+  .da-plan-header-actions .da-btn {
+    width: 32px;
+    height: 32px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .da-plan-map-content {
+    flex-direction: column;
+  }
+
+  .da-map-detail-panel {
+    width: 100%;
+    min-width: 0;
+    max-height: 42%;
+    min-height: 150px;
+    flex: 0 1 42%;
+    border-top: 1px solid var(--da-border);
+    border-left: 0;
+  }
+
+  .da-map-detail-panel > header {
+    min-height: 40px;
+  }
+
+  .da-map-detail-section {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .da-map-detail-section > .da-coordinate-entry,
+  .da-map-detail-section > .da-map-detail-heading,
+  .da-map-detail-section > .da-collision-summary,
+  .da-map-detail-section > .da-map-detail-empty,
+  .da-map-detail-section > .da-airspace-note,
+  .da-map-detail-section > button {
+    grid-column: 1 / -1;
+  }
+
+  .da-live-map-shell {
+    flex-direction: column;
+  }
+
+  .da-live-map-detail {
+    width: 100%;
+    min-width: 0;
+    max-height: 42%;
+    min-height: 150px;
+    flex: 0 1 42%;
+    border-top: 1px solid var(--da-border);
+    border-left: 0;
+  }
+
+  .da-live-map-detail > header {
+    min-height: 40px;
+  }
+
+  .da-live-map-detail-section {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .da-live-map-detail-section > .da-live-zone-summary,
+  .da-live-map-detail-section > .da-live-collision-summary,
+  .da-live-map-detail-section > .da-live-regulatory-note,
+  .da-live-map-detail-section > .da-live-violation,
+  .da-live-map-detail-section > button {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 820px) {
-  .da-fly-top-overlay {
-    align-content: flex-start;
+  .da-fly-header-btn span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
-  .da-fly-sim-badge {
-    order: -1;
-    width: 100%;
+  .da-fly-header-btn {
+    width: 32px;
+    padding: 0;
+  }
+
+  .da-fly-control-panel {
+    width: 280px;
+    min-width: 250px;
+    flex-basis: 280px;
+  }
+
+  .da-sim-progress {
+    grid-template-columns: minmax(120px, auto) minmax(120px, 1fr);
+    gap: 8px 12px;
+  }
+
+  .da-sim-progress-actions {
+    grid-column: 1 / -1;
     justify-content: center;
-  }
-
-  .da-zone-advisory {
-    top: 350px !important;
-    left: 0 !important;
-  }
-
-  .manual-is-open .da-sim-progress {
-    right: 12px;
-    bottom: 330px;
-    left: 12px;
-    width: auto;
   }
 }
 
 @media (max-width: 680px) {
-  /* Keep the bottom-left map control clear of the simulation flight bar. */
-  .simulation-is-active .leaflet-bottom.leaflet-left {
-    bottom: 144px;
+  .da-plan-layout.editor-open .da-plan-map,
+  .da-plan-layout.liveops-open .da-plan-map {
+    display: none;
+  }
+
+  .da-plan-editor,
+  .da-plan-liveops {
+    width: 100%;
+    flex: 1 1 auto;
+    border-right: 0;
+    border-left: 0;
+  }
+
+  .da-plan-mission-identity > span,
+  .da-plan-status-chip {
+    display: none;
+  }
+
+  .da-plan-mission-identity > strong {
+    max-width: 110px;
+    font-size: 11px;
+  }
+
+  .da-mission-tabs button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .da-mission-tabs button {
+    gap: 3px;
+  }
+
+  .da-fly-workspace.control-open .da-fly-map-stage {
+    display: none;
+  }
+
+  .da-fly-control-panel {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+    border-left: 0;
+  }
+
+  .da-fly-drone span {
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .da-live-map-alerts button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .da-live-map-alerts button {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .da-sim-progress {
+    min-height: 96px;
+    padding: 8px;
   }
 }
 
 @media (max-width: 560px) {
-  .da-fly-top-overlay {
-    right: 8px;
-    left: 8px;
-  }
-
-  .da-fly-overlay-item {
-    width: min(220px, 100%);
-    flex-basis: min(220px, 100%);
-  }
-
-  .da-fly-command {
-    margin-left: 0;
-  }
-
-  .da-fly-manual-panel {
-    right: 8px !important;
-    left: 8px;
-  }
-
   .da-sim-launch-card {
     padding: 16px;
   }

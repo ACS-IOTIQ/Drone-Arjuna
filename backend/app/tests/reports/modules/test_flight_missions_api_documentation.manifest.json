@@ -1,31 +1,7 @@
 {
-  "fingerprint": "0e47b7c3c2582ca143fe1dc8028dfcbaa63f68696af3a6cc7fe8a8bfe424f3e6",
+  "fingerprint": "2e272754648731e50e63e00bc1cd68843e5aba476446cc349e531dd5e0e4b836",
   "nodeids": [
-    "app/tests/test_flight_missions_api.py::test_delete_executing_mission_409",
-    "app/tests/test_flight_missions_api.py::test_delete_mission_204",
-    "app/tests/test_flight_missions_api.py::test_delete_mission_not_found_404",
-    "app/tests/test_flight_missions_api.py::test_delete_mission_unauthenticated_401",
-    "app/tests/test_flight_missions_api.py::test_delete_mission_viewer_403",
-    "app/tests/test_flight_missions_api.py::test_get_mission_by_id_200",
-    "app/tests/test_flight_missions_api.py::test_get_mission_by_id_not_found_404",
-    "app/tests/test_flight_missions_api.py::test_get_mission_by_id_unauthenticated_401",
-    "app/tests/test_flight_missions_api.py::test_list_missions_empty_200",
-    "app/tests/test_flight_missions_api.py::test_list_missions_ordered_newest_first",
-    "app/tests/test_flight_missions_api.py::test_list_missions_returns_created_missions",
-    "app/tests/test_flight_missions_api.py::test_list_missions_unauthenticated_401",
-    "app/tests/test_flight_missions_api.py::test_list_missions_viewer_can_read",
     "app/tests/test_flight_missions_api.py::test_update_mission_geofence_200",
-    "app/tests/test_flight_missions_api.py::test_update_mission_name_and_waypoints_200",
-    "app/tests/test_flight_missions_api.py::test_update_mission_non_planning_status_409",
-    "app/tests/test_flight_missions_api.py::test_update_mission_not_found_404",
-    "app/tests/test_flight_missions_api.py::test_update_mission_unauthenticated_401",
-    "app/tests/test_flight_missions_api.py::test_update_mission_viewer_403",
-    "app/tests/test_flight_missions_api.py::test_upload_drone_not_connected_503",
-    "app/tests/test_flight_missions_api.py::test_upload_invalid_mission_422",
-    "app/tests/test_flight_missions_api.py::test_upload_mission_unauthenticated_401",
-    "app/tests/test_flight_missions_api.py::test_validate_mission_200",
-    "app/tests/test_flight_missions_api.py::test_validate_mission_not_found_404",
-    "app/tests/test_flight_missions_api.py::test_validate_mission_unauthenticated_401",
-    "app/tests/test_flight_missions_api.py::test_validate_mission_viewer_403"
+    "app/tests/test_flight_missions_api.py::test_update_mission_name_and_waypoints_200"
   ]
 }

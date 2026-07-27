@@ -143,3 +143,10 @@ class MissionSummary(BaseModel):
     estimated_flight_time_min: float
     estimated_battery_pct: float
     waypoint_count: int
+
+
+class LiveWaypointSync(BaseModel):
+    """Draft waypoints being drawn in the UI, pushed straight to the
+    connected drone over MAVLink — no saved Mission required."""
+    waypoints: list[WaypointCreate] = []
+    geofence: Optional[dict] = None

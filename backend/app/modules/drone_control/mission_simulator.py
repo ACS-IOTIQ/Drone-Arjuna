@@ -138,6 +138,7 @@ class _SimulatedFlight:
         self._manual_vy  = 0.0
         self._manual_vz  = 0.0
         self._manual_until = 0.0
+        self._rtl_route: list = []   # remaining waypoints to retrace before home ("as per waypoints" RTL)
 
     # ── Public API ────────────────────────────────────────────────
 
@@ -201,6 +202,7 @@ class _SimulatedFlight:
         self._manual_vy = 0.0
         self._manual_vz = 0.0
         self._manual_until = 0.0
+        self._rtl_route = []
 
         self._sm.init_drone(drone_id, call_sign)
 
@@ -210,6 +212,9 @@ class _SimulatedFlight:
         self._task = asyncio.create_task(self._run(), name=f"sim-{call_sign}")
         log.info("Simulation started", drone_id=drone_id, waypoints=len(waypoints),
                  speed_mult=self.speed_mult)
+
+        from app.modules.drone_control.mavlink_broadcaster import mavlink_broadcaster
+        mavlink_broadcaster.set_command_handler(drone_id, self._handle_external_command)
 
     async def command(self, action: str, params: dict = {}):
         await self._cmds.put((action, params))
@@ -309,7 +314,7 @@ class _SimulatedFlight:
                 self._target_alt = float(self.waypoints[0]["altitude_m"]) if self.waypoints else 30.0
                 self.phase = SimPhase.TAKEOFF
             elif mode == "RTL":
-                self.phase = SimPhase.RTL
+                self._enter_rtl(shortest_path=True)
             elif mode == "LAND":
                 self.phase = SimPhase.LANDING
             elif mode == "GUIDED" and self.phase not in (SimPhase.IDLE, SimPhase.LANDED, SimPhase.LANDING):
@@ -320,7 +325,7 @@ class _SimulatedFlight:
                 self.phase = SimPhase.FLYING
 
         elif action == "rtl":
-            self.phase = SimPhase.RTL
+            self._enter_rtl(shortest_path=params.get("shortest_path", True))
 
         elif action == "land":
             self.phase = SimPhase.LANDING
@@ -365,6 +370,43 @@ class _SimulatedFlight:
             self.climb_rate  = 0.0
             self.alt         = 0.0
             self.phase       = SimPhase.LANDED
+
+    def _handle_external_command(self, action: str, params: dict):
+        """
+        Called synchronously by the MAVLink broadcaster when an external GCS
+        (Mission Planner, QGroundControl) issues a command against this
+        simulated vehicle — e.g. "Set Home Here" or the GCS's own arm/disarm
+        button. Runs on the same event loop as the sim tick, so mutating
+        state directly here is safe (no cross-task race).
+        """
+        if action == "set_home":
+            if params.get("use_current"):
+                self._home_lat, self._home_lon = self.lat, self.lon
+            elif params.get("lat") and params.get("lon"):
+                self._home_lat = float(params["lat"])
+                self._home_lon = float(params["lon"])
+            log.info("Home position updated via external GCS", drone_id=self.drone_id,
+                     lat=self._home_lat, lon=self._home_lon)
+        elif action in ("arm", "disarm"):
+            self._handle_cmd(action, {})
+
+    def _enter_rtl(self, shortest_path: bool):
+        """
+        Transitions into RTL. shortest_path=False ("as per waypoints") retraces
+        the already-visited waypoints in reverse before heading home, mirroring
+        ArduPilot SMART_RTL; shortest_path=True flies a direct line home.
+        """
+        if shortest_path:
+            self._rtl_route = []
+        else:
+            visited = self.waypoints[:self.wp_idx]
+            self._rtl_route = [
+                {"latitude": float(wp["latitude"]),
+                 "longitude": float(wp["longitude"]),
+                 "altitude_m": float(wp.get("altitude_m", self.alt))}
+                for wp in reversed(visited)
+            ]
+        self.phase = SimPhase.RTL
 
     # ── Physics tick ──────────────────────────────────────────────
 
@@ -494,6 +536,30 @@ class _SimulatedFlight:
             self.battery_pct = max(0.0, self.battery_pct - self.BATT_DRAIN * 0.5 * dt)
 
         elif self.phase == SimPhase.RTL:
+            if self._rtl_route:
+                wp = self._rtl_route[0]
+                t_lat, t_lon, t_alt = wp["latitude"], wp["longitude"], wp["altitude_m"]
+                dist = _haversine_m(self.lat, self.lon, t_lat, t_lon)
+                hdg = _bearing_deg(self.lat, self.lon, t_lat, t_lon) if dist > 0.5 else self.heading
+                self.heading = hdg
+                spd = self.CRUISE_MS * self.speed_mult
+                if dist > 1.0:
+                    self.lat, self.lon = _move_toward(self.lat, self.lon, hdg, min(spd * dt, dist))
+                alt_err = t_alt - self.alt
+                max_vert = 4.0 * self.speed_mult * dt
+                self.alt += max(min(alt_err, max_vert), -max_vert)
+                self.climb_rate = (
+                    max(min(alt_err / 0.5, 4.0 * self.speed_mult), -4.0 * self.speed_mult)
+                    if abs(alt_err) > 0.2 else 0.0
+                )
+                self.groundspeed = self.CRUISE_MS
+                self.airspeed    = self.CRUISE_MS
+                self.throttle    = 55.0
+                self.battery_pct = max(0.0, self.battery_pct - self.BATT_DRAIN * dt)
+                if dist < self.WP_RADIUS_M and abs(alt_err) < 3.0:
+                    self._rtl_route.pop(0)
+                return
+
             dist = _haversine_m(self.lat, self.lon, self._home_lat, self._home_lon)
             if dist < 5.0 and self.alt < 2.0:
                 self.alt = 0.0; self.groundspeed = 0.0

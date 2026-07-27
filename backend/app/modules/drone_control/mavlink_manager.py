@@ -350,6 +350,38 @@ class MAVLinkManager:
             return rec
         return await conn.controller.send(command, params)
 
+    async def send_set_home(self, drone_id: int, lat: float, lon: float) -> bool:
+        """
+        Sends MAV_CMD_DO_SET_HOME to a connected real drone. Used right after
+        a MAVLink UDP/serial connection is established so the vehicle's home
+        (and RTL target) immediately matches whatever home point the operator
+        configured in the UI — instead of requiring a manual "Set Home Here"
+        in an external GCS. No-op (returns False) for simulated drones, which
+        already get their home from mission_simulator's own state.
+        """
+        conn = self._connections.get(drone_id)
+        if not conn or not conn.connected or not conn.mav or conn.transport == "simulation":
+            return False
+
+        def _send(m):
+            m.mav.command_long_send(
+                m.target_system, m.target_component,
+                mavutil.mavlink.MAV_CMD_DO_SET_HOME,
+                0,       # confirmation
+                0,       # param1: 0 = use specified location (not current)
+                0, 0, 0, # params 2-4 unused
+                lat, lon, 0,
+            )
+
+        loop = asyncio.get_event_loop()
+        try:
+            await loop.run_in_executor(None, _send, conn.mav)
+            log.info("Home position set on connect", drone_id=drone_id, lat=lat, lon=lon)
+            return True
+        except Exception as e:
+            log.warning("send_set_home failed", drone_id=drone_id, error=str(e))
+            return False
+
     def get_command_history(self, drone_id: int, limit: int = 20) -> list:
         conn = self._connections.get(drone_id)
         if not conn or not conn.controller:

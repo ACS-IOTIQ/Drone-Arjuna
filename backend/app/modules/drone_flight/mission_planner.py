@@ -462,8 +462,50 @@ class MissionPlanner:
             log.error("Mission upload failed", error=str(e))
             raise HTTPException(503, f"Mission upload failed: {e}")
 
-    def _build_mavlink_items(self, waypoints: list[Waypoint], mav) -> list[dict]:
-        """Converts Waypoint ORM objects to MAVLink mission item dicts."""
+    @staticmethod
+    async def upload_live_waypoints(drone_instance_id: int, waypoints: list) -> dict:
+        """
+        Pushes an in-progress draft waypoint list straight to the drone over
+        its live MAVLink connection (UDP for SITL, serial/radio for a real
+        vehicle) — no Mission row required. Called as the operator draws or
+        drags waypoints in the UI so the vehicle's onboard mission always
+        mirrors what's on the map.
+
+        Re-sends the whole mission item list on every call — this mirrors
+        the standard MAVLink mission protocol, which has no concept of a
+        partial/incremental update.
+        """
+        if not waypoints:
+            raise HTTPException(400, "No waypoints to sync")
+
+        conn = mavlink_manager._connections.get(drone_instance_id)
+        if not conn or not conn.connected:
+            raise HTTPException(503, "Drone is not connected")
+        if conn.transport == "simulation" or not conn.mav:
+            raise HTTPException(
+                400,
+                "Live MAVLink sync requires a MAVLink-connected drone (UDP/serial) — "
+                "the built-in flight simulator does not speak MAVLink mission protocol",
+            )
+
+        mav  = conn.mav
+        loop = asyncio.get_event_loop()
+
+        try:
+            items = MissionPlanner._build_mavlink_items(waypoints, mav)
+            await loop.run_in_executor(
+                None, lambda: MissionPlanner._send_mission_items(mav, items)
+            )
+            log.info("Live waypoint sync uploaded",
+                     drone_id=drone_instance_id, items=len(items))
+            return {"detail": "Waypoints synced to drone", "items": len(items)}
+        except Exception as e:
+            log.error("Live waypoint sync failed", drone_id=drone_instance_id, error=str(e))
+            raise HTTPException(503, f"Live waypoint sync failed: {e}")
+
+    @staticmethod
+    def _build_mavlink_items(waypoints: list, mav) -> list[dict]:
+        """Converts waypoint objects (ORM or schema) to MAVLink mission item dicts."""
         items = []
 
         # Item 0 — home position (required by MAVLink protocol)
@@ -484,7 +526,7 @@ class MissionPlanner:
             if wp.is_home:
                 continue
 
-            cmd, p1, p2, p3, p4 = self._action_to_mavlink(wp)
+            cmd, p1, p2, p3, p4 = MissionPlanner._action_to_mavlink(wp)
             frame = (mavutil.mavlink.MAV_FRAME_GLOBAL_INT
                      if wp.altitude_ref == "MSL"
                      else mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT)

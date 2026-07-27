@@ -1,0 +1,12 @@
+{
+  "fingerprint": "ffab4ebdfdffca0d839f305e4b21e799449ca6fd6279f3ec4e862735a083befb",
+  "nodeids": [
+    "app/tests/test_fleet_assign_api.py::test_assign_fleet_classical_200",
+    "app/tests/test_fleet_assign_api.py::test_assign_fleet_drone_filter",
+    "app/tests/test_fleet_assign_api.py::test_assign_fleet_no_connected_drones_400",
+    "app/tests/test_fleet_assign_api.py::test_assign_fleet_no_targets_400",
+    "app/tests/test_fleet_assign_api.py::test_assign_fleet_quantum_200",
+    "app/tests/test_fleet_assign_api.py::test_assign_fleet_unauthenticated_401",
+    "app/tests/test_fleet_assign_api.py::test_assign_fleet_viewer_403"
+  ]
+}

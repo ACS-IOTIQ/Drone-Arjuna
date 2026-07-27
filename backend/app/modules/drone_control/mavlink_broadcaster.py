@@ -16,10 +16,21 @@ hardware.
 Sending is fire-and-forget: if nothing is listening on the target port,
 the UDP send simply goes nowhere and costs nothing. No manual "enable"
 step is needed — this always runs alongside the simulator.
+
+It's also a little bit bidirectional: the same UDP socket used to send
+telemetry can receive whatever the GCS sends back on it (a "udpout" link
+is still a connected socket — replies from the GCS land on it same as
+any client socket). Without draining and acking those, every command an
+operator issues *from* Mission Planner/QGroundControl against a simulated
+vehicle — Set Home Here, arm/disarm, etc. — hangs until the GCS times out
+and reports a failure, because nothing ever answers with a COMMAND_ACK.
+`poll_commands()` drains and acks what it can; a registered per-drone
+callback lets the simulator actually apply the ones that affect its state
+(set_home, arm, disarm) rather than just rubber-stamping them.
 """
 import math
 import time
-from typing import Optional
+from typing import Callable, Optional
 import structlog
 from pymavlink import mavutil
 
@@ -28,6 +39,13 @@ from app.config import get_settings
 log = structlog.get_logger()
 
 _GPS_FIX_MAP = {"No GPS": 0, "No Fix": 1, "2D Fix": 2, "3D Fix": 3}
+
+# COMMAND_LONG ids the simulator can actually act on. Any other COMMAND_LONG
+# still gets ack'd (ACCEPTED) so the GCS doesn't hang — it just has no effect.
+_ACTIONABLE_COMMANDS = {
+    mavutil.mavlink.MAV_CMD_DO_SET_HOME: "set_home",
+    mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM: "arm_disarm",
+}
 
 
 def _default_target() -> str:
@@ -46,6 +64,15 @@ class MAVLinkBroadcaster:
         self._target = target or _default_target()
         self._links: dict[int, object] = {}
         self._last_heartbeat: dict[int, float] = {}
+        # drone_id -> callback(action: str, params: dict) — lets the simulator
+        # react to GCS-issued commands (set_home, arm, disarm).
+        self._command_handlers: dict[int, Callable[[str, dict], None]] = {}
+
+    def set_command_handler(self, drone_id: int, handler: Callable[[str, dict], None]):
+        self._command_handlers[drone_id] = handler
+
+    def clear_command_handler(self, drone_id: int):
+        self._command_handlers.pop(drone_id, None)
 
     def _get_link(self, drone_id: int, sys_id: int):
         link = self._links.get(drone_id)
@@ -64,10 +91,48 @@ class MAVLinkBroadcaster:
                         drone_id=drone_id, error=str(e))
             return None
 
+    def _drain_commands(self, drone_id: int, link):
+        """Non-blocking read of whatever the GCS has sent back, and ack it."""
+        try:
+            while True:
+                msg = link.recv_match(blocking=False)
+                if msg is None:
+                    return
+                self._handle_incoming(drone_id, link, msg)
+        except Exception as e:
+            log.warning("MAVLink broadcaster command drain failed",
+                        drone_id=drone_id, error=str(e))
+
+    def _handle_incoming(self, drone_id: int, link, msg):
+        mtype = msg.get_type()
+        handler = self._command_handlers.get(drone_id)
+
+        if mtype == "COMMAND_LONG":
+            action = _ACTIONABLE_COMMANDS.get(msg.command)
+            if action and handler:
+                try:
+                    if action == "set_home":
+                        handler("set_home", {
+                            "use_current": msg.param1 == 1,
+                            "lat": msg.param5, "lon": msg.param6, "alt": msg.param7,
+                        })
+                    elif action == "arm_disarm":
+                        handler("arm" if msg.param1 == 1 else "disarm", {})
+                except Exception as e:
+                    log.warning("MAVLink broadcaster command handler failed",
+                                drone_id=drone_id, command=msg.command, error=str(e))
+            # Ack every COMMAND_LONG as accepted — this is a simulated vehicle,
+            # not a real autopilot with reasons to reject; an unhandled command
+            # (e.g. calibration, param save) is a no-op rather than a hang.
+            link.mav.command_ack_send(msg.command, mavutil.mavlink.MAV_RESULT_ACCEPTED)
+            log.info("MAVLink broadcaster acked command",
+                     drone_id=drone_id, command=msg.command, action=action or "no-op")
+
     def send(self, drone_id: int, sys_id: int, state: dict):
         link = self._get_link(drone_id, sys_id)
         if link is None:
             return
+        self._drain_commands(drone_id, link)
         try:
             now = time.time()
             mav = link.mav
@@ -141,6 +206,7 @@ class MAVLinkBroadcaster:
     def remove(self, drone_id: int):
         link = self._links.pop(drone_id, None)
         self._last_heartbeat.pop(drone_id, None)
+        self._command_handlers.pop(drone_id, None)
         if link is not None:
             try:
                 link.close()

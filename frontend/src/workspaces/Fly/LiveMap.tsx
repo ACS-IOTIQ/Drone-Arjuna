@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, Tooltip, useMap, ZoomControl } from 'react-leaflet'
 import L from 'leaflet'
 import { droneControlApi } from '@/api/droneControl'
 import { useMissionStore, type GeoPoint } from '@/store/missionStore'
@@ -92,33 +92,35 @@ function vesselIcon(heading: number) {
 }
 
 function simWaypointIcon(seq: number) {
+  const size = 16
   return L.divIcon({
     className: '',
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
     html: `<div style="
-      width:18px; height:18px; border-radius:50%;
+      width:${size}px; height:${size}px; border-radius:50%;
       background:#ffffff;
       border:2px solid #2563eb;
       display:flex; align-items:center; justify-content:center;
-      color:#1d4ed8; font-size:8px; font-weight:800;
-      box-shadow:0 1px 5px rgba(15,23,42,0.22);
+      color:#1d4ed8; font-size:7px; font-weight:800;
+      box-shadow:0 1px 4px rgba(15,23,42,0.20);
     ">${seq}</div>`,
   })
 }
 
 function collisionIcon(idx: number) {
+  const size = 30
   return L.divIcon({
     className: '',
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
     html: `<div style="
-      width:34px; height:34px; border-radius:50%;
+      width:${size}px; height:${size}px; border-radius:50%;
       background:#f97316;
-      border:3px solid #7c2d12;
+      border:2px solid #7c2d12;
       display:flex; align-items:center; justify-content:center;
-      color:#ffffff; font-size:13px; font-weight:900;
-      box-shadow:0 0 0 4px rgba(249,115,22,0.22), 0 3px 10px rgba(15,23,42,0.38);
+      color:#ffffff; font-size:11px; font-weight:900;
+      box-shadow:0 0 0 3px rgba(249,115,22,0.20), 0 2px 8px rgba(15,23,42,0.34);
     ">${idx}</div>`,
   })
 }
@@ -469,9 +471,22 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
         <MapContainer
       center={[17.385, 78.4867]}
       zoom={15}
+      minZoom={3}
+      maxZoom={18}
+      scrollWheelZoom
+      doubleClickZoom
+      touchZoom
+      boxZoom
+      keyboard
+      zoomAnimation
       style={{ height: '100%', width: '100%' }}
       zoomControl={false}>
       <MapResizeHandler />
+      <ZoomControl
+        position="bottomright"
+        zoomInTitle="Zoom in"
+        zoomOutTitle="Zoom out"
+      />
       <LayersControl position="bottomleft">
         <LayersControl.BaseLayer checked name="OpenStreetMap">
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />

@@ -175,10 +175,9 @@ function MapResizeHandler() {
 interface Props {
   droneId: number | null
   onSelectDrone?: (droneId: number) => void
-  onManualControlRequest?: () => void
 }
 
-export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest }: Props) {
+export default function LiveMap({ droneId, onSelectDrone }: Props) {
   const frames  = useTelemetryStore(s => s.frames)
   const frame   = droneId ? frames[droneId] : null
   const history = useTelemetryStore(s => droneId ? s.history[droneId] : [])
@@ -417,7 +416,7 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
       } catch {
         notify.danger(
           'Automatic airspace adjustment failed',
-          `Drone ${droneId} needs manual control for ${currentRegulatoryZone.name}. The app will retry while the violation remains active.`,
+          `Drone ${droneId} needs operator review for ${currentRegulatoryZone.name}. The app will retry while the violation remains active.`,
           droneId,
         )
       }
@@ -710,12 +709,7 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
                 {activeCompliance?.altitudeExceeded && <div className="da-live-violation">Altitude limit exceeded</div>}
                 {activeCompliance?.speedExceeded && <div className="da-live-violation">Speed limit exceeded</div>}
                 {activeCompliance?.geofenceExceeded && (
-                  <>
-                    <div className="da-live-violation">Geofence block active / automatic RTL protection enabled</div>
-                    <button type="button" className="da-btn da-btn-danger justify-center" onClick={onManualControlRequest}>
-                      Take manual control
-                    </button>
-                  </>
+                  <div className="da-live-violation">Geofence block active / automatic RTL protection enabled</div>
                 )}
               </div>
             )}

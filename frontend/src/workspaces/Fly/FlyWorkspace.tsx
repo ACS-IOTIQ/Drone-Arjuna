@@ -1,20 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Activity, Gamepad2, Gauge, Plus, SlidersHorizontal, X } from 'lucide-react'
+import { Activity, Gauge, Plus, SlidersHorizontal, X } from 'lucide-react'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import LiveMap from './LiveMap'
 import InstrumentHUD from './InstrumentHUD'
 import CommandPanel from './CommandPanel'
-import ManualControlPanel from './ManualControlPanel'
 import SimLaunchPanel from './SimLaunchPanel'
 import SimProgressOverlay from './SimProgressOverlay'
 
-type FlightPanel = 'telemetry' | 'commands' | 'manual'
+type FlightPanel = 'telemetry' | 'commands'
 
 const PANEL_LABELS: Record<FlightPanel, string> = {
   telemetry: 'Flight instruments',
   commands: 'Flight commands',
-  manual: 'Manual control',
 }
 
 export default function FlyWorkspace() {
@@ -24,7 +22,7 @@ export default function FlyWorkspace() {
   const [selectedDroneId, setSelectedDroneId] = useState<number | null>(null)
   const [activePanel, setActivePanel] = useState<FlightPanel | null>(null)
   const [showLauncher, setShowLauncher] = useState(false)
-  const [hasEverConnected, setHasEverConnected] = useState(false)
+  const [hasEverSimulated, setHasEverSimulated] = useState(false)
 
   useEffect(() => {
     fetchInstances()
@@ -33,24 +31,27 @@ export default function FlyWorkspace() {
     return () => clearInterval(poll)
   }, [])
 
-  const connectedDrones = instances.filter(drone => connections[drone.id])
-  const activeDroneId = selectedDroneId ?? connectedDrones[0]?.id ?? null
+  const simulatingDrones = instances.filter(
+    drone => connections[drone.id]?.transport === 'simulation',
+  )
+  const selectedSimulationExists = simulatingDrones.some(drone => drone.id === selectedDroneId)
+  const activeDroneId = selectedSimulationExists ? selectedDroneId : simulatingDrones[0]?.id ?? null
 
   useEffect(() => {
-    if (connectedDrones.length > 0) setHasEverConnected(true)
-  }, [connectedDrones.length])
+    if (simulatingDrones.length > 0) setHasEverSimulated(true)
+  }, [simulatingDrones.length])
 
   useEffect(() => {
-    connectedDrones.forEach(drone => subscribe(drone.id))
-    return () => connectedDrones.forEach(drone => unsubscribe(drone.id))
-  }, [connectedDrones.map(drone => drone.id).join(',')])
+    simulatingDrones.forEach(drone => subscribe(drone.id))
+    return () => simulatingDrones.forEach(drone => unsubscribe(drone.id))
+  }, [simulatingDrones.map(drone => drone.id).join(',')])
 
   useEffect(() => {
     setActivePanel(activeDroneId ? 'telemetry' : null)
   }, [activeDroneId])
 
   const activeConnection = activeDroneId ? connections[activeDroneId] : null
-  const isSimulated = (activeConnection as any)?.transport === 'simulation'
+  const isSimulated = activeConnection?.transport === 'simulation'
   const activeDrone = instances.find(drone => drone.id === activeDroneId) ?? null
 
   const handleSimStopped = async () => {
@@ -67,7 +68,7 @@ export default function FlyWorkspace() {
     setShowLauncher(false)
   }
 
-  const launcherVisible = (!activeDroneId && !hasEverConnected) || showLauncher
+  const launcherVisible = (!activeDroneId && !hasEverSimulated) || showLauncher
 
   const togglePanel = (panel: FlightPanel) => {
     setActivePanel(current => current === panel ? null : panel)
@@ -76,24 +77,20 @@ export default function FlyWorkspace() {
   return (
     <div className={`da-fly-workspace ${activePanel ? 'control-open' : ''}`}>
       <header className="da-fly-header">
-        <div className="da-fly-drone-strip" aria-label="Connected drones">
-          {connectedDrones.length === 0 ? (
-            <div className="da-fly-no-drone"><Activity size={14} /> No active drone</div>
+        <div className="da-fly-drone-strip" aria-label="Simulating drones">
+          {simulatingDrones.length === 0 ? (
+            <div className="da-fly-no-drone"><Activity size={14} /> No active simulation</div>
           ) : (
-            connectedDrones.map(drone => {
-              const connection = connections[drone.id] as any
-              const simulated = connection?.transport === 'simulation'
-              return (
-                <button
-                  key={drone.id}
-                  type="button"
-                  className={drone.id === activeDroneId ? 'da-fly-drone is-active' : 'da-fly-drone'}
-                  onClick={() => setSelectedDroneId(drone.id)}>
-                  <span>{drone.call_sign}</span>
-                  {simulated && <b>SIM</b>}
-                </button>
-              )
-            })
+            simulatingDrones.map(drone => (
+              <button
+                key={drone.id}
+                type="button"
+                className={drone.id === activeDroneId ? 'da-fly-drone is-active' : 'da-fly-drone'}
+                onClick={() => setSelectedDroneId(drone.id)}>
+                <span>{drone.call_sign}</span>
+                <b>SIM</b>
+              </button>
+            ))
           )}
         </div>
 
@@ -125,14 +122,6 @@ export default function FlyWorkspace() {
                 aria-pressed={activePanel === 'commands'}>
                 <SlidersHorizontal size={15} /><span>Commands</span>
               </button>
-              <button
-                type="button"
-                className={activePanel === 'manual' ? 'da-fly-header-btn is-active' : 'da-fly-header-btn'}
-                onClick={() => togglePanel('manual')}
-                title="Manual control"
-                aria-pressed={activePanel === 'manual'}>
-                <Gamepad2 size={15} /><span>Manual</span>
-              </button>
             </>
           )}
         </div>
@@ -143,7 +132,6 @@ export default function FlyWorkspace() {
           <LiveMap
             droneId={activeDroneId}
             onSelectDrone={setSelectedDroneId}
-            onManualControlRequest={() => setActivePanel('manual')}
           />
         </main>
 
@@ -161,7 +149,6 @@ export default function FlyWorkspace() {
             <div className="da-fly-control-scroll">
               {activePanel === 'telemetry' && <InstrumentHUD droneId={activeDroneId} />}
               {activePanel === 'commands' && <CommandPanel droneId={activeDroneId} />}
-              {activePanel === 'manual' && <ManualControlPanel droneId={activeDroneId} />}
             </div>
           </aside>
         )}
@@ -174,7 +161,7 @@ export default function FlyWorkspace() {
       {launcherVisible && (
         <SimLaunchPanel
           onStarted={handleSimStarted}
-          onClose={activeDroneId || hasEverConnected ? () => setShowLauncher(false) : undefined}
+          onClose={activeDroneId || hasEverSimulated ? () => setShowLauncher(false) : undefined}
         />
       )}
     </div>

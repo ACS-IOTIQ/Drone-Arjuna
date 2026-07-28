@@ -2826,6 +2826,437 @@ select.da-input {
   background: #8d99a9;
   background-clip: padding-box;
 }
+
+/* Final authenticated UI polish: visual refinement only; workspace geometry is unchanged. */
+.da-app-shell {
+  --da-bg: #f4f6f9;
+  --da-surface-soft: #f7f9fc;
+  --da-border: #e3e8ef;
+  --da-border-strong: #cbd3de;
+  --da-text: #182230;
+  --da-muted: #697586;
+  --da-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.035), 0 2px 7px rgba(16, 24, 40, 0.035);
+  --da-shadow-md: 0 16px 38px rgba(16, 24, 40, 0.12), 0 3px 10px rgba(16, 24, 40, 0.055);
+  background:
+    radial-gradient(circle at 18% -12%, rgba(37, 99, 235, 0.055), transparent 30%),
+    var(--da-bg);
+}
+
+.da-app-shell button,
+.da-app-shell input,
+.da-app-shell select,
+.da-app-shell textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.da-app-shell .da-topbar {
+  border-bottom-color: rgba(214, 221, 231, 0.9);
+  background: rgba(253, 254, 255, 0.92);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9), 0 4px 18px rgba(16, 24, 40, 0.035);
+  backdrop-filter: blur(18px) saturate(145%);
+}
+
+.da-app-shell .da-workspace-kicker {
+  color: #8893a3;
+  letter-spacing: 0.08em;
+}
+
+.da-app-shell .da-workspace-name {
+  color: #152033;
+  font-weight: 680;
+  letter-spacing: -0.015em;
+}
+
+.da-app-shell .da-sidebar {
+  border-right-color: #e2e7ee;
+  background: rgba(252, 253, 255, 0.98);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.85);
+}
+
+.da-app-shell .da-brand-mark {
+  border-color: rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: linear-gradient(145deg, #3475f4, #1e56cf);
+  box-shadow: 0 7px 18px rgba(37, 99, 235, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.da-app-shell .da-nav-item {
+  border-radius: 9px;
+  transition: color 170ms ease, background-color 170ms ease, border-color 170ms ease, box-shadow 170ms ease;
+}
+
+.da-app-shell .da-nav-item:hover {
+  border-color: #e9edf3;
+  background: #f5f7fa;
+}
+
+.da-app-shell .da-nav-item.is-active {
+  border-color: #d9e4fb;
+  background: linear-gradient(90deg, #edf4ff, #f5f8ff);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.02), 0 2px 7px rgba(37, 99, 235, 0.055);
+}
+
+.da-app-shell .da-icon-button,
+.da-app-shell .da-plan-icon-btn,
+.da-app-shell .da-fly-control-panel > header button,
+.da-app-shell .da-live-map-detail > header button {
+  border-radius: 8px;
+  transition: transform 150ms ease, color 150ms ease, border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.da-app-shell .da-icon-button:hover,
+.da-app-shell .da-plan-icon-btn:hover,
+.da-app-shell .da-fly-control-panel > header button:hover,
+.da-app-shell .da-live-map-detail > header button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(16, 24, 40, 0.08);
+}
+
+.da-app-shell .da-btn {
+  border-radius: 8px;
+  letter-spacing: -0.005em;
+  transition: transform 150ms ease, color 150ms ease, background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.da-app-shell .da-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.da-app-shell .da-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+
+.da-app-shell .da-btn:disabled,
+.da-app-shell .da-plan-icon-btn:disabled {
+  transform: none;
+  box-shadow: none;
+}
+
+.da-app-shell .da-btn-primary {
+  background: linear-gradient(180deg, #2f6feb, #245bd5);
+  box-shadow: 0 2px 5px rgba(29, 78, 216, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.da-app-shell .da-btn-primary:hover {
+  background: linear-gradient(180deg, #2864df, #1f50c3);
+  box-shadow: 0 5px 12px rgba(29, 78, 216, 0.2);
+}
+
+.da-app-shell .da-card {
+  border-color: #e1e6ed;
+  border-radius: 11px;
+  box-shadow: var(--da-shadow-sm);
+}
+
+.da-app-shell .da-card:hover {
+  border-color: #d0d7e2;
+  box-shadow: 0 7px 20px rgba(16, 24, 40, 0.075);
+}
+
+.da-app-shell .da-input {
+  border-color: #d8dee7;
+  border-radius: 8px;
+  background-color: #fdfefe;
+  box-shadow: inset 0 1px 1px rgba(16, 24, 40, 0.018), 0 1px 2px rgba(16, 24, 40, 0.025);
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.da-app-shell .da-input:hover:not(:disabled) {
+  border-color: #bdc7d5;
+  background-color: #ffffff;
+}
+
+.da-app-shell .da-input:focus {
+  border-color: #5b86e5;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.095), 0 2px 5px rgba(16, 24, 40, 0.035);
+}
+
+.da-app-shell .da-chip,
+.da-app-shell .da-plan-status-chip,
+.da-app-shell .da-badge {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.da-app-shell .da-chip-dot {
+  box-shadow: 0 0 0 2px currentColor;
+  transform: scale(0.55);
+}
+
+.da-app-shell .da-plan-header,
+.da-app-shell .da-fly-header {
+  border-bottom-color: #dde3eb;
+  background: rgba(253, 254, 255, 0.95);
+  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.035);
+  backdrop-filter: blur(14px);
+}
+
+.da-app-shell .da-plan-mission-identity > span,
+.da-app-shell .da-mission-field > span,
+.da-app-shell .da-coordinate-entry label > span {
+  color: #7c8899;
+  letter-spacing: 0.055em;
+}
+
+.da-app-shell .da-plan-mission-identity > strong {
+  color: #182230;
+  letter-spacing: -0.01em;
+}
+
+.da-app-shell .da-mission-editor {
+  background: #fbfcfe;
+}
+
+.da-app-shell .da-mission-editor-header {
+  background: rgba(255, 255, 255, 0.97);
+}
+
+.da-app-shell .da-mission-editor-header h2 {
+  letter-spacing: -0.015em;
+}
+
+.da-app-shell .da-mission-tabs {
+  background: #fafbfd;
+  box-shadow: inset 0 -1px 0 #e4e8ee;
+}
+
+.da-app-shell .da-mission-tabs button {
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.da-app-shell .da-mission-tabs button::after {
+  right: 12px;
+  left: 12px;
+  border-radius: 2px 2px 0 0;
+}
+
+.da-app-shell .da-mission-tabs button.is-active {
+  color: #235bcf;
+  background: #ffffff;
+}
+
+.da-app-shell .da-mission-tabs button b {
+  color: #657287;
+  background: #e9eef5;
+}
+
+.da-app-shell .da-mission-tabs button.is-active b {
+  color: #245bcc;
+  background: #e8f0ff;
+}
+
+.da-app-shell .da-mission-section {
+  gap: 12px;
+}
+
+.da-app-shell .da-waypoint-row,
+.da-app-shell .da-coordinate-row,
+.da-app-shell .da-saved-mission-row {
+  border-color: #e2e7ee;
+  border-radius: 9px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.025);
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.da-app-shell .da-waypoint-row:hover,
+.da-app-shell .da-coordinate-row:hover,
+.da-app-shell .da-saved-mission-row:hover {
+  border-color: #cdd6e2;
+  background: #fefeff;
+  box-shadow: 0 4px 12px rgba(16, 24, 40, 0.06);
+  transform: translateY(-1px);
+}
+
+.da-app-shell .da-saved-mission-row.is-active {
+  border-color: #bed0f7;
+  background: #f5f8ff;
+  box-shadow: inset 3px 0 0 #3470e4, 0 3px 10px rgba(37, 99, 235, 0.07);
+}
+
+.da-saved-mission-row > .da-saved-mission-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: row;
+  gap: 4px;
+}
+
+.da-app-shell .da-plan-delete-btn {
+  color: #b54747;
+}
+
+.da-app-shell .da-plan-delete-btn:hover:not(:disabled) {
+  border-color: #efc3c3;
+  color: #b42323;
+  background: #fff5f5;
+}
+
+.da-app-shell .da-plan-delete-btn:disabled {
+  color: #aeb7c4;
+  background: #f5f6f8;
+}
+
+.da-app-shell .da-mission-editor-footer {
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -4px 14px rgba(16, 24, 40, 0.025);
+}
+
+.da-app-shell .da-map-toolbar,
+.da-app-shell .da-live-map-alerts {
+  border-radius: 10px;
+  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.11);
+}
+
+.da-app-shell .da-map-tool,
+.da-app-shell .da-fly-header-btn,
+.da-app-shell .da-live-map-alerts button {
+  transition: transform 150ms ease, color 150ms ease, border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.da-app-shell .da-map-tool:hover:not(:disabled),
+.da-app-shell .da-fly-header-btn:hover:not(:disabled),
+.da-app-shell .da-live-map-alerts button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 9px rgba(16, 24, 40, 0.075);
+}
+
+.da-app-shell table tbody tr {
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.da-app-shell table tbody tr:hover {
+  box-shadow: inset 3px 0 0 #d4e1fb;
+}
+
+.da-modal-backdrop {
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(5px);
+  animation: da-modal-backdrop-in 150ms ease-out both;
+}
+
+.da-modal-panel.da-card {
+  overflow: hidden;
+  border-color: rgba(213, 220, 230, 0.95);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.985);
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.24), 0 4px 15px rgba(15, 23, 42, 0.1);
+  animation: da-modal-panel-in 180ms cubic-bezier(0.2, 0.85, 0.35, 1) both;
+}
+
+.da-modal-panel.da-card:hover {
+  border-color: rgba(213, 220, 230, 0.95);
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.24), 0 4px 15px rgba(15, 23, 42, 0.1);
+}
+
+.da-modal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 20px 18px;
+}
+
+.da-modal-header h3 {
+  color: #182230;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.da-modal-header p {
+  margin-top: 5px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.da-modal-icon {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid;
+  border-radius: 10px;
+}
+
+.da-modal-icon.is-danger {
+  border-color: #f1c5c5;
+  color: #c93636;
+  background: #fff2f2;
+}
+
+.da-modal-icon.is-primary {
+  border-color: #c9d9f8;
+  color: #2563eb;
+  background: #eff5ff;
+}
+
+.da-modal-close {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  margin: -4px -4px 0 0;
+  border-radius: 8px;
+  color: #7b8797;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.da-modal-close:hover:not(:disabled) {
+  color: #273548;
+  background: #f1f4f7;
+}
+
+.da-modal-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px 18px;
+  border-top: 1px solid #edf0f4;
+  background: #fbfcfd;
+}
+
+.da-button-spinner {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: da-spin 650ms linear infinite;
+}
+
+@keyframes da-modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes da-modal-panel-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes da-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .da-app-shell *,
+  .da-app-shell *::before,
+  .da-app-shell *::after,
+  .da-modal-backdrop,
+  .da-modal-panel {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @media (max-width: 1120px) {
   .da-plan-editor { width: 300px; }
   .da-plan-liveops { width: 250px; }

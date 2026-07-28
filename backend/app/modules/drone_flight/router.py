@@ -218,6 +218,7 @@ async def delete_mission(mid: int, db: DbDep, _: PilotDep):
         raise HTTPException(404, "Mission not found")
     if m.status == "executing":
         raise HTTPException(409, "Cannot delete an executing mission")
+    await db.execute(delete(Waypoint).where(Waypoint.mission_id == mid))
     await db.delete(m)
 
 

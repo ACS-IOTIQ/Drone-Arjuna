@@ -46,6 +46,7 @@ interface MissionState {
   saveMission: (name: string, type: string, droneId?: number, homePointType?: string, homeVesselId?: number) => Promise<void>
   updateMission: (id: number, name: string, type: string, droneId?: number, homePointType?: string, homeVesselId?: number) => Promise<void>
   loadMission: (id: number) => Promise<LoadedMissionMeta>
+  deleteMission: (id: number) => Promise<void>
   updateMissionStatus: (id: number, status: 'planning' | 'approved' | 'executing' | 'completed' | 'aborted') => Promise<void>
 }
 
@@ -147,6 +148,19 @@ export const useMissionStore = create<MissionState>((set, get) => ({
       home_point_type:    data.home_point_type ?? 'fixed',
       home_vessel_id:     data.home_vessel_id ?? null,
     }
+  },
+
+  deleteMission: async (id) => {
+    await droneFlightApi.deleteMission(id)
+    set(s => {
+      const deletingActiveMission = s.activeMissionId === id
+      return {
+        missions: s.missions.filter(mission => mission.id !== id),
+        ...(deletingActiveMission
+          ? { activeMissionId: null, draftWaypoints: [], geofence: [] }
+          : {}),
+      }
+    })
   },
 
   updateMissionStatus: async (id, status) => {

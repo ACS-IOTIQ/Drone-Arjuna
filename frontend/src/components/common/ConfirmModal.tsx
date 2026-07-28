@@ -1,74 +1,90 @@
-
-// ═══════════════════════════════════════════════════════════════
-// src/components/common/ConfirmModal.tsx
-// Generic confirmation dialog with danger / primary variants.
-// Usage:
-//   <ConfirmModal
-//     title="Arm drone"
-//     message="The drone will arm its motors. Are you sure?"
-//     variant="danger"
-//     confirmLabel="Arm"
-//     onConfirm={handleArm}
-//     onCancel={() => setConfirm(false)}
-//   />
-// ═══════════════════════════════════════════════════════════════
+import { useEffect, useId, useRef } from 'react'
 import { AlertTriangle, Info, X } from 'lucide-react'
 
 interface ConfirmModalProps {
-  title:         string
-  message:       string
+  title: string
+  message: string
   confirmLabel?: string
-  cancelLabel?:  string
-  variant?:      'danger' | 'primary'
-  onConfirm:     () => void
-  onCancel:      () => void
-  isLoading?:    boolean
+  cancelLabel?: string
+  variant?: 'danger' | 'primary'
+  onConfirm: () => void
+  onCancel: () => void
+  isLoading?: boolean
 }
 
 export function ConfirmModal({
-  title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel',
-  variant = 'primary', onConfirm, onCancel, isLoading = false,
+  title,
+  message,
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  variant = 'primary',
+  onConfirm,
+  onCancel,
+  isLoading = false,
 }: ConfirmModalProps) {
-  const isDanger  = variant === 'danger'
-  const accentClr = isDanger ? '#ef4444' : '#3b82f6'
-  const btnClass  = isDanger ? 'da-btn da-btn-danger' : 'da-btn da-btn-primary'
-  const Icon      = isDanger ? AlertTriangle : Info
+  const isDanger = variant === 'danger'
+  const btnClass = isDanger ? 'da-btn da-btn-danger' : 'da-btn da-btn-primary'
+  const Icon = isDanger ? AlertTriangle : Info
+  const titleId = useId()
+  const messageId = useId()
+  const confirmRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    confirmRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isLoading) onCancel()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isLoading, onCancel])
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.75)' }}
-      onClick={onCancel}>
+      className="da-modal-backdrop fixed inset-0 z-50 flex items-center justify-center"
+      onClick={() => { if (!isLoading) onCancel() }}>
       <div
-        className="da-card w-full max-w-sm p-6"
-        onClick={e => e.stopPropagation()}>
-
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Icon size={18} style={{ color: accentClr, flexShrink: 0 }} />
-            <h3 className="font-semibold text-sm">{title}</h3>
+        className="da-modal-panel da-card w-full max-w-sm"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={messageId}
+        onClick={event => event.stopPropagation()}>
+        <div className="da-modal-header">
+          <div className={`da-modal-icon ${isDanger ? 'is-danger' : 'is-primary'}`}>
+            <Icon size={18} />
           </div>
-          <button onClick={onCancel}>
-            <X size={15} style={{ color: '#6b7280' }} />
+          <div className="min-w-0 flex-1">
+            <h3 id={titleId}>{title}</h3>
+            <p id={messageId}>{message}</p>
+          </div>
+          <button
+            type="button"
+            className="da-modal-close"
+            onClick={onCancel}
+            disabled={isLoading}
+            aria-label="Close confirmation dialog">
+            <X size={16} />
           </button>
         </div>
 
-        {/* Message */}
-        <p className="text-sm mb-6" style={{ color: '#94a3b8', lineHeight: 1.6 }}>
-          {message}
-        </p>
-
-        {/* Actions */}
-        <div className="flex gap-2">
-          <button className="da-btn da-btn-ghost flex-1 justify-center" onClick={onCancel}>
+        <div className="da-modal-actions">
+          <button
+            type="button"
+            className="da-btn da-btn-ghost flex-1 justify-center"
+            onClick={onCancel}
+            disabled={isLoading}>
             {cancelLabel}
           </button>
           <button
+            ref={confirmRef}
+            type="button"
             className={`${btnClass} flex-1 justify-center`}
             onClick={onConfirm}
             disabled={isLoading}>
-            {isLoading ? 'Processing…' : confirmLabel}
+            {isLoading && <span className="da-button-spinner" aria-hidden="true" />}
+            {isLoading ? 'Processing...' : confirmLabel}
           </button>
         </div>
       </div>

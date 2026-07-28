@@ -12,8 +12,11 @@ import {
 import { useMissionStore } from '@/store/missionStore'
 import { useFleetStore } from '@/store/fleetStore'
 import { useVesselStore } from '@/store/vesselStore'
+import { useAuthStore } from '@/store/authStore'
 import { droneFlightApi } from '@/api/droneFlight'
 import { notify } from '@/store/notificationStore'
+import { ConfirmModal } from '@/components/common/ConfirmModal'
+import type { Mission } from '@/store/missionStore'
 
 type EditorSection = 'details' | 'waypoints' | 'geofence' | 'missions'
 
@@ -22,13 +25,17 @@ export default function MissionEditor() {
     draftWaypoints,
     geofence,
     missions,
+    activeMissionId,
     saveMission,
+    deleteMission,
     removeWaypoint,
     loadMission,
     setGeofence,
   } = useMissionStore()
   const { instances } = useFleetStore()
   const { vessels } = useVesselStore()
+  const role = useAuthStore(state => state.role)
+  const canDeleteMissions = ['admin', 'mission_commander', 'flight_controller'].includes(role)
 
   const [section, setSection] = useState<EditorSection>('details')
   const [name, setName] = useState('')
@@ -38,6 +45,9 @@ export default function MissionEditor() {
   const [homeVesselId, setHomeVesselId] = useState<number | undefined>()
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Mission | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteErr, setDeleteErr] = useState('')
   const [summary, setSummary] = useState<any>(null)
   const [err, setErr] = useState('')
 
@@ -102,6 +112,34 @@ export default function MissionEditor() {
       notify.danger('Mission save blocked', message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setDeleteErr('')
+    try {
+      const deletedName = deleteTarget.name
+      const deletedActiveMission = deleteTarget.id === activeMissionId
+      await deleteMission(deleteTarget.id)
+      if (deletedActiveMission) {
+        setName('')
+        setType('ISR')
+        setDroneId(undefined)
+        setHomeType('fixed')
+        setHomeVesselId(undefined)
+        setSummary(null)
+      }
+      setDeleteTarget(null)
+      notify.success('Mission deleted', `${deletedName} was removed successfully.`)
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail
+      const message = typeof detail === 'string' ? detail : 'Mission could not be deleted'
+      setDeleteErr(message)
+      notify.danger('Mission deletion failed', message)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -276,20 +314,43 @@ export default function MissionEditor() {
               <EmptyState icon={<FolderOpen size={20} />} label="No saved missions" />
             ) : (
               missions.map(mission => (
-                <div className="da-saved-mission-row" key={mission.id}>
+                <div
+                  className={`da-saved-mission-row ${mission.id === activeMissionId ? 'is-active' : ''}`}
+                  key={mission.id}>
                   <div className="min-w-0 flex-1">
                     <strong>{mission.name}</strong>
                     <span>{mission.mission_type} / {mission.waypoints?.length ?? 0} waypoints</span>
                   </div>
                   <span className={`da-plan-status-chip ${mission.status}`}>{mission.status}</span>
-                  <button
-                    type="button"
-                    className="da-plan-icon-btn"
-                    onClick={() => load(mission.id)}
-                    disabled={loading}
-                    title={`Load ${mission.name}`}>
-                    <FolderOpen size={14} />
-                  </button>
+                  <div className="da-saved-mission-actions">
+                    <button
+                      type="button"
+                      className="da-plan-icon-btn"
+                      onClick={() => load(mission.id)}
+                      disabled={loading || deleting}
+                      aria-label={`Load ${mission.name}`}
+                      title={`Load ${mission.name}`}>
+                      <FolderOpen size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="da-plan-icon-btn da-plan-delete-btn"
+                      onClick={() => {
+                        setDeleteErr('')
+                        setDeleteTarget(mission)
+                      }}
+                      disabled={!canDeleteMissions || mission.status === 'executing' || deleting}
+                      aria-label={`Delete ${mission.name}`}
+                      title={
+                        !canDeleteMissions
+                          ? 'Your role does not allow mission deletion'
+                          : mission.status === 'executing'
+                            ? 'Executing missions cannot be deleted'
+                            : `Delete ${mission.name}`
+                      }>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -313,6 +374,22 @@ export default function MissionEditor() {
           <Save size={14} /> {saving ? 'Saving...' : 'Save Mission'}
         </button>
       </footer>
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete mission"
+          message={deleteErr || `Delete ${deleteTarget.name}? Its route and waypoint data will be permanently removed.`}
+          confirmLabel="Delete mission"
+          variant="danger"
+          isLoading={deleting}
+          onConfirm={confirmDelete}
+          onCancel={() => {
+            if (deleting) return
+            setDeleteTarget(null)
+            setDeleteErr('')
+          }}
+        />
+      )}
     </div>
   )
 }

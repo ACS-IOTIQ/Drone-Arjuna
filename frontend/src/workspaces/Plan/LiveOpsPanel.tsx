@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import { useFleetStore } from '@/store/fleetStore'
+import { useMissionStore } from '@/store/missionStore'
 import { droneControlApi } from '@/api/droneControl'
 
 // ── tiny helpers ──────────────────────────────────────────────
@@ -71,8 +72,18 @@ export default function LiveOpsPanel() {
   const [cmdErr, setCmdErr] = useState('')
   const [busy,   setBusy]   = useState(false)
 
-  // Pick the first connected drone
-  const activeDrone = instances.find(d => connections[d.id])
+  // Prefer the drone bound to the mission currently open on the map — falling
+  // back to the first connected drone only when no mission is loaded — so RTL/
+  // LAND/HOLD/E-STOP always act on the drone the operator is actually looking at,
+  // not an arbitrary other drone that happens to be connected.
+  const missions        = useMissionStore(s => s.missions)
+  const activeMissionId = useMissionStore(s => s.activeMissionId)
+  const activeMission   = missions.find(m => m.id === activeMissionId) ?? null
+  const missionDroneId  = activeMission?.drone_instance_id ?? null
+
+  const activeDrone = missionDroneId != null
+    ? instances.find(d => d.id === missionDroneId) ?? null
+    : instances.find(d => connections[d.id]) ?? null
   const frame       = activeDrone ? frames[activeDrone.id] : null
 
   const sendCmd = async (command: string, params?: Record<string, unknown>) => {

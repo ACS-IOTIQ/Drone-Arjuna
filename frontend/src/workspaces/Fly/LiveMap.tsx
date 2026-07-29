@@ -455,10 +455,10 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     }
   }, [activeDetail, liveRouteCollisions.length, frame, zoneRule])
 
-  // Every connected drone with a known position — rendered simultaneously
+  // Only actively-simulated drones with a known position — rendered simultaneously
   const allDrones = Object.entries(frames)
     .map(([id, f]) => ({ id: Number(id), frame: f }))
-    .filter(({ frame: f }) => f && (f.lat !== 0 || f.lon !== 0))
+    .filter(({ frame: f }) => f && f.sim_phase && (f.lat !== 0 || f.lon !== 0))
 
   // Vessels with known positions
   const positionedVessels = vessels.filter(v => v.latitude != null && v.longitude != null)

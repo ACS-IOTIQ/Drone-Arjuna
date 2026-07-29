@@ -12,7 +12,9 @@
       "Bash(curl -s -o /dev/null -w \"frontend status: %{http_code}\\\\n\" http://localhost:3000/)",
       "Bash(curl -s -o /dev/null -w \"proxy to backend health: %{http_code}\\\\n\" http://localhost:3000/api/health)",
       "Bash(git commit -m ' *)",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(timeout 20 docker compose logs backend --no-color --tail 3000)",
+      "Bash(wc -l /tmp_backend_logs.txt)"
     ]
   }
 }

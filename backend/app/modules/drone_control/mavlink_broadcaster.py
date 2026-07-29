@@ -107,26 +107,37 @@ class MAVLinkBroadcaster:
         mtype = msg.get_type()
         handler = self._command_handlers.get(drone_id)
 
-        if mtype == "COMMAND_LONG":
+        if mtype in ("COMMAND_LONG", "COMMAND_INT"):
+            # COMMAND_LONG carries lat/lon as floats in param5/param6; COMMAND_INT
+            # (what current Mission Planner/QGC send for MAV_CMD_DO_SET_HOME) carries
+            # them as 1e7-scaled integers in x/y instead — different wire fields for
+            # the same logical command, so both must be read to extract a position.
+            is_int = mtype == "COMMAND_INT"
             action = _ACTIONABLE_COMMANDS.get(msg.command)
             if action and handler:
                 try:
                     if action == "set_home":
-                        handler("set_home", {
-                            "use_current": msg.param1 == 1,
-                            "lat": msg.param5, "lon": msg.param6, "alt": msg.param7,
-                        })
+                        if is_int:
+                            handler("set_home", {
+                                "use_current": msg.current == 1,
+                                "lat": msg.x / 1e7, "lon": msg.y / 1e7, "alt": msg.z,
+                            })
+                        else:
+                            handler("set_home", {
+                                "use_current": msg.param1 == 1,
+                                "lat": msg.param5, "lon": msg.param6, "alt": msg.param7,
+                            })
                     elif action == "arm_disarm":
                         handler("arm" if msg.param1 == 1 else "disarm", {})
                 except Exception as e:
                     log.warning("MAVLink broadcaster command handler failed",
                                 drone_id=drone_id, command=msg.command, error=str(e))
-            # Ack every COMMAND_LONG as accepted — this is a simulated vehicle,
-            # not a real autopilot with reasons to reject; an unhandled command
-            # (e.g. calibration, param save) is a no-op rather than a hang.
+            # Ack every COMMAND_LONG/COMMAND_INT as accepted — this is a simulated
+            # vehicle, not a real autopilot with reasons to reject; an unhandled
+            # command (e.g. calibration, param save) is a no-op rather than a hang.
             link.mav.command_ack_send(msg.command, mavutil.mavlink.MAV_RESULT_ACCEPTED)
             log.info("MAVLink broadcaster acked command",
-                     drone_id=drone_id, command=msg.command, action=action or "no-op")
+                     drone_id=drone_id, command=msg.command, action=action or "no-op", mtype=mtype)
 
     def send(self, drone_id: int, sys_id: int, state: dict):
         link = self._get_link(drone_id, sys_id)

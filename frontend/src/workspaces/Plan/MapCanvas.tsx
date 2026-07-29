@@ -336,6 +336,15 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
   const liveFrame = useTelemetryStore(s => (liveDroneId != null ? s.frames[liveDroneId] : null))
   const hasLivePosition = Boolean(liveFrame && (liveFrame.lat !== 0 || liveFrame.lon !== 0))
 
+  // The map only ever reads telemetryStore passively — it never opened its
+  // own socket. If Fly workspace (the only other subscriber) isn't mounted
+  // right now, this drone's feed would otherwise sit dead while this mission
+  // is being viewed here, showing a frozen marker instead of live movement.
+  const subscribeTelemetry = useTelemetryStore(s => s.subscribe)
+  useEffect(() => {
+    if (liveDroneId != null) subscribeTelemetry(liveDroneId)
+  }, [liveDroneId, subscribeTelemetry])
+
   // While the operator draws/drags waypoints, mirror the draft route straight
   // to the drone over its live MAVLink link (UDP for SITL) — debounced so
   // dragging a vertex doesn't flood the link with a re-upload every frame.

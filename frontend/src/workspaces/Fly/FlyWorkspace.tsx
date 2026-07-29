@@ -19,7 +19,7 @@ const PANEL_LABELS: Record<FlightPanel, string> = {
 
 export default function FlyWorkspace() {
   const { instances, connections, fetchConnections, fetchInstances } = useFleetStore()
-  const { subscribe, unsubscribe } = useTelemetryStore()
+  const { subscribe, frames } = useTelemetryStore()
 
   const [selectedDroneId, setSelectedDroneId] = useState<number | null>(null)
   const [activePanel, setActivePanel] = useState<FlightPanel | null>(null)
@@ -35,14 +35,21 @@ export default function FlyWorkspace() {
 
   const connectedDrones = instances.filter(drone => connections[drone.id])
   const activeDroneId = selectedDroneId ?? connectedDrones[0]?.id ?? null
+  const manualShiftAlert = connectedDrones
+    .map(drone => ({ drone, frame: frames[drone.id] }))
+    .find(({ frame }) => frame?.manual_control_required && frame?.proximity_alert) ?? null
 
   useEffect(() => {
     if (connectedDrones.length > 0) setHasEverConnected(true)
   }, [connectedDrones.length])
 
   useEffect(() => {
+    // Deliberately no unsubscribe on unmount/dep-change — telemetry sockets
+    // are shared app-wide (Plan's mission map reads the same store) and must
+    // survive switching workspace tabs. Tearing them down here was leaving
+    // the drone's live feed dead until Fly happened to remount and resubscribe,
+    // which showed up as "Plan is moving but Fly is frozen" (or vice versa).
     connectedDrones.forEach(drone => subscribe(drone.id))
-    return () => connectedDrones.forEach(drone => unsubscribe(drone.id))
   }, [connectedDrones.map(drone => drone.id).join(',')])
 
   useEffect(() => {
@@ -71,6 +78,11 @@ export default function FlyWorkspace() {
 
   const togglePanel = (panel: FlightPanel) => {
     setActivePanel(current => current === panel ? null : panel)
+  }
+
+  const handleManualShift = (droneId: number) => {
+    setSelectedDroneId(droneId)
+    setActivePanel('manual')
   }
 
   return (
@@ -140,10 +152,30 @@ export default function FlyWorkspace() {
 
       <div className="da-fly-body">
         <main className="da-fly-map-stage">
+          {manualShiftAlert && (
+            <div className="mx-4 mt-4 rounded-2xl border border-red-300 bg-red-50/95 px-4 py-3 text-sm text-red-950 shadow-sm">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <strong>Shift to manual control</strong>
+                  <div>
+                    {manualShiftAlert.drone.call_sign} is within{' '}
+                    {manualShiftAlert.frame?.proximity_distance_m?.toFixed(1) ?? '200.0'} m of Drone #
+                    {manualShiftAlert.frame?.proximity_intruder_drone_id ?? 'unknown'}.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="da-btn da-btn-danger justify-center"
+                  onClick={() => handleManualShift(manualShiftAlert.drone.id)}>
+                  Shift to manual control
+                </button>
+              </div>
+            </div>
+          )}
           <LiveMap
             droneId={activeDroneId}
             onSelectDrone={setSelectedDroneId}
-            onManualControlRequest={() => setActivePanel('manual')}
+            onManualControlRequest={() => activeDroneId && handleManualShift(activeDroneId)}
           />
         </main>
 

@@ -1,7 +1,3 @@
-
-# ═══════════════════════════════════════════
-# state_manager.py
-# ═══════════════════════════════════════════
 """
 In-memory drone state store. Acts as the hot cache between
 the MAVLink reader and the WebSocket broadcaster.
@@ -9,14 +5,17 @@ Thread-safe via asyncio locks.
 """
 import asyncio
 import json
-import structlog
 from datetime import datetime, timezone
-from typing import Optional, Callable
+from typing import Callable, Optional
+
+import structlog
 from pymavlink import mavutil
+
+from app.modules.drone_control.proximity_monitor import ProximityMonitor
 
 log = structlog.get_logger()
 
-HOME_POLL_INTERVAL_S = 5   # how often to read vessel:position from Redis
+HOME_POLL_INTERVAL_S = 5
 
 _DEFAULT_STATE = {
     "lat": 0.0, "lon": 0.0,
@@ -32,6 +31,10 @@ _DEFAULT_STATE = {
     "rssi": 0, "cpu_load_pct": 0.0,
     "call_sign": "", "connected": True,
     "last_updated": None,
+    "proximity_alert": False,
+    "manual_control_required": False,
+    "proximity_distance_m": None,
+    "proximity_intruder_drone_id": None,
 }
 
 
@@ -40,6 +43,7 @@ class StateManager:
         self._states: dict[int, dict] = {}
         self._locks: dict[int, asyncio.Lock] = {}
         self._listeners: list[Callable] = []
+        self._proximity_monitor = ProximityMonitor()
 
     def init_drone(self, drone_id: int, call_sign: str):
         self._states[drone_id] = {**_DEFAULT_STATE, "call_sign": call_sign}
@@ -51,13 +55,21 @@ class StateManager:
 
     async def update(self, drone_id: int, data: dict):
         if drone_id not in self._states:
+            log.warning("Telemetry update dropped - drone not registered", drone_id=drone_id)
             return
+
         async with self._locks[drone_id]:
             self._states[drone_id].update(data)
             self._states[drone_id]["last_updated"] = datetime.now(timezone.utc).isoformat()
-        # Notify all WebSocket subscribers
-        for fn in self._listeners:
-            await fn(drone_id, self._states[drone_id])
+
+        proximity_updates = self._proximity_monitor.evaluate(self.get_all())
+        changed_ids = {drone_id}
+        for affected_id, patch in proximity_updates.items():
+            if await self._apply_patch(affected_id, patch):
+                changed_ids.add(affected_id)
+
+        for changed_id in changed_ids:
+            await self._notify(changed_id)
 
     def get(self, drone_id: int) -> Optional[dict]:
         return self._states.get(drone_id)
@@ -71,10 +83,30 @@ class StateManager:
     def unsubscribe(self, fn: Callable):
         self._listeners.remove(fn)
 
+    async def _apply_patch(self, drone_id: int, patch: dict) -> bool:
+        if drone_id not in self._states:
+            return False
+
+        async with self._locks[drone_id]:
+            state = self._states[drone_id]
+            changed = False
+            for key, value in patch.items():
+                if state.get(key) != value:
+                    state[key] = value
+                    changed = True
+            return changed
+
+    async def _notify(self, drone_id: int) -> None:
+        state = self._states.get(drone_id)
+        if state is None:
+            return
+        for fn in self._listeners:
+            await fn(drone_id, state)
+
 
 async def home_point_updater(drone_id: int, mav, redis) -> None:
     """
-    Background task — runs once per connected drone.
+    Background task - runs once per connected drone.
     Every HOME_POLL_INTERVAL_S seconds, reads `vessel:position` from Redis.
     If a position is present, sends MAV_CMD_DO_SET_HOME so the drone's RTL
     home point tracks the vessel as it moves.
@@ -100,12 +132,12 @@ async def home_point_updater(drone_id: int, mav, redis) -> None:
                     m.target_system,
                     m.target_component,
                     mavutil.mavlink.MAV_CMD_DO_SET_HOME,
-                    0,       # confirmation
-                    0,       # param1: 0 = use specified location (not current)
-                    0, 0, 0, # params 2-4 unused
-                    lat,     # param5: latitude (degrees)
-                    lon,     # param6: longitude (degrees)
-                    0,       # param7: altitude (0 = keep current)
+                    0,
+                    0,
+                    0, 0, 0,
+                    lat,
+                    lon,
+                    0,
                 )
 
             await loop.run_in_executor(None, _send_set_home, mav, lat, lon)

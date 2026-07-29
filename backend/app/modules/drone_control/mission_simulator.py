@@ -27,6 +27,37 @@ log = structlog.get_logger()
 EARTH_R = 6_371_000.0  # metres
 
 
+async def _persist_home_waypoint(mission_id: int, lat: float, lon: float):
+    """
+    Writes a GCS-issued "Set Home Here" back into the mission's home waypoint
+    row, so DroneArjuna's own Plan workspace shows the same home location the
+    external GCS just set — instead of only the in-memory simulator knowing
+    about it until the next full mission edit overwrites it.
+    """
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+    from app.models.mission import Waypoint
+
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(Waypoint).where(
+                    Waypoint.mission_id == mission_id, Waypoint.is_home == True,  # noqa: E712
+                )
+            )
+            home_wp = result.scalar_one_or_none()
+            if home_wp is None:
+                return
+            home_wp.latitude = lat
+            home_wp.longitude = lon
+            await session.commit()
+            log.info("Home waypoint persisted from external GCS",
+                      mission_id=mission_id, lat=lat, lon=lon)
+    except Exception as e:
+        log.warning("Failed to persist GCS-set home waypoint",
+                    mission_id=mission_id, error=str(e))
+
+
 # ── Geography helpers ─────────────────────────────────────────────
 
 def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -100,11 +131,21 @@ class _SimulatedFlight:
     WP_RADIUS_M = 3.0    # waypoint arrival acceptance radius
     HOME_MSL    = 50.0   # assumed ground elevation above sea level
 
+    # ── Collision avoidance tuning ──────────────────────────────────
+    CONFLICT_RADIUS_M  = 40.0   # horizontal distance that triggers avoidance
+    CONFLICT_ALT_M     = 8.0    # vertical separation still considered "same layer"
+    AVOID_ALT_STEP_M   = 15.0   # altitude offset the give-way drone climbs to
+    AVOID_ALT_RATE_MS  = 3.0    # max climb/descent rate while avoiding, m/s
+    AVOID_LATERAL_MS   = 6.0    # max sideways push speed while avoiding, m/s
+
     def __init__(self):
-        self._sm   = None   # StateManager injected on start()
+        self._sm      = None   # StateManager injected on start()
+        self._manager = None   # SimulationManager injected on start() — for sibling positions
         self._task: Optional[asyncio.Task] = None
         self._cmds: asyncio.Queue = asyncio.Queue()
         self._breaching: dict[int, bool] = {}   # per-drone breach state for edge detection
+        self._avoid_alt_offset = 0.0   # current altitude borrowed for collision avoidance
+        self._avoiding = False         # true this tick if another drone is in conflict range
 
         self.phase      = SimPhase.IDLE
         self.drone_id:  Optional[int] = None
@@ -170,12 +211,17 @@ class _SimulatedFlight:
         state_mgr=None,
         mavlink_system_id: int = 1,
         mission_id: Optional[int] = None,
+        manager=None,
     ):
         if self.active:
             await self.stop()
 
         if state_mgr:
             self._sm = state_mgr
+        if manager:
+            self._manager = manager
+        self._avoid_alt_offset = 0.0
+        self._avoiding = False
 
         self.drone_id   = drone_id
         self.mission_id = mission_id
@@ -261,18 +307,30 @@ class _SimulatedFlight:
         try:
             while True:
                 t0 = time.monotonic()
-                while not self._cmds.empty():
-                    action, params = self._cmds.get_nowait()
-                    self._handle_cmd(action, params)
-                previous_roll = self.roll
-                previous_pitch = self.pitch
-                previous_heading = self.heading
-                self._tick(dt)
-                self.roll_rate_dps = (self.roll - previous_roll) / dt
-                self.pitch_rate_dps = (self.pitch - previous_pitch) / dt
-                heading_delta = ((self.heading - previous_heading + 180.0) % 360.0) - 180.0
-                self.yaw_rate_dps = heading_delta / dt
-                await self._push()
+                try:
+                    while not self._cmds.empty():
+                        action, params = self._cmds.get_nowait()
+                        self._handle_cmd(action, params)
+                    previous_roll = self.roll
+                    previous_pitch = self.pitch
+                    previous_heading = self.heading
+                    self._tick(dt)
+                    self.roll_rate_dps = (self.roll - previous_roll) / dt
+                    self.pitch_rate_dps = (self.pitch - previous_pitch) / dt
+                    heading_delta = ((self.heading - previous_heading + 180.0) % 360.0) - 180.0
+                    self.yaw_rate_dps = heading_delta / dt
+                    await self._push()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    # A single bad tick (malformed waypoint, a StateManager
+                    # listener throwing, a transient geofence lookup error, ...)
+                    # must not silently kill this drone's flight while every
+                    # other concurrently-simulated drone keeps going — that is
+                    # exactly what makes a stuck drone look like a mystery
+                    # freeze instead of a diagnosable error. Log and keep flying.
+                    log.error("Sim tick failed — skipping this tick", drone_id=self.drone_id,
+                              phase=self.phase.value, error=str(e), exc_info=True)
                 if self.phase == SimPhase.LANDED:
                     await asyncio.sleep(3.0)
                     break
@@ -380,13 +438,22 @@ class _SimulatedFlight:
         state directly here is safe (no cross-task race).
         """
         if action == "set_home":
+            # NOTE: must check "is not None", not truthiness — a valid lat/lon of
+            # exactly 0.0 (equator / prime meridian) is falsy and would otherwise
+            # silently be ignored.
             if params.get("use_current"):
                 self._home_lat, self._home_lon = self.lat, self.lon
-            elif params.get("lat") and params.get("lon"):
+            elif params.get("lat") is not None and params.get("lon") is not None:
                 self._home_lat = float(params["lat"])
                 self._home_lon = float(params["lon"])
+            else:
+                return
             log.info("Home position updated via external GCS", drone_id=self.drone_id,
                      lat=self._home_lat, lon=self._home_lon)
+            if self.mission_id is not None:
+                asyncio.create_task(_persist_home_waypoint(
+                    self.mission_id, self._home_lat, self._home_lon,
+                ))
         elif action in ("arm", "disarm"):
             self._handle_cmd(action, {})
 
@@ -600,6 +667,65 @@ class _SimulatedFlight:
         elif self.phase == SimPhase.LANDED:
             pass
 
+        if self.phase in (SimPhase.FLYING, SimPhase.GUIDED, SimPhase.PAUSED,
+                          SimPhase.RTL, SimPhase.TAKEOFF):
+            self._apply_collision_avoidance(dt)
+
+    def _apply_collision_avoidance(self, dt: float):
+        """
+        Multi-drone separation assurance. Runs every tick for every drone in an
+        active flight phase. If another simulated drone is within CONFLICT_RADIUS_M
+        horizontally and CONFLICT_ALT_M vertically, the two drones are in conflict:
+        the one with the higher drone_id "gives way" — it climbs clear of the
+        other's altitude layer (top) and simultaneously side-steps directly away
+        from it (aside), exactly like right-of-way separation between real aircraft.
+        Both adjustments are rate-limited so the avoidance manoeuvre is smooth and
+        unwinds back onto the planned path once the conflict clears.
+        """
+        if not self._manager or self.drone_id is None:
+            return
+        others = self._manager.get_positions(exclude_drone_id=self.drone_id)
+
+        push_north = push_east = 0.0
+        alt_bias_target = 0.0
+        self_alt_msl = self.alt + self.HOME_MSL
+        conflict = False
+
+        for other in others:
+            dist = _haversine_m(self.lat, self.lon, other["lat"], other["lon"])
+            if dist >= self.CONFLICT_RADIUS_M:
+                continue
+            if abs(self_alt_msl - other["alt_msl"]) >= self.CONFLICT_ALT_M:
+                continue
+            if self.drone_id < other["drone_id"]:
+                continue  # lower drone_id holds course; this drone gives way below
+
+            conflict = True
+            proximity = 1.0 - (dist / self.CONFLICT_RADIUS_M)
+            alt_bias_target = max(alt_bias_target, self.AVOID_ALT_STEP_M * proximity)
+
+            bearing_away = (
+                _bearing_deg(other["lat"], other["lon"], self.lat, self.lon)
+                if dist > 0.5 else (self.heading + 90.0) % 360
+            )
+            mag = self.AVOID_LATERAL_MS * proximity * dt
+            rad = math.radians(bearing_away)
+            push_north += mag * math.cos(rad)
+            push_east  += mag * math.sin(rad)
+
+        self._avoiding = conflict
+
+        max_alt_delta = self.AVOID_ALT_RATE_MS * dt
+        alt_delta = max(min(alt_bias_target - self._avoid_alt_offset, max_alt_delta), -max_alt_delta)
+        if abs(alt_delta) > 1e-9:
+            self._avoid_alt_offset += alt_delta
+            self.alt = max(0.0, self.alt + alt_delta)
+
+        if push_north or push_east:
+            mag = math.hypot(push_north, push_east)
+            bearing = (math.degrees(math.atan2(push_east, push_north)) + 360) % 360
+            self.lat, self.lon = _move_toward(self.lat, self.lon, bearing, mag)
+
     # ── Telemetry push ────────────────────────────────────────────
 
     async def _push(self):
@@ -640,6 +766,7 @@ class _SimulatedFlight:
             "sim_progress":          self.wp_idx / len(self.waypoints) if self.waypoints else 0.0,
             "sim_waypoint_idx":      self.wp_idx,
             "sim_waypoint_count":    len(self.waypoints),
+            "collision_avoidance_active": self._avoiding,
         }
         await self._sm.update(self.drone_id, state)
 
@@ -709,6 +836,19 @@ class SimulationManager:
     def active_drone_ids(self) -> list[int]:
         return [did for did, f in self._flights.items() if f.active]
 
+    def get_positions(self, exclude_drone_id: Optional[int] = None) -> list[dict]:
+        """
+        Current lat/lon/altitude of every other actively-flying simulated drone,
+        used by _SimulatedFlight to detect and avoid mid-air conflicts. Drones on
+        the ground (idle/armed/landed) are excluded — only airborne traffic matters.
+        """
+        grounded = (SimPhase.IDLE, SimPhase.ARMED, SimPhase.LANDED)
+        return [
+            {"drone_id": did, "lat": f.lat, "lon": f.lon, "alt_msl": f.alt + f.HOME_MSL}
+            for did, f in self._flights.items()
+            if did != exclude_drone_id and f.active and f.phase not in grounded
+        ]
+
     def get_status(self, drone_id: Optional[int] = None):
         """Single drone's status dict if drone_id given, else a list of all active flights."""
         if drone_id is not None:
@@ -739,6 +879,7 @@ class SimulationManager:
             speed_mult=speed_mult, state_mgr=state_mgr,
             mavlink_system_id=mavlink_system_id,
             mission_id=mission_id,
+            manager=self,
         )
 
     async def command(self, drone_id: int, action: str, params: dict = {}):

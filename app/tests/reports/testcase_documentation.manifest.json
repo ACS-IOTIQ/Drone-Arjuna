@@ -1,0 +1,30 @@
+{
+  "fingerprint": "487ba658b2a6f73d2bb7e258e1d16cc7fbbd66a5d47b8d3218c125df373bed12",
+  "nodeids": [
+    "app/tests/test_proximity_monitor.py::test_proximity_alert_clears_when_drones_separate",
+    "app/tests/test_proximity_monitor.py::test_proximity_alert_requires_manual_control_below_200m",
+    "app/tests/test_telemetry_processor.py::TestCheckGeofenceIsolated::test_inside_fence_no_state_mutation",
+    "app/tests/test_telemetry_processor.py::TestCheckGeofenceIsolated::test_no_registered_fence_returns_immediately",
+    "app/tests/test_telemetry_processor.py::TestCheckGeofenceIsolated::test_outside_fence_mutates_state_with_breach_coords",
+    "app/tests/test_telemetry_processor.py::TestHandleAttitude::test_parses_attitude_radians_to_degrees",
+    "app/tests/test_telemetry_processor.py::TestHandleBattery::test_negative_battery_remaining_becomes_none",
+    "app/tests/test_telemetry_processor.py::TestHandleBattery::test_parses_battery_status_valid",
+    "app/tests/test_telemetry_processor.py::TestHandleGps::test_parses_gps_raw_int",
+    "app/tests/test_telemetry_processor.py::TestHandleGps::test_unknown_fix_type_still_parses",
+    "app/tests/test_telemetry_processor.py::TestHandleHeartbeat::test_parses_heartbeat_armed",
+    "app/tests/test_telemetry_processor.py::TestHandleHeartbeat::test_parses_heartbeat_disarmed",
+    "app/tests/test_telemetry_processor.py::TestHandlePosition::test_missing_field_raises_attribute_error",
+    "app/tests/test_telemetry_processor.py::TestHandlePosition::test_parses_global_position_int",
+    "app/tests/test_telemetry_processor.py::TestHandleRc::test_parses_rc_channels_rssi",
+    "app/tests/test_telemetry_processor.py::TestHandleRc::test_unknown_rssi_255_maps_to_zero",
+    "app/tests/test_telemetry_processor.py::TestHandleSysStatus::test_parses_sys_status",
+    "app/tests/test_telemetry_processor.py::TestHandleVfrHud::test_parses_vfr_hud",
+    "app/tests/test_telemetry_processor.py::TestProcessDispatch::test_attitude_message_updates_state_and_broadcasts",
+    "app/tests/test_telemetry_processor.py::TestProcessDispatch::test_broadcaster_relay_uses_message_source_system",
+    "app/tests/test_telemetry_processor.py::TestProcessDispatch::test_command_ack_routes_to_controller_and_skips_state",
+    "app/tests/test_telemetry_processor.py::TestProcessDispatch::test_command_ack_without_controller_is_noop",
+    "app/tests/test_telemetry_processor.py::TestProcessDispatch::test_global_position_int_triggers_geofence_check",
+    "app/tests/test_telemetry_processor.py::TestProcessDispatch::test_non_position_message_does_not_trigger_geofence_check",
+    "app/tests/test_telemetry_processor.py::TestProcessDispatch::test_unhandled_message_type_is_ignored"
+  ]
+}

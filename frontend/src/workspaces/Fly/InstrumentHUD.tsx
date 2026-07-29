@@ -42,6 +42,7 @@ export function InstrumentHUD({ droneId }: { droneId: number }) {
     : ['RTL', 'LAND'].some(m => frame.flight_mode?.includes(m)) ? '#f59e0b' : '#3b82f6'
 
   const isSimulated = !!(frame as any).sim_phase
+  const isAvoiding = !!(frame as any).collision_avoidance_active
 
   return (
     <div className="flex flex-col gap-2" style={{ minWidth: 220 }}>
@@ -64,6 +65,12 @@ export function InstrumentHUD({ droneId }: { droneId: number }) {
             SIMULATED DATA
           </div>
         )}
+        {isAvoiding && (
+          <div className="mt-1 text-center text-[9px] font-bold tracking-widest animate-pulse"
+            style={{ color: '#f59e0b' }}>
+            COLLISION AVOIDANCE ACTIVE
+          </div>
+        )}
       </div>
 
       {/* Core stats */}
@@ -77,6 +84,8 @@ export function InstrumentHUD({ droneId }: { droneId: number }) {
         <HUDRow label="CLIMB"    val={`${frame.climb_rate_ms > 0 ? '+' : ''}${frame.climb_rate_ms.toFixed(1)} m/s`}
           color={Math.abs(frame.climb_rate_ms) > 5 ? '#f59e0b' : undefined} />
         <HUDRow label="HEADING"  val={`${frame.heading.toFixed(0)}°`} />
+        <HUDRow label="LAT"      val={frame.lat.toFixed(6)} />
+        <HUDRow label="LON"     val={frame.lon.toFixed(6)} secondary />
 
         <div className="flex items-center justify-between pt-1"
           style={{ borderTop: '1px solid var(--da-border)' }}>

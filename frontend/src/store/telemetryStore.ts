@@ -53,6 +53,10 @@ export interface TelemetryFrame {
   geofence_breach?: boolean
   breach_lat?: number
   breach_lon?: number
+  proximity_alert?: boolean
+  manual_control_required?: boolean
+  proximity_distance_m?: number | null
+  proximity_intruder_drone_id?: number | null
 
   // Simulation metadata
   sim_phase?: string
@@ -222,6 +226,10 @@ function normalizeTelemetryFrame(raw: unknown, prev?: TelemetryFrame): Telemetry
     geofence_breach: data.geofence_breach ?? base.geofence_breach,
     breach_lat: numeric(data.breach_lat, base.breach_lat),
     breach_lon: numeric(data.breach_lon, base.breach_lon),
+    proximity_alert: typeof data.proximity_alert === 'boolean' ? data.proximity_alert : base.proximity_alert,
+    manual_control_required: typeof data.manual_control_required === 'boolean' ? data.manual_control_required : base.manual_control_required,
+    proximity_distance_m: numeric(data.proximity_distance_m, base.proximity_distance_m ?? undefined) ?? null,
+    proximity_intruder_drone_id: numeric(data.proximity_intruder_drone_id, base.proximity_intruder_drone_id ?? undefined) ?? null,
     roll_rate_dps: angularRateDps(data.roll_rate_dps, data.rollspeed, data.imu_xgyro) ?? base.roll_rate_dps,
     pitch_rate_dps: angularRateDps(data.pitch_rate_dps, data.pitchspeed, data.imu_ygyro) ?? base.pitch_rate_dps,
     yaw_rate_dps: angularRateDps(data.yaw_rate_dps, data.yawspeed, data.imu_zgyro) ?? base.yaw_rate_dps,
@@ -237,6 +245,8 @@ function mergeFrame(droneId: number, raw: unknown, set: (partial: Partial<Teleme
   const wasBreach = Boolean(frame.geofence_breach)
   const prevFrame = get().frames[droneId]
   const wasPrevBreach = Boolean(prevFrame?.geofence_breach)
+  const hasProximityAlert = Boolean(frame.proximity_alert && frame.manual_control_required)
+  const hadProximityAlert = Boolean(prevFrame?.proximity_alert && prevFrame?.manual_control_required)
 
   if (wasBreach && !wasPrevBreach) {
     const title = 'Geofence breach detected'
@@ -248,6 +258,20 @@ function mergeFrame(droneId: number, raw: unknown, set: (partial: Partial<Teleme
     const message = `Drone ${droneId} has returned inside the configured boundary.`
     notify.warning(title, message, droneId)
     eventLog.drone(title, message, String(droneId), 'warning')
+  }
+
+  if (hasProximityAlert && !hadProximityAlert) {
+    const intruder = frame.proximity_intruder_drone_id != null ? `Drone ${frame.proximity_intruder_drone_id}` : 'another drone'
+    const distance = frame.proximity_distance_m != null ? ` at ${frame.proximity_distance_m.toFixed(1)} m` : ''
+    const title = 'Manual control shift required'
+    const message = `Drone ${droneId} is within 200 m of ${intruder}${distance}. Shift to manual control immediately.`
+    notify.danger(title, message, droneId)
+    eventLog.drone(title, message, String(droneId), 'error')
+  } else if (!hasProximityAlert && hadProximityAlert) {
+    const title = 'Separation restored'
+    const message = `Drone ${droneId} is back outside the 200 m manual-control threshold.`
+    notify.success(title, message, droneId)
+    eventLog.drone(title, message, String(droneId), 'success')
   }
 
   set(s => {

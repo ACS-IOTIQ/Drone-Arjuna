@@ -447,15 +447,20 @@ class _SimulatedFlight:
                 self._home_lat = float(params["lat"])
                 self._home_lon = float(params["lon"])
             else:
-                return
+                return None
             log.info("Home position updated via external GCS", drone_id=self.drone_id,
                      lat=self._home_lat, lon=self._home_lon)
             if self.mission_id is not None:
                 asyncio.create_task(_persist_home_waypoint(
                     self.mission_id, self._home_lat, self._home_lon,
                 ))
+            # Returned to the broadcaster so it can confirm the change with a
+            # HOME_POSITION message — the GCS-facing side of "Set Home Here",
+            # without which Mission Planner/QGC report the update as failed.
+            return self._home_lat, self._home_lon
         elif action in ("arm", "disarm"):
             self._handle_cmd(action, {})
+        return None
 
     def _enter_rtl(self, shortest_path: bool):
         """
@@ -767,6 +772,9 @@ class _SimulatedFlight:
             "sim_waypoint_idx":      self.wp_idx,
             "sim_waypoint_count":    len(self.waypoints),
             "collision_avoidance_active": self._avoiding,
+            "home_lat":              self._home_lat,
+            "home_lon":              self._home_lon,
+            "home_alt_msl":          self.HOME_MSL,
         }
         await self._sm.update(self.drone_id, state)
 

@@ -1,7 +1,7 @@
 {
-  "fingerprint": "0cec8fef85656fd0d4529ffbaa32756b19530e176df199b1dbf7a3e3c6cd177d",
+  "fingerprint": "a5a7c984edb616f5a474a643d9d844040bf22b12fc499c805c9d4eb327bea0cc",
   "nodeids": [
     "app/tests/test_proximity_monitor.py::test_proximity_alert_clears_when_drones_separate",
-    "app/tests/test_proximity_monitor.py::test_proximity_alert_requires_manual_control_below_200m"
+    "app/tests/test_proximity_monitor.py::test_proximity_alert_requires_manual_control_below_250m"
   ]
 }

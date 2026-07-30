@@ -118,15 +118,27 @@ class MAVLinkBroadcaster:
                 try:
                     if action == "set_home":
                         if is_int:
-                            handler("set_home", {
+                            payload = {
                                 "use_current": msg.current == 1,
                                 "lat": msg.x / 1e7, "lon": msg.y / 1e7, "alt": msg.z,
-                            })
+                            }
                         else:
-                            handler("set_home", {
+                            payload = {
                                 "use_current": msg.param1 == 1,
                                 "lat": msg.param5, "lon": msg.param6, "alt": msg.param7,
-                            })
+                            }
+                        result = handler("set_home", payload)
+                        # Real autopilots confirm a home change by broadcasting
+                        # HOME_POSITION — Mission Planner/QGC wait for this (not
+                        # just the COMMAND_ACK) before considering "Set Home Here"
+                        # successful, otherwise they retry and report failure.
+                        if result:
+                            home_lat, home_lon = result
+                            link.mav.home_position_send(
+                                int(home_lat * 1e7), int(home_lon * 1e7),
+                                int(float(payload.get("alt") or 0.0) * 1000),
+                                0.0, 0.0, 0.0, [1.0, 0.0, 0.0, 0.0], 0.0, 0.0, 0.0,
+                            )
                     elif action == "arm_disarm":
                         handler("arm" if msg.param1 == 1 else "disarm", {})
                 except Exception as e:
@@ -158,6 +170,17 @@ class MAVLinkBroadcaster:
                     mavutil.mavlink.MAV_STATE_ACTIVE if armed else mavutil.mavlink.MAV_STATE_STANDBY,
                 )
                 self._last_heartbeat[drone_id] = now
+                # Broadcast HOME_POSITION alongside the heartbeat so a GCS that
+                # connects mid-flight (or missed the immediate post-set_home send)
+                # still learns/re-syncs the current home location on its own.
+                home_lat = state.get("home_lat")
+                home_lon = state.get("home_lon")
+                if home_lat is not None and home_lon is not None:
+                    mav.home_position_send(
+                        int(home_lat * 1e7), int(home_lon * 1e7),
+                        int(state.get("home_alt_msl", 0.0) * 1000),
+                        0.0, 0.0, 0.0, [1.0, 0.0, 0.0, 0.0], 0.0, 0.0, 0.0,
+                    )
 
             t_ms = int(now * 1000) & 0xFFFFFFFF
 

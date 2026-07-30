@@ -520,6 +520,12 @@ async def start_simulation(
     db: AsyncSession = Depends(get_db),
 ):
     """Start a simulated flight of a saved mission. Multiple drones may fly concurrently."""
+    # If the caller named a drone explicitly, reject early when it's already
+    # simulating — this doesn't need the mission to exist/be valid first, and
+    # avoids a needless DB round-trip for a request that's going to 409 anyway.
+    if req.drone_instance_id and mission_simulator.is_active(req.drone_instance_id):
+        raise HTTPException(status_code=409, detail=f"Drone #{req.drone_instance_id} already has an active simulation")
+
     # Fetch mission
     mission = await db.get(Mission, req.mission_id)
     if not mission:

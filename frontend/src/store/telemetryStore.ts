@@ -264,12 +264,12 @@ function mergeFrame(droneId: number, raw: unknown, set: (partial: Partial<Teleme
     const intruder = frame.proximity_intruder_drone_id != null ? `Drone ${frame.proximity_intruder_drone_id}` : 'another drone'
     const distance = frame.proximity_distance_m != null ? ` at ${frame.proximity_distance_m.toFixed(1)} m` : ''
     const title = 'Manual control shift required'
-    const message = `Drone ${droneId} is within 200 m of ${intruder}${distance}. Shift to manual control immediately.`
+    const message = `Drone ${droneId} is within 250 m of ${intruder}${distance}. Shift to manual control immediately.`
     notify.danger(title, message, droneId)
     eventLog.drone(title, message, String(droneId), 'error')
   } else if (!hasProximityAlert && hadProximityAlert) {
     const title = 'Separation restored'
-    const message = `Drone ${droneId} is back outside the 200 m manual-control threshold.`
+    const message = `Drone ${droneId} is back outside the 250 m manual-control threshold.`
     notify.success(title, message, droneId)
     eventLog.drone(title, message, String(droneId), 'success')
   }

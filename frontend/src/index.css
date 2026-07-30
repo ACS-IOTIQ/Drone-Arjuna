@@ -460,21 +460,61 @@ textarea:focus-visible {
 }
 
 .da-login-card {
+  position: relative;
+  isolation: isolate;
   width: 100%;
   max-width: 480px;
   max-height: calc(100vh - 56px);
   padding: 34px;
   overflow-y: auto;
-  border: 1px solid rgba(223, 230, 239, 0.94);
-  border-radius: 8px;
-  color: var(--da-text);
-  background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 28px 80px rgba(2, 8, 18, 0.42);
-  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 18px;
+  color: #152238;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.91) 0%, rgba(241, 247, 253, 0.82) 52%, rgba(220, 234, 247, 0.76) 100%);
+  box-shadow:
+    0 30px 90px rgba(2, 10, 22, 0.48),
+    0 8px 30px rgba(3, 21, 42, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(111, 145, 175, 0.18);
+  backdrop-filter: blur(28px) saturate(135%);
+  -webkit-backdrop-filter: blur(28px) saturate(135%);
+  scrollbar-color: rgba(71, 85, 105, 0.42) transparent;
+}
+
+.da-login-card::before {
+  position: absolute;
+  inset: 1px 1px auto;
+  z-index: -1;
+  height: 42%;
+  border-radius: 17px 17px 50% 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), transparent);
+  content: '';
+  pointer-events: none;
+}
+
+.da-login-card::-webkit-scrollbar {
+  width: 8px;
+}
+
+.da-login-card::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(71, 85, 105, 0.36);
+  background-clip: padding-box;
 }
 
 .da-login-card.is-request {
   max-width: 620px;
+}
+
+.da-login-card-title {
+  color: #101d31;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.da-login-card-subtitle {
+  color: #475569;
 }
 
 .da-password-setup-page {
@@ -500,7 +540,7 @@ textarea:focus-visible {
 .da-login-mobile-brand {
   display: none;
   margin-bottom: 5px;
-  color: var(--da-accent);
+  color: #1749ba;
   font-family: 'Rajdhani', sans-serif;
   font-size: 13px;
   font-weight: 700;
@@ -513,16 +553,17 @@ textarea:focus-visible {
   gap: 4px;
   margin-bottom: 22px;
   padding: 4px;
-  border: 1px solid var(--da-border);
-  border-radius: 7px;
-  background: #f3f6f9;
+  border: 1px solid rgba(71, 85, 105, 0.22);
+  border-radius: 10px;
+  background: rgba(30, 53, 76, 0.08);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .da-login-tabs button {
   min-width: 0;
   overflow: hidden;
-  border-radius: 5px;
-  color: var(--da-muted);
+  border-radius: 7px;
+  color: #3f5065;
   background: transparent;
   font-size: 12px;
   font-weight: 650;
@@ -532,9 +573,14 @@ textarea:focus-visible {
 }
 
 .da-login-tabs button.is-active {
-  color: var(--da-accent);
-  background: white;
-  box-shadow: var(--da-shadow-sm);
+  color: #1749ba;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 2px 8px rgba(15, 38, 65, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.90);
+}
+
+.da-login-tabs button:focus-visible {
+  outline-color: #1749ba;
+  outline-offset: 1px;
 }
 
 .da-field {
@@ -545,7 +591,7 @@ textarea:focus-visible {
 }
 
 .da-field-label {
-  color: #334155;
+  color: #27364a;
   font-size: 12px;
   font-weight: 650;
 }
@@ -556,15 +602,17 @@ textarea:focus-visible {
   min-width: 0;
   align-items: center;
   overflow: hidden;
-  border: 1px solid var(--da-border);
-  border-radius: 7px;
-  background: white;
+  border: 1px solid rgba(71, 85, 105, 0.28);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.70);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .da-input-shell:focus-within {
-  border-color: var(--da-accent);
-  box-shadow: 0 0 0 3px rgba(33, 87, 213, 0.1);
+  border-color: #2157d5;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 0 0 3px rgba(33, 87, 213, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.80);
 }
 
 .da-input-icon {
@@ -574,9 +622,9 @@ textarea:focus-visible {
   flex: 0 0 42px;
   align-items: center;
   justify-content: center;
-  border-right: 1px solid #e5eaf0;
-  color: #7d8ca1;
-  background: #f9fbfd;
+  border-right: 1px solid rgba(71, 85, 105, 0.16);
+  color: #526780;
+  background: rgba(224, 235, 245, 0.58);
 }
 
 .da-input.da-input-embedded {
@@ -601,21 +649,73 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  color: var(--da-muted);
+  color: #526174;
 }
 
 .da-password-toggle:hover {
-  color: var(--da-text);
-  background: #f1f5f9;
+  color: #172033;
+  background: rgba(214, 226, 239, 0.72);
 }
 
 .da-form-error {
   padding: 9px 11px;
-  border: 1px solid #f0c8c8;
+  border: 1px solid rgba(185, 28, 28, 0.28);
   border-radius: 6px;
   color: #a61b1b;
-  background: #fff4f4;
+  background: rgba(255, 241, 242, 0.90);
   font-size: 12px;
+}
+
+.da-login-card .da-input:not(.da-input-embedded) {
+  border-color: rgba(71, 85, 105, 0.28);
+  color: #172033;
+  background-color: rgba(255, 255, 255, 0.70);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
+}
+
+.da-login-card .da-input:not(.da-input-embedded):hover {
+  border-color: rgba(44, 62, 85, 0.42);
+  background-color: rgba(255, 255, 255, 0.80);
+}
+
+.da-login-card .da-input:not(.da-input-embedded):focus {
+  border-color: #2157d5;
+  background-color: rgba(255, 255, 255, 0.90);
+  box-shadow: 0 0 0 3px rgba(33, 87, 213, 0.16);
+}
+
+.da-login-card .da-btn-primary {
+  border-color: rgba(16, 61, 163, 0.42);
+  background: linear-gradient(135deg, #2864e8, #1849b6);
+  box-shadow: 0 7px 18px rgba(22, 66, 166, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.da-login-card .da-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1f58d7, #123d9d);
+  box-shadow: 0 9px 22px rgba(22, 66, 166, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+}
+
+.da-login-card .da-btn-ghost {
+  border-color: rgba(71, 85, 105, 0.24);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.da-login-card .da-btn:disabled {
+  opacity: 0.68;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .da-login-card {
+    background: rgba(241, 247, 253, 0.97);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .da-login-card {
+    background: rgba(241, 247, 253, 0.98);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 /* Notifications */

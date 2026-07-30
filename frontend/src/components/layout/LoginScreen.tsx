@@ -128,10 +128,10 @@ export default function LoginScreen() {
         <section className={`da-login-card ${mode === 'request' ? 'is-request' : ''}`}>
           <div className="mb-5">
             <span className="da-login-mobile-brand">DroneArjuna</span>
-            <h2 className="text-2xl font-bold leading-tight text-slate-950">
+            <h2 className="da-login-card-title text-2xl font-bold leading-tight">
               {mode === 'signin' ? 'Welcome back' : 'Request access'}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="da-login-card-subtitle mt-1 text-sm">
               {mode === 'signin' ? 'Sign in to continue to the operations console.' : 'Send your details to an administrator for review.'}
             </p>
           </div>

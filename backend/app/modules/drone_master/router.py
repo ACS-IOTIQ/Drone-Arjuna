@@ -95,6 +95,13 @@ async def remove_drone(did: int, db: DbDep, _: AdminDep):
     return {"detail": "Drone removed", **result}
 
 
+@router.delete("/drones/{did}/stale")
+async def remove_stale_drone(did: int, db: DbDep, _: AdminDep):
+    """Remove a Fleet Overview entry after 30 days without confirmed use."""
+    result = await DroneInstanceService(db).archive_if_stale(did)
+    return {"detail": "Inactive drone removed", **result}
+
+
 @router.post("/drones/{did}/payload", response_model=DroneInstanceOut)
 async def assign_payload_to_drone(
     did: int, body: dict, db: DbDep,

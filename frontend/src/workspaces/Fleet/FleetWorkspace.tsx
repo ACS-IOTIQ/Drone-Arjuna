@@ -4,10 +4,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { droneControlApi } from '@/api/droneControl'
 import { Plus, RefreshCw, Anchor, Package, Cloud, Droplets, Thermometer, Wind, MapPin, CloudRain, Cable } from 'lucide-react'
-import { useFleetStore } from '@/store/fleetStore'
+import { isDroneStale, useFleetStore, type DroneInstance } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import { useVesselStore } from '@/store/vesselStore'
+import { useAuthStore } from '@/store/authStore'
+import { droneMasterApi } from '@/api/droneMaster'
 import { payloadApi, type PayloadType } from '@/api/payload'
+import { ConfirmModal } from '@/components/common/ConfirmModal'
 import DroneCard from './DroneCard'
 import ConnectModal from './ConnectModal'
 
@@ -42,6 +45,7 @@ function readAssignments(): Record<number, number | null> {
 
 export default function FleetWorkspace() {
   const { instances, connections, fetchInstances, fetchConnections } = useFleetStore()
+  const role = useAuthStore(s => s.role)
   const subscribe = useTelemetryStore(s => s.subscribe)
   const { vessels, fetchVessels } = useVesselStore()
   const [showConnect, setShowConnect] = useState(false)
@@ -56,6 +60,12 @@ export default function FleetWorkspace() {
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null)
   const [weatherNote, setWeatherNote] = useState('Checking local weather...')
   const [weatherLocation, setWeatherLocation] = useState<{ lat: number; lon: number } | null>(null)
+  const [removeCandidate, setRemoveCandidate] = useState<DroneInstance | null>(null)
+  const [removingDrone, setRemovingDrone] = useState(false)
+  const [removeError, setRemoveError] = useState('')
+
+  const connectedCount = Object.values(connections).filter(c => c.connected).length
+  const canRemoveStaleDrones = ['mission_commander', 'admin'].includes(role)
 
   const refresh = async () => {
     setRefreshing(true)
@@ -114,6 +124,12 @@ export default function FleetWorkspace() {
     setPayloadAssignments(readAssignments())
     refresh()
   }, [])
+
+  // Keep online state and active-first ordering current while this workspace is open.
+  useEffect(() => {
+    const id = setInterval(fetchConnections, 5000)
+    return () => clearInterval(id)
+  }, [fetchConnections])
 
 
   useEffect(() => {
@@ -207,6 +223,25 @@ export default function FleetWorkspace() {
     }
   }
 
+  const removeStaleDrone = async () => {
+    if (!removeCandidate) return
+    setRemovingDrone(true)
+    setRemoveError('')
+    try {
+      await droneMasterApi.removeStaleDrone(removeCandidate.id)
+      const nextAssignments = { ...payloadAssignments }
+      delete nextAssignments[removeCandidate.id]
+      setPayloadAssignments(nextAssignments)
+      localStorage.setItem(PAYLOAD_ASSIGNMENT_KEY, JSON.stringify(nextAssignments))
+      setRemoveCandidate(null)
+      await Promise.all([fetchInstances(), fetchConnections()])
+    } catch (e: any) {
+      setRemoveError(e.response?.data?.detail ?? 'Unable to remove inactive drone')
+    } finally {
+      setRemovingDrone(false)
+    }
+  }
+
   return (
     <div className="h-full flex flex-col p-5 overflow-auto">
       {/* Header row */}
@@ -214,7 +249,7 @@ export default function FleetWorkspace() {
         <div>
           <h2 className="text-lg font-semibold">Fleet Overview</h2>
           <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
-            {instances.length} registered · {Object.values(connections).filter(Boolean).length} connected
+            {instances.length} registered · {connectedCount} connected
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -227,7 +262,7 @@ export default function FleetWorkspace() {
           {bridgeReady && (
             <button
               onClick={quickConnect}
-              disabled={quickConnecting || Object.values(connections).some(c => c?.connected)}
+              disabled={quickConnecting || connectedCount > 0}
               className="da-btn"
               style={{
                 background: quickConnectStatus === 'ok'   ? 'rgba(34,197,94,0.15)'  :
@@ -293,8 +328,8 @@ export default function FleetWorkspace() {
       <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         {[
           { label: 'Registered',  val: instances.length,    color: '#3b82f6' },
-          { label: 'Connected',   val: Object.values(connections).filter(c => c.connected).length, color: '#22c55e' },
-          { label: 'Offline',     val: instances.length - Object.values(connections).filter(c => c.connected).length, color: '#6b7280' },
+          { label: 'Connected',   val: connectedCount, color: '#22c55e' },
+          { label: 'Offline',     val: instances.length - connectedCount, color: '#6b7280' },
           { label: 'Vessels',     val: vessels.length,      color: '#06b6d4' },
           { label: 'Alerts',      val: 0,                   color: '#f59e0b' },
         ].map(s => (
@@ -421,6 +456,8 @@ export default function FleetWorkspace() {
                     ? payloadById[payloadAssignments[d.id]!]!.name
                     : undefined
                 }
+                stale={!connections[d.id]?.connected && isDroneStale(d)}
+                onRemove={canRemoveStaleDrones ? () => { setRemoveError(''); setRemoveCandidate(d) } : undefined}
               />
             ))}
           </div>
@@ -428,6 +465,17 @@ export default function FleetWorkspace() {
       )}
 
       {showConnect && <ConnectModal onClose={() => setShowConnect(false)} />}
+      {removeCandidate && (
+        <ConfirmModal
+          title={`Remove ${removeCandidate.call_sign}?`}
+          message={removeError || 'This drone has not been used for at least 30 days. It will be removed from the fleet, while historical missions are preserved and unassigned.'}
+          confirmLabel="Remove drone"
+          variant="danger"
+          isLoading={removingDrone}
+          onConfirm={removeStaleDrone}
+          onCancel={() => { if (!removingDrone) { setRemoveCandidate(null); setRemoveError('') } }}
+        />
+      )}
     </div>
   )
 }

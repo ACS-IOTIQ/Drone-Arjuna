@@ -12,7 +12,7 @@ Responsibilities:
     while active drone instances reference it)
 """
 import structlog
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete, update
@@ -139,6 +139,8 @@ class DroneTypeService:
 
 class DroneInstanceService:
 
+    STALE_AFTER_DAYS = 30
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -146,7 +148,7 @@ class DroneInstanceService:
         result = await self.db.execute(
             select(DroneInstance)
             .where(DroneInstance.is_active == True)  # noqa: E712
-            .order_by(DroneInstance.call_sign)
+            .order_by(DroneInstance.last_seen.desc().nullslast(), DroneInstance.call_sign)
         )
         return result.scalars().all()
 
@@ -234,6 +236,43 @@ class DroneInstanceService:
         inst.status = status
         await self.db.flush()
         return inst
+
+    async def mark_used(self, drone_id: int) -> DroneInstance:
+        """Record a confirmed connection or flight as real drone activity."""
+        inst = await self.get_by_id(drone_id)
+        inst.last_seen = datetime.now(timezone.utc)
+        await self.db.flush()
+        return inst
+
+    async def archive_if_stale(self, drone_id: int) -> dict:
+        """Soft-remove a drone only after 30 full days without confirmed use."""
+        inst = await self.get_by_id(drone_id)
+
+        try:
+            from app.modules.drone_control.mavlink_manager import mavlink_manager
+            connection = mavlink_manager._connections.get(drone_id)
+            if connection and connection.connected:
+                raise HTTPException(409, "A connected drone cannot be removed")
+        except HTTPException:
+            raise
+        except Exception:
+            # Runtime connection state may be unavailable during maintenance jobs;
+            # the persisted activity check below still protects recent drones.
+            pass
+
+        last_activity = inst.last_seen or inst.created_at
+        if last_activity is not None and last_activity.tzinfo is None:
+            # SQLite-based tests and some legacy rows can return naive values.
+            last_activity = last_activity.replace(tzinfo=timezone.utc)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.STALE_AFTER_DAYS)
+        if last_activity is None or last_activity > cutoff:
+            raise HTTPException(
+                409,
+                f"Drone can be removed from Fleet Overview only after "
+                f"{self.STALE_AFTER_DAYS} days without use",
+            )
+
+        return await self.archive(drone_id)
 
     async def get_type_spec(self, drone_id: int) -> DroneType:
         """

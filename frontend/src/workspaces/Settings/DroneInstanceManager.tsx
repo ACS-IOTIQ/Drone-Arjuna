@@ -7,6 +7,7 @@ import { droneMasterApi } from '@/api/droneMaster'
 import { payloadApi, type PayloadType } from '@/api/payload'
 import { vesselApi } from '@/api/vessel'
 import { useVesselStore } from '@/store/vesselStore'
+import { sortDronesByActivity, useFleetStore, type DroneInstance } from '@/store/fleetStore'
 import type { NavalVessel } from '@/store/vesselStore'
 import { ConfirmModal } from '@/components/common/ConfirmModal'
 
@@ -39,6 +40,8 @@ export default function DroneInstanceManager() {
   const [removeBusy, setRemoveBusy] = useState(false)
   const [removeSuccess, setRemoveSuccess] = useState('')
   const { vessels, fetchVessels } = useVesselStore()
+  const { connections, fetchConnections } = useFleetStore()
+  const displayedDrones = sortDronesByActivity(drones as DroneInstance[], connections)
 
   const load = async () => {
     const [d, t, p] = await Promise.all([
@@ -54,6 +57,9 @@ export default function DroneInstanceManager() {
   useEffect(() => {
     load()
     fetchVessels()
+    fetchConnections()
+    const connectionPoll = setInterval(fetchConnections, 5000)
+    return () => clearInterval(connectionPoll)
   }, [])
 
   const openNew = () => {
@@ -217,7 +223,7 @@ export default function DroneInstanceManager() {
                 No drones registered yet
               </td></tr>
             )}
-            {drones.map((d: any) => (
+            {displayedDrones.map((d: any) => (
               <tr key={d.id} style={{ borderBottom: '1px solid var(--da-border)' }}
                 className="hover:bg-white/[0.02]">
                 <td className="px-3 py-2 font-semibold">{d.call_sign}</td>

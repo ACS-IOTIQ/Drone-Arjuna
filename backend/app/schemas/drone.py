@@ -86,7 +86,9 @@ class DroneInstanceOut(DroneInstanceCreate):
     status: str
     last_seen: Optional[datetime]
     total_flight_hours: float
+    home_vessel_id: Optional[int] = None
     payload_type_id: Optional[int] = None
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 

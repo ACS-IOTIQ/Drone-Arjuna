@@ -3,8 +3,8 @@
 // DroneCard.tsx
 // ═══════════════════════════════════════════
 import { useTelemetryStore } from '@/store/telemetryStore'
-import { Battery, Wifi, Satellite, Gauge, Navigation, Anchor, Radio, Package } from 'lucide-react'
-import type { DroneInstance } from '@/store/fleetStore'
+import { Battery, Wifi, Satellite, Gauge, Navigation, Anchor, Radio, Package, Clock, Trash2 } from 'lucide-react'
+import { getDroneLastActivity, type DroneInstance } from '@/store/fleetStore'
 import type { NavalVessel } from '@/store/vesselStore'
 
 interface ConnectionInfo {
@@ -23,10 +23,13 @@ interface Props {
   homeVessel?: NavalVessel
   connectionInfo?: ConnectionInfo
   payloadName?: string
+  stale?: boolean
+  onRemove?: () => void
 }
 
-export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloadName }: Props) {
+export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloadName, stale = false, onRemove }: Props) {
   const frame = useTelemetryStore(s => s.frames[drone.id])
+  const lastActivity = getDroneLastActivity(drone)
 
   const battColor = !frame ? '#6b7280'
     : frame.battery_remaining_pct > 50 ? '#22c55e'
@@ -127,6 +130,27 @@ export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloa
         </div>
           )}
         </div>
+      )}
+
+      {!connected && lastActivity && (
+        <div className="flex items-center gap-1.5 border-t border-slate-200 pt-2 text-[11px]" style={{ color: stale ? '#b45309' : '#64748b' }}>
+          <Clock size={11} />
+          <span>
+            {drone.last_seen ? 'Last used' : 'Registered'} {lastActivity.toLocaleDateString()}
+          </span>
+          {stale && <span className="ml-auto font-medium">Inactive 30+ days</span>}
+        </div>
+      )}
+
+      {stale && onRemove && (
+        <button
+          type="button"
+          className="da-btn da-btn-ghost justify-center text-xs"
+          style={{ color: '#dc2626', borderColor: 'rgba(220,38,38,0.25)' }}
+          onClick={onRemove}
+          aria-label={`Remove inactive drone ${drone.call_sign}`}>
+          <Trash2 size={12} /> Remove inactive drone
+        </button>
       )}
     </div>
   )

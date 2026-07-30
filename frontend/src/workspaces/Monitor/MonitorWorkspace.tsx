@@ -19,8 +19,11 @@ export default function MonitorWorkspace() {
     return () => clearInterval(poll)
   }, [])
 
-  const connectedIds  = instances.filter(d => connections[d.id]).map(d => d.id)
-  const activeDroneId = selDrone ?? connectedIds[0] ?? null
+  const connectedDrones = instances.filter(d => connections[d.id]?.connected)
+  const connectedIds = connectedDrones.map(d => d.id)
+  const activeDroneId = selDrone != null && connections[selDrone]?.connected
+    ? selDrone
+    : connectedIds[0] ?? null
 
   // Subscribe to live telemetry WebSocket for the active drone
   useEffect(() => {
@@ -35,7 +38,7 @@ export default function MonitorWorkspace() {
       {/* Drone selector — only visible when multiple connected */}
       {connectedIds.length > 1 && (
         <div className="flex gap-2">
-          {instances.filter(d => connections[d.id]).map(d => (
+          {connectedDrones.map(d => (
             <button key={d.id}
               onClick={() => setSelDrone(d.id)}
               className={`da-btn da-monitor-selector text-xs ${d.id === activeDroneId ? 'is-active' : ''}`}>

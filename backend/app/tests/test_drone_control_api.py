@@ -641,7 +641,7 @@ def test_ws_stream_accepts_connection():
 # ══════════════════════════════════════════════════════════════════════
 
 async def test_connect_no_heartbeat_returns_503(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """
     POST /connect with a UDP port where no MAVLink device is listening
@@ -651,7 +651,7 @@ async def test_connect_no_heartbeat_returns_503(
     resp  = await client.post(
         "/api/drone-control/connect",
         json={
-            "drone_instance_id": 1,
+            "drone_instance_id": drone_instance["id"],
             "transport":         "udp",
             "host":              "127.0.0.1",
             "port":              19999,   # nothing listening here in test env

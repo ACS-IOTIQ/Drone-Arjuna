@@ -82,8 +82,8 @@ export default function LiveOpsPanel() {
   const missionDroneId  = activeMission?.drone_instance_id ?? null
 
   const activeDrone = missionDroneId != null
-    ? instances.find(d => d.id === missionDroneId) ?? null
-    : instances.find(d => connections[d.id]) ?? null
+    ? instances.find(d => d.id === missionDroneId && connections[d.id]?.connected) ?? null
+    : instances.find(d => connections[d.id]?.connected) ?? null
   const frame       = activeDrone ? frames[activeDrone.id] : null
 
   const sendCmd = async (command: string, params?: Record<string, unknown>) => {

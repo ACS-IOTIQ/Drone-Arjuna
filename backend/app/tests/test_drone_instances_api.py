@@ -82,6 +82,7 @@ async def test_register_drone_201(
     assert data["call_sign"]     == "TEST-BRAVO-01"   # validator uppercases
     assert data["drone_type_id"] == drone_type["id"]
     assert data["status"]        == "offline"
+    assert data["created_at"] is not None
     assert "id" in data
     await client.delete(f"/api/master/drones/{data['id']}", headers=hdrs)
 
@@ -325,6 +326,39 @@ async def test_remove_drone_no_missions_200(
 
     # No longer listed
     listing = await client.get("/api/master/drones", headers=hdrs)
+    assert drone_instance["id"] not in [d["id"] for d in listing.json()]
+
+
+async def test_recent_drone_cannot_be_removed_from_fleet_overview(
+    client: AsyncClient, admin_user, drone_instance, make_token
+):
+    """The Fleet Overview cleanup route enforces the 30-day inactivity rule."""
+    token = make_token(admin_user.id, admin_user.role)
+    resp = await client.delete(
+        f"/api/master/drones/{drone_instance['id']}/stale",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 409
+    assert "30 days" in resp.json()["detail"]
+
+
+async def test_stale_drone_can_be_removed_from_fleet_overview(
+    client: AsyncClient, admin_user, drone_instance, make_token, monkeypatch
+):
+    """An eligible stale row is soft-removed and disappears from listings."""
+    from app.modules.drone_master.service import DroneInstanceService
+
+    monkeypatch.setattr(DroneInstanceService, "STALE_AFTER_DAYS", 0)
+    token = make_token(admin_user.id, admin_user.role)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.delete(
+        f"/api/master/drones/{drone_instance['id']}/stale",
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+
+    listing = await client.get("/api/master/drones", headers=headers)
     assert drone_instance["id"] not in [d["id"] for d in listing.json()]
 
 

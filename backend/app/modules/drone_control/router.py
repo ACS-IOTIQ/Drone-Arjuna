@@ -19,6 +19,7 @@ from app.schemas.drone import ConnectRequest, CommandRequest, SimStartRequest, S
 from app.utils.geofence import geofence_store
 from app.modules.drone_control.mavlink_manager import mavlink_manager
 from app.modules.drone_control.mission_simulator import mission_simulator
+from app.modules.drone_master.service import DroneInstanceService
 
 log = structlog.get_logger()
 router = APIRouter()
@@ -182,7 +183,7 @@ async def autoconnect_drone(
     drone_instance_id: int = req.drone_instance_id
 
     drone = await db.get(DroneInstance, drone_instance_id)
-    if not drone:
+    if not drone or not drone.is_active:
         raise HTTPException(status_code=404, detail=f"Drone instance #{drone_instance_id} not found")
 
     if mavlink_manager._connections.get(drone_instance_id, None) and \
@@ -278,6 +279,7 @@ async def autoconnect_drone(
                      transport=transport, host=host, port=port,
                      serial_port=serial_port, baud_rate=baud_rate)
             await _apply_ui_home_on_connect(drone_instance_id, db)
+            await DroneInstanceService(db).mark_used(drone_instance_id)
             return {
                 "detail":    "Connected",
                 "drone_id":  drone_instance_id,
@@ -339,9 +341,13 @@ async def connect_drone(
     db: AsyncSession = Depends(get_db),
 ):
     """Establish MAVLink connection to a drone."""
+    drone = await db.get(DroneInstance, req.drone_instance_id)
+    if not drone or not drone.is_active:
+        raise HTTPException(status_code=404, detail="Drone instance not found")
+
     ok = await mavlink_manager.connect(
         drone_id=req.drone_instance_id,
-        call_sign=f"DRONE-{req.drone_instance_id}",
+        call_sign=drone.call_sign,
         transport=req.transport,
         host=req.host or "127.0.0.1",
         port=req.port or 14550,
@@ -352,6 +358,7 @@ async def connect_drone(
     if not ok:
         raise HTTPException(status_code=503, detail="Connection failed or heartbeat timed out")
     await _apply_ui_home_on_connect(req.drone_instance_id, db)
+    await DroneInstanceService(db).mark_used(req.drone_instance_id)
     return {"detail": "Connected", "drone_id": req.drone_instance_id}
 
 
@@ -359,8 +366,12 @@ async def connect_drone(
 async def disconnect_drone(
     drone_id: int,
     _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
+    db: AsyncSession = Depends(get_db),
 ):
     await mavlink_manager.disconnect(drone_id)
+    drone = await db.get(DroneInstance, drone_id)
+    if drone and drone.is_active:
+        await DroneInstanceService(db).mark_used(drone_id)
     return {"detail": "Disconnected"}
 
 
@@ -529,7 +540,7 @@ async def start_simulation(
         raise HTTPException(status_code=409, detail=f"Drone #{drone_id} already has an active simulation")
 
     drone = await db.get(DroneInstance, drone_id)
-    if not drone:
+    if not drone or not drone.is_active:
         raise HTTPException(status_code=404, detail="Drone instance not found")
 
     # Fetch waypoints ordered by sequence, skip home waypoints
@@ -590,6 +601,7 @@ async def start_simulation(
         mavlink_system_id=drone.mavlink_system_id,
         mission_id=req.mission_id,
     )
+    await DroneInstanceService(db).mark_used(drone_id)
 
     return {
         "detail": "Simulation started",

@@ -137,10 +137,12 @@ async def _get_unconnected_drones(session_factory) -> list:
     from app.models.drone import DroneInstance
 
     async with session_factory() as db:
-        # DroneInstance has no is_active column — filter by status instead.
-        # "maintenance" drones are excluded; everything else is a connection candidate.
+        # Removed and maintenance drones are not connection candidates.
         result = await db.execute(
-            select(DroneInstance).where(DroneInstance.status != "maintenance")
+            select(DroneInstance).where(
+                DroneInstance.is_active == True,  # noqa: E712
+                DroneInstance.status != "maintenance",
+            )
         )
         all_drones = result.scalars().all()
 
@@ -220,7 +222,12 @@ async def run_auto_connector(session_factory) -> None:
                              trigger="cable" if cable_just_plugged_in else "retry")
 
                     for drone in unconnected:
-                        await _connect_drone(drone.id, drone.call_sign, candidates)
+                        connected = await _connect_drone(drone.id, drone.call_sign, candidates)
+                        if connected:
+                            from app.modules.drone_master.service import DroneInstanceService
+                            async with session_factory() as db:
+                                await DroneInstanceService(db).mark_used(drone.id)
+                                await db.commit()
 
                 last_retry_time = now
 

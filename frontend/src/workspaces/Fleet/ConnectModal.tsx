@@ -53,11 +53,12 @@ function PortTypeIcon({ type }: { type: PortInfo['type'] }) {
 }
 
 export default function ConnectModal({ onClose }: Props) {
-  const { instances } = useFleetStore()
+  const { instances, connections } = useFleetStore()
+  const connectableDrones = instances.filter(d => !connections[d.id]?.connected)
   const subscribe       = useTelemetryStore(s => s.subscribe)
   const fetchConnections = useFleetStore(s => s.fetchConnections)
 
-  const [droneId, setDroneId]       = useState(instances[0]?.id ?? 0)
+  const [droneId, setDroneId]       = useState(connectableDrones[0]?.id ?? 0)
   const [transport, setTransport]   = useState<Transport>('udp')
   const [host, setHost]             = useState('127.0.0.1')
   const [port, setPort]             = useState(14550)
@@ -84,8 +85,9 @@ export default function ConnectModal({ onClose }: Props) {
   const isSerial = transport === 'serial' || transport === 'hf_serial'
 
   useEffect(() => {
-    if (!droneId && instances[0]?.id) setDroneId(instances[0].id)
-  }, [droneId, instances])
+    if (!droneId && connectableDrones[0]?.id) setDroneId(connectableDrones[0].id)
+    if (droneId && connections[droneId]?.connected) setDroneId(connectableDrones[0]?.id ?? 0)
+  }, [droneId, connectableDrones, connections])
 
   const applyPreset = (id: string) => {
     setPresetId(id)
@@ -314,7 +316,7 @@ export default function ConnectModal({ onClose }: Props) {
             <span className="text-xs" style={{ color: '#94a3b8' }}>DRONE</span>
             <select className="da-input" value={droneId}
               onChange={e => setDroneId(Number(e.target.value))}>
-              {instances.map(d => (
+              {connectableDrones.map(d => (
                 <option key={d.id} value={d.id}>{d.call_sign} (#{d.id})</option>
               ))}
             </select>

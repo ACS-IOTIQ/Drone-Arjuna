@@ -372,7 +372,7 @@ textarea:focus-visible {
 
 .da-login-shade {
   background:
-    linear-gradient(90deg, rgba(7, 15, 25, 0.20) 0%, rgba(7, 15, 25, 0.28) 52%, rgba(7, 15, 25, 0.74) 70%, rgba(7, 15, 25, 0.92) 100%),
+    linear-gradient(90deg, rgba(7, 15, 25, 0.20) 0%, rgba(7, 15, 25, 0.26) 52%, rgba(7, 15, 25, 0.58) 70%, rgba(7, 15, 25, 0.78) 100%),
     linear-gradient(0deg, rgba(5, 12, 20, 0.58), transparent 48%);
 }
 
@@ -467,28 +467,30 @@ textarea:focus-visible {
   max-height: calc(100vh - 56px);
   padding: 34px;
   overflow-y: auto;
-  border: 1px solid rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(178, 215, 246, 0.32);
   border-radius: 18px;
-  color: #152238;
+  color: #edf5fc;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.91) 0%, rgba(241, 247, 253, 0.82) 52%, rgba(220, 234, 247, 0.76) 100%);
+    linear-gradient(145deg, rgba(12, 30, 49, 0.76) 0%, rgba(9, 28, 48, 0.62) 52%, rgba(7, 22, 39, 0.72) 100%);
   box-shadow:
-    0 30px 90px rgba(2, 10, 22, 0.48),
-    0 8px 30px rgba(3, 21, 42, 0.20),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    inset 0 -1px 0 rgba(111, 145, 175, 0.18);
-  backdrop-filter: blur(28px) saturate(135%);
-  -webkit-backdrop-filter: blur(28px) saturate(135%);
-  scrollbar-color: rgba(71, 85, 105, 0.42) transparent;
+    0 34px 100px rgba(0, 7, 17, 0.62),
+    0 10px 34px rgba(0, 14, 31, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(121, 179, 228, 0.12);
+  backdrop-filter: blur(30px) saturate(125%);
+  -webkit-backdrop-filter: blur(30px) saturate(125%);
+  scrollbar-color: rgba(181, 207, 229, 0.42) transparent;
 }
 
 .da-login-card::before {
   position: absolute;
   inset: 1px 1px auto;
   z-index: -1;
-  height: 42%;
+  height: 46%;
   border-radius: 17px 17px 50% 50%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), transparent);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(143, 198, 244, 0.16), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent);
   content: '';
   pointer-events: none;
 }
@@ -500,7 +502,7 @@ textarea:focus-visible {
 .da-login-card::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(71, 85, 105, 0.36);
+  background: rgba(181, 207, 229, 0.38);
   background-clip: padding-box;
 }
 
@@ -509,12 +511,12 @@ textarea:focus-visible {
 }
 
 .da-login-card-title {
-  color: #101d31;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.58);
+  color: #f7fbff;
+  text-shadow: 0 1px 12px rgba(0, 8, 20, 0.36);
 }
 
 .da-login-card-subtitle {
-  color: #475569;
+  color: #c4d2e0;
 }
 
 .da-password-setup-page {
@@ -540,7 +542,7 @@ textarea:focus-visible {
 .da-login-mobile-brand {
   display: none;
   margin-bottom: 5px;
-  color: #1749ba;
+  color: #8fb7ff;
   font-family: 'Rajdhani', sans-serif;
   font-size: 13px;
   font-weight: 700;
@@ -553,17 +555,18 @@ textarea:focus-visible {
   gap: 4px;
   margin-bottom: 22px;
   padding: 4px;
-  border: 1px solid rgba(71, 85, 105, 0.22);
+  border: 1px solid rgba(195, 220, 242, 0.16);
   border-radius: 10px;
-  background: rgba(30, 53, 76, 0.08);
-  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+  background: rgba(1, 11, 22, 0.30);
+  box-shadow: inset 0 1px 3px rgba(0, 7, 16, 0.34);
 }
 
 .da-login-tabs button {
   min-width: 0;
   overflow: hidden;
   border-radius: 7px;
-  color: #3f5065;
+  border: 1px solid transparent;
+  color: #c5d3e1;
   background: transparent;
   font-size: 12px;
   font-weight: 650;
@@ -573,13 +576,14 @@ textarea:focus-visible {
 }
 
 .da-login-tabs button.is-active {
-  color: #1749ba;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 2px 8px rgba(15, 38, 65, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  border-color: rgba(155, 193, 255, 0.26);
+  color: #f4f8ff;
+  background: linear-gradient(135deg, rgba(70, 118, 197, 0.46), rgba(38, 82, 153, 0.34));
+  box-shadow: 0 3px 12px rgba(0, 10, 24, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.17);
 }
 
 .da-login-tabs button:focus-visible {
-  outline-color: #1749ba;
+  outline-color: #82afff;
   outline-offset: 1px;
 }
 
@@ -666,22 +670,97 @@ textarea:focus-visible {
   font-size: 12px;
 }
 
+.da-login-card .da-field-label {
+  color: #d8e4ef;
+}
+
+.da-login-card .da-input-shell {
+  border-color: rgba(190, 216, 239, 0.24);
+  background: rgba(224, 239, 251, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.da-login-card .da-input-shell:hover {
+  border-color: rgba(190, 216, 239, 0.38);
+  background: rgba(224, 239, 251, 0.14);
+}
+
+.da-login-card .da-input-shell:focus-within {
+  border-color: #79a9ff;
+  background: rgba(224, 239, 251, 0.17);
+  box-shadow: 0 0 0 3px rgba(82, 137, 238, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.da-login-card .da-input-icon {
+  border-right-color: rgba(190, 216, 239, 0.15);
+  color: #b9cde0;
+  background: rgba(203, 225, 243, 0.08);
+}
+
+.da-login-card .da-input {
+  color: #f3f8fc;
+  caret-color: #9fc1ff;
+}
+
+.da-login-card .da-input::placeholder {
+  color: #91a5b8;
+}
+
+.da-login-card .da-password-toggle {
+  color: #b9cde0;
+}
+
+.da-login-card .da-password-toggle:hover {
+  color: #f4f8fc;
+  background: rgba(207, 228, 246, 0.12);
+}
+
+.da-login-card .da-form-error {
+  border-color: rgba(252, 165, 165, 0.32);
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.34);
+}
+
+.da-login-card select.da-input {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23d7e5f2' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+}
+
+.da-login-card select.da-input option {
+  color: #edf5fc;
+  background: #11283d;
+}
+
+.da-login-card input:-webkit-autofill,
+.da-login-card input:-webkit-autofill:hover,
+.da-login-card input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f3f8fc;
+  box-shadow: 0 0 0 1000px rgba(29, 55, 78, 0.96) inset;
+  caret-color: #9fc1ff;
+}
+
+.da-request-success {
+  border: 1px solid rgba(110, 231, 183, 0.26);
+  color: #d1fae5;
+  background: rgba(6, 78, 59, 0.34);
+  box-shadow: inset 0 1px 0 rgba(209, 250, 229, 0.08);
+}
+
 .da-login-card .da-input:not(.da-input-embedded) {
-  border-color: rgba(71, 85, 105, 0.28);
-  color: #172033;
-  background-color: rgba(255, 255, 255, 0.70);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  border-color: rgba(190, 216, 239, 0.24);
+  color: #f3f8fc;
+  background-color: rgba(224, 239, 251, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 .da-login-card .da-input:not(.da-input-embedded):hover {
-  border-color: rgba(44, 62, 85, 0.42);
-  background-color: rgba(255, 255, 255, 0.80);
+  border-color: rgba(190, 216, 239, 0.38);
+  background-color: rgba(224, 239, 251, 0.14);
 }
 
 .da-login-card .da-input:not(.da-input-embedded):focus {
-  border-color: #2157d5;
-  background-color: rgba(255, 255, 255, 0.90);
-  box-shadow: 0 0 0 3px rgba(33, 87, 213, 0.16);
+  border-color: #79a9ff;
+  background-color: rgba(224, 239, 251, 0.17);
+  box-shadow: 0 0 0 3px rgba(82, 137, 238, 0.24);
 }
 
 .da-login-card .da-btn-primary {
@@ -696,8 +775,15 @@ textarea:focus-visible {
 }
 
 .da-login-card .da-btn-ghost {
-  border-color: rgba(71, 85, 105, 0.24);
-  background: rgba(255, 255, 255, 0.66);
+  border-color: rgba(190, 216, 239, 0.22);
+  color: #e4edf6;
+  background: rgba(213, 232, 247, 0.10);
+}
+
+.da-login-card .da-btn-ghost:hover {
+  border-color: rgba(190, 216, 239, 0.38);
+  color: #ffffff;
+  background: rgba(213, 232, 247, 0.17);
 }
 
 .da-login-card .da-btn:disabled {
@@ -706,13 +792,13 @@ textarea:focus-visible {
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .da-login-card {
-    background: rgba(241, 247, 253, 0.97);
+    background: rgba(8, 26, 45, 0.96);
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
   .da-login-card {
-    background: rgba(241, 247, 253, 0.98);
+    background: rgba(8, 26, 45, 0.97);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }

@@ -207,7 +207,7 @@ export default function LoginScreen() {
           ) : (
             <form onSubmit={submitRequest} className="flex flex-col gap-3">
               {submitted ? (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                <div className="da-request-success rounded-lg p-4 text-sm">
                   <div className="mb-3 flex items-center gap-2 font-semibold">
                     <CheckCircle2 size={17} /> Request queued for review
                   </div>

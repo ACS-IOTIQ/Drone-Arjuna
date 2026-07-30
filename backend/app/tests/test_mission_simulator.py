@@ -1,13 +1,13 @@
 """
-Unit tests for the mission simulator's state machine and physics tick.
+Unit tests for the mission simulator's state machine, Mission Planner bridge,
+and physics tick.
 
-Unlike test_drone_control_api.py (which exercises simulate/start & simulate/stop
-through the HTTP API), these tests drive `_SimulatedFlight` directly — calling
-`_handle_cmd`, `_tick`, `_apply_manual_velocity`, `_enter_rtl` and the geometry
-helpers without going through the async `_run()` loop, the API layer, or a real
-StateManager/MAVLink stack.
+Unlike test_drone_control_api.py (which exercises simulate/start and
+simulate/stop through the HTTP API), these tests drive _SimulatedFlight
+directly without going through the API layer or a real MAVLink socket.
 """
 import math
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -22,22 +22,67 @@ from app.modules.drone_control.mission_simulator import (
 
 
 def make_flight() -> _SimulatedFlight:
-    """A bare _SimulatedFlight with no StateManager/MAVLink wiring — safe for
-    unit-level state-machine/physics tests that never call start()/_push()."""
+    """A bare _SimulatedFlight with no StateManager/MAVLink wiring."""
     flight = _SimulatedFlight()
     flight.lat = 12.9716
     flight.lon = 77.5946
     return flight
 
 
-# ── Geometry helpers ───────────────────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_simulated_flight_pushes_state_to_mission_planner_broadcaster():
+    flight = make_flight()
+    state_mgr = MagicMock()
+    state_mgr.init_drone = MagicMock()
+    state_mgr.update = AsyncMock()
+
+    with patch("app.modules.drone_control.mavlink_broadcaster.mavlink_broadcaster") as mock_broadcaster:
+        await flight.start(
+            drone_id=7,
+            call_sign="SIM-07",
+            waypoints=[{
+                "sequence": 1,
+                "latitude": 12.9816,
+                "longitude": 77.6046,
+                "altitude_m": 40.0,
+                "speed_ms": 10.0,
+                "action": "none",
+            }],
+            home_lat=12.9716,
+            home_lon=77.5946,
+            state_mgr=state_mgr,
+            mavlink_system_id=23,
+            mission_id=901,
+        )
+
+        try:
+            await flight._push()
+        finally:
+            await flight.stop()
+
+        mock_broadcaster.set_command_handler.assert_called_once()
+        set_handler_args = mock_broadcaster.set_command_handler.call_args.args
+        assert set_handler_args[0] == 7
+        assert callable(set_handler_args[1])
+
+        state_mgr.update.assert_awaited_once()
+        mock_broadcaster.send.assert_called_once()
+
+        send_args = mock_broadcaster.send.call_args.args
+        assert send_args[0] == 7
+        assert send_args[1] == 23
+        assert send_args[2]["call_sign"] == "SIM-07"
+        assert send_args[2]["mission_id"] == 901
+        assert send_args[2]["sim_phase"] == SimPhase.IDLE.value
+        assert send_args[2]["home_lat"] == pytest.approx(12.9716)
+        assert send_args[2]["home_lon"] == pytest.approx(77.5946)
+
 
 def test_haversine_same_point_is_zero():
     assert _haversine_m(12.9716, 77.5946, 12.9716, 77.5946) == pytest.approx(0.0, abs=1e-6)
 
 
 def test_haversine_known_distance():
-    # Roughly 1 degree of latitude ~ 111.19 km at the equator/mid-latitudes.
     dist = _haversine_m(0.0, 0.0, 1.0, 0.0)
     assert dist == pytest.approx(111_195, rel=0.01)
 
@@ -73,8 +118,6 @@ def test_move_toward_east_increases_longitude():
     assert lon > 77.0
     assert lat == pytest.approx(12.0, abs=1e-4)
 
-
-# ── State machine: arm / disarm ─────────────────────────────────────────────
 
 def test_arm_succeeds_only_from_idle():
     flight = make_flight()
@@ -119,8 +162,6 @@ def test_disarm_rejected_from_flying():
     assert flight.is_armed is True
 
 
-# ── State machine: takeoff ──────────────────────────────────────────────────
-
 def test_takeoff_succeeds_from_idle_and_sets_target_alt():
     flight = make_flight()
     flight._handle_cmd("takeoff", {"altitude": 45.0})
@@ -151,8 +192,6 @@ def test_takeoff_rejected_from_flying():
     assert flight.phase == SimPhase.FLYING
 
 
-# ── State machine: set_mode RTL / LAND ──────────────────────────────────────
-
 def test_set_mode_rtl_always_triggers_enter_rtl():
     flight = make_flight()
     flight.phase = SimPhase.FLYING
@@ -163,7 +202,6 @@ def test_set_mode_rtl_always_triggers_enter_rtl():
     flight.wp_idx = 1
     flight._handle_cmd("set_mode", {"mode": "RTL"})
     assert flight.phase == SimPhase.RTL
-    # shortest_path=True (default from _handle_cmd's set_mode branch) clears the route.
     assert flight._rtl_route == []
 
 
@@ -173,8 +211,6 @@ def test_set_mode_land_transitions_to_landing():
     flight._handle_cmd("set_mode", {"mode": "LAND"})
     assert flight.phase == SimPhase.LANDING
 
-
-# ── State machine: emergency_stop ───────────────────────────────────────────
 
 def test_emergency_stop_forces_landed_and_zeroes_state():
     flight = make_flight()
@@ -195,8 +231,6 @@ def test_emergency_stop_forces_landed_and_zeroes_state():
     assert flight.alt == 0.0
 
 
-# ── _tick physics: TAKEOFF → FLYING ─────────────────────────────────────────
-
 def test_tick_takeoff_climbs_toward_target_alt():
     flight = make_flight()
     flight.phase = SimPhase.TAKEOFF
@@ -212,8 +246,6 @@ def test_tick_takeoff_reaches_target_and_transitions_to_flying():
     flight.phase = SimPhase.TAKEOFF
     flight._target_alt = 5.0
     flight.alt = 0.0
-    # Climb rate is CLIMB_MS(2.5) * speed_mult(1.0) per second; run enough
-    # ticks at dt=0.1s to comfortably exceed the small target altitude.
     for _ in range(50):
         flight._tick(0.1)
         if flight.phase != SimPhase.TAKEOFF:
@@ -222,13 +254,9 @@ def test_tick_takeoff_reaches_target_and_transitions_to_flying():
     assert flight.alt == pytest.approx(5.0)
 
 
-# ── _tick physics: FLYING waypoint advance ──────────────────────────────────
-
 def test_tick_flying_advances_waypoint_index_when_within_radius():
     flight = make_flight()
     flight.phase = SimPhase.FLYING
-    # Waypoint essentially co-located with the current position (well within
-    # WP_RADIUS_M) and at the same altitude, so a single tick should arrive.
     flight.waypoints = [
         {"latitude": flight.lat + 1e-7, "longitude": flight.lon, "altitude_m": flight.alt},
         {"latitude": flight.lat + 0.01, "longitude": flight.lon, "altitude_m": 30.0},
@@ -250,8 +278,6 @@ def test_tick_flying_holds_at_paused_when_mission_complete():
     assert flight.phase == SimPhase.PAUSED
 
 
-# ── _tick physics: LANDING → LANDED ─────────────────────────────────────────
-
 def test_tick_landing_reduces_alt_to_zero_and_lands():
     flight = make_flight()
     flight.phase = SimPhase.LANDING
@@ -266,8 +292,6 @@ def test_tick_landing_reduces_alt_to_zero_and_lands():
     assert flight.is_armed is False
 
 
-# ── _apply_manual_velocity ──────────────────────────────────────────────────
-
 def test_apply_manual_velocity_moves_and_expires():
     import time
 
@@ -280,9 +304,8 @@ def test_apply_manual_velocity_moves_and_expires():
     start_lat = flight.lat
     moved = flight._apply_manual_velocity(0.1)
     assert moved is True
-    assert flight.lat > start_lat  # vx is "north" component
+    assert flight.lat > start_lat
 
-    # Once _manual_until has passed, velocity is cleared and no movement happens.
     flight._manual_until = time.monotonic() - 1.0
     moved_again = flight._apply_manual_velocity(0.1)
     assert moved_again is False
@@ -290,8 +313,6 @@ def test_apply_manual_velocity_moves_and_expires():
     assert flight._manual_vy == 0.0
     assert flight._manual_vz == 0.0
 
-
-# ── _enter_rtl ───────────────────────────────────────────────────────────────
 
 def test_enter_rtl_shortest_path_clears_route():
     flight = make_flight()
@@ -312,11 +333,10 @@ def test_enter_rtl_retrace_builds_reversed_route_from_visited_waypoints():
         {"latitude": 12.91, "longitude": 77.51, "altitude_m": 20.0},
         {"latitude": 12.92, "longitude": 77.52, "altitude_m": 30.0},
     ]
-    flight.wp_idx = 2  # first two waypoints visited
+    flight.wp_idx = 2
     flight._enter_rtl(shortest_path=False)
     assert flight.phase == SimPhase.RTL
     assert len(flight._rtl_route) == 2
-    # Reversed order of the visited waypoints: wp[1] then wp[0].
     assert flight._rtl_route[0]["latitude"] == pytest.approx(12.91)
     assert flight._rtl_route[0]["longitude"] == pytest.approx(77.51)
     assert flight._rtl_route[1]["latitude"] == pytest.approx(12.90)
@@ -333,8 +353,6 @@ def test_enter_rtl_retrace_with_no_visited_waypoints_is_empty():
     assert flight.phase == SimPhase.RTL
     assert flight._rtl_route == []
 
-
-# ── SimulationManager with no registered flights ────────────────────────────
 
 def test_manager_is_active_false_when_no_flights():
     manager = SimulationManager()
@@ -359,14 +377,12 @@ def test_manager_get_status_specific_drone_returns_none_when_absent():
 @pytest.mark.asyncio
 async def test_manager_command_is_noop_when_flight_absent():
     manager = SimulationManager()
-    # Should not raise even though drone_id 7 was never started.
     await manager.command(7, "arm", {})
 
 
 @pytest.mark.asyncio
 async def test_manager_stop_is_noop_when_flight_absent():
     manager = SimulationManager()
-    # Should not raise even though drone_id 7 was never started.
     await manager.stop(7)
 
 
@@ -376,8 +392,6 @@ async def test_manager_stop_all_returns_empty_when_no_flights():
     stopped = await manager.stop_all()
     assert stopped == []
 
-
-# ── get_status on an un-started flight ──────────────────────────────────────
 
 def test_flight_get_status_defaults():
     flight = _SimulatedFlight()

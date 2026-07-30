@@ -7,7 +7,7 @@ from app.modules.drone_control.state_manager import StateManager
 pytestmark = pytest.mark.asyncio
 
 
-async def test_proximity_alert_requires_manual_control_below_200m():
+async def test_proximity_alert_requires_manual_control_below_250m():
     state = StateManager()
     state.init_drone(1, "ALPHA")
     state.init_drone(2, "BRAVO")

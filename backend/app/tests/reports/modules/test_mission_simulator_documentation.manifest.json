@@ -1,5 +1,5 @@
 {
-  "fingerprint": "c53e0b6371ee32f669735301dfb63ab5291c5194ce74c6ba7fb81179b2f9fabe",
+  "fingerprint": "ad42fcfd2d871c05989dc92a0438274d6fe59d23b28ecda7b07d10296f87092e",
   "nodeids": [
     "app/tests/test_mission_simulator.py::test_apply_manual_velocity_moves_and_expires",
     "app/tests/test_mission_simulator.py::test_arm_rejected_when_not_idle",
@@ -29,6 +29,7 @@
     "app/tests/test_mission_simulator.py::test_move_toward_north_increases_latitude",
     "app/tests/test_mission_simulator.py::test_set_mode_land_transitions_to_landing",
     "app/tests/test_mission_simulator.py::test_set_mode_rtl_always_triggers_enter_rtl",
+    "app/tests/test_mission_simulator.py::test_simulated_flight_pushes_state_to_mission_planner_broadcaster",
     "app/tests/test_mission_simulator.py::test_takeoff_rejected_from_flying",
     "app/tests/test_mission_simulator.py::test_takeoff_succeeds_from_armed",
     "app/tests/test_mission_simulator.py::test_takeoff_succeeds_from_idle_and_sets_target_alt",

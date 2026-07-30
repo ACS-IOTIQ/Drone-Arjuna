@@ -36,11 +36,17 @@ export default function FlyWorkspace() {
   const simulatingDrones = instances.filter(
     drone => connections[drone.id]?.transport === 'simulation',
   )
+  const simulatingDroneIds = new Set(simulatingDrones.map(drone => drone.id))
   const selectedSimulationExists = simulatingDrones.some(drone => drone.id === selectedDroneId)
   const activeDroneId = selectedSimulationExists ? selectedDroneId : simulatingDrones[0]?.id ?? null
   const manualShiftAlert = simulatingDrones
     .map(drone => ({ drone, frame: frames[drone.id] }))
-    .find(({ frame }) => frame?.manual_control_required && frame?.proximity_alert) ?? null
+    .find(({ drone, frame }) => {
+      if (!frame?.manual_control_required || !frame?.proximity_alert) return false
+      if (frame.proximity_intruder_drone_id == null) return false
+      if (frame.proximity_intruder_drone_id === drone.id) return false
+      return simulatingDroneIds.has(frame.proximity_intruder_drone_id)
+    }) ?? null
 
   useEffect(() => {
     if (simulatingDrones.length > 0) setHasEverSimulated(true)
@@ -155,7 +161,7 @@ export default function FlyWorkspace() {
                   <strong>Shift to manual control</strong>
                   <div>
                     {manualShiftAlert.drone.call_sign} is within{' '}
-                    {manualShiftAlert.frame?.proximity_distance_m?.toFixed(1) ?? '200.0'} m of Drone #
+                    {manualShiftAlert.frame?.proximity_distance_m?.toFixed(1) ?? '250.0'} m of Drone #
                     {manualShiftAlert.frame?.proximity_intruder_drone_id ?? 'unknown'}.
                   </div>
                 </div>

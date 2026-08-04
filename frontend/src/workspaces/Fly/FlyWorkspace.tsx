@@ -19,7 +19,7 @@ const PANEL_LABELS: Record<FlightPanel, string> = {
 
 export default function FlyWorkspace() {
   const { instances, connections, fetchConnections, fetchInstances } = useFleetStore()
-  const { subscribe, frames } = useTelemetryStore()
+  const { subscribe, clearDrone, frames } = useTelemetryStore()
 
   const [selectedDroneId, setSelectedDroneId] = useState<number | null>(null)
   const [activePanel, setActivePanel] = useState<FlightPanel | null>(null)
@@ -34,7 +34,7 @@ export default function FlyWorkspace() {
   }, [])
 
   const simulatingDrones = instances.filter(
-    drone => connections[drone.id]?.transport === 'simulation',
+    drone => connections[drone.id]?.connected && connections[drone.id]?.transport === 'simulation',
   )
   const simulatingDroneIds = new Set(simulatingDrones.map(drone => drone.id))
   const selectedSimulationExists = simulatingDrones.some(drone => drone.id === selectedDroneId)
@@ -67,6 +67,7 @@ export default function FlyWorkspace() {
   const activeDrone = instances.find(drone => drone.id === activeDroneId) ?? null
 
   const handleSimStopped = async () => {
+    if (activeDroneId) clearDrone(activeDroneId)
     await fetchConnections()
     setSelectedDroneId(null)
     setActivePanel(null)

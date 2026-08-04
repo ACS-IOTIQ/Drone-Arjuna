@@ -52,7 +52,7 @@ export interface AutoConnectPayload {
 
 export const droneControlApi = {
   // ── Connection management ───────────────────────────────────
-  status:      ()                          => api.get('/api/drone-control/status'),
+  status:      ()                          => api.get('/api/drone-control/status', { timeout: 20000 }),
   connect:     (p: ConnectPayload)         => api.post('/api/drone-control/connect', p),
   disconnect:  (id: number)               => api.post(`/api/drone-control/disconnect/${id}`),
 
@@ -92,9 +92,15 @@ export const droneControlApi = {
   // ── Simulation ──────────────────────────────────────────────
   // Multiple drones can simulate concurrently — pass droneId to scope
   // stop/status to one drone; omit to affect/list all of them.
-  simulateStart:  (p: SimStartPayload)      => api.post('/api/drone-control/simulate/start', p),
+  simulateStart:  (p: SimStartPayload)      => api.post('/api/drone-control/simulate/start', p, { timeout: 30000 }),
   simulateStop:   (droneId?: number)        =>
-    api.delete('/api/drone-control/simulate/stop', droneId != null ? { params: { drone_id: droneId } } : undefined),
+    api.delete('/api/drone-control/simulate/stop', {
+      ...(droneId != null ? { params: { drone_id: droneId } } : {}),
+      timeout: 30000,
+    }),
   simulateStatus: (droneId?: number)        =>
-    api.get('/api/drone-control/simulate/status', droneId != null ? { params: { drone_id: droneId } } : undefined),
+    api.get('/api/drone-control/simulate/status', {
+      ...(droneId != null ? { params: { drone_id: droneId } } : {}),
+      timeout: 30000,
+    }),
 }

@@ -5,6 +5,7 @@
 import { create } from 'zustand'
 import { droneControlApi } from '@/api/droneControl'
 import { droneMasterApi } from '@/api/droneMaster'
+import { useTelemetryStore } from '@/store/telemetryStore'
 
 export interface DroneInstance {
   id: number
@@ -35,6 +36,7 @@ interface FleetState {
   instances: DroneInstance[]
   connections: Record<number, ConnectionInfo>
   isLoading: boolean
+  connectionFetchFailures: number
   fetchInstances: () => Promise<void>
   fetchConnections: () => Promise<void>
 }
@@ -71,10 +73,11 @@ export function sortDronesByActivity(
   })
 }
 
-export const useFleetStore = create<FleetState>((set) => ({
+export const useFleetStore = create<FleetState>((set, get) => ({
   instances: [],
   connections: {},
   isLoading: false,
+  connectionFetchFailures: 0,
 
   fetchInstances: async () => {
     set({ isLoading: true })
@@ -99,15 +102,40 @@ export const useFleetStore = create<FleetState>((set) => ({
           }
         }
       }
+      const previousConnections = get().connections
+      Object.entries(previousConnections).forEach(([id, connection]) => {
+        const droneId = Number(id)
+        const nextConnection = conns[droneId]
+        if (
+          connection.connected &&
+          connection.transport === 'simulation' &&
+          (!nextConnection?.connected || nextConnection.transport !== 'simulation')
+        ) {
+          useTelemetryStore.getState().clearDrone(droneId)
+        }
+      })
       set(state => ({
         connections: conns,
         instances: sortDronesByActivity(state.instances, conns),
+        connectionFetchFailures: 0,
       }))
     } catch {
-      // Do not leave stale drones looking online when the live-status API fails.
+      const failures = get().connectionFetchFailures + 1
+      if (failures < 3) {
+        set({ connectionFetchFailures: failures })
+        return
+      }
+
+      Object.entries(get().connections).forEach(([id, connection]) => {
+        if (connection.connected && connection.transport === 'simulation') {
+          useTelemetryStore.getState().clearDrone(Number(id))
+        }
+      })
+
       set(state => ({
         connections: {},
         instances: sortDronesByActivity(state.instances, {}),
+        connectionFetchFailures: failures,
       }))
     }
   },

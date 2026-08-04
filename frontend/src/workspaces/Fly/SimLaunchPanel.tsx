@@ -15,7 +15,7 @@ interface DroneType { id: number; name: string; manufacturer: string; model: str
 export default function SimLaunchPanel({ onStarted, onClose }: Props) {
   const { missions, fetchMissions } = useMissionStore()
   const { instances, connections, fetchInstances, fetchConnections } = useFleetStore()
-  const availableDrones = instances.filter(d => !connections[d.id])
+  const availableDrones = instances.filter(d => !connections[d.id]?.connected)
 
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
   const [types, setTypes] = useState<DroneType[]>([])

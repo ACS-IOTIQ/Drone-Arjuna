@@ -300,6 +300,7 @@ interface TelemetryState {
   history: Record<number, TelemetryFrame[]>   // last 300 frames per drone
   subscribe:   (droneId: number) => void
   unsubscribe: (droneId: number) => void
+  clearDrone:   (droneId: number) => void
 }
 
 export const useTelemetryStore = create<TelemetryState>((set, get) => ({
@@ -351,6 +352,16 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     set(s => {
       const { [droneId]: _, ...socks } = s.sockets
       return { sockets: socks }
+    })
+  },
+
+  clearDrone: (droneId) => {
+    get().sockets[droneId]?.close()
+    set(s => {
+      const { [droneId]: _socket, ...sockets } = s.sockets
+      const { [droneId]: _frame, ...frames } = s.frames
+      const { [droneId]: _history, ...history } = s.history
+      return { sockets, frames, history }
     })
   },
 }))

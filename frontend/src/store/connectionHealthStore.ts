@@ -32,6 +32,7 @@ export interface ConnectionChannel {
 interface ConnectionHealthState {
   channels: Map<string, ConnectionChannel>
   registerChannel: (id: string, name: string) => void
+  removeChannel: (id: string) => void
   updateChannelStatus: (id: string, status: ConnectionStatus) => void
   updateMetrics: (id: string, metrics: Partial<ConnectionMetrics>) => void
   getChannel: (id: string) => ConnectionChannel | undefined
@@ -67,16 +68,31 @@ export const useConnectionHealthStore = create<ConnectionHealthState>((set, get)
     })
   },
 
+  removeChannel: (id) => {
+    set(state => {
+      const newChannels = new Map(state.channels)
+      newChannels.delete(id)
+      return { channels: newChannels }
+    })
+  },
+
   updateChannelStatus: (id, status) => {
     set(state => {
       const newChannels = new Map(state.channels)
       const channel = newChannels.get(id)
       if (channel) {
+        const previousStatus = channel.status
         channel.status = status
         channel.lastUpdate = new Date()
-        
+        const quietTelemetryChannel = id.startsWith('telemetry-')
+
+        if (status === 'connected') channel.retries = 0
+
+        if (previousStatus === status || quietTelemetryChannel) {
+          return { channels: newChannels }
+        }
+
         if (status === 'connected') {
-          channel.retries = 0
           notify.success(`${channel.name} Connected`, `${channel.name} is online and responsive`)
           eventLog.connection(`${channel.name} Connected`, `${channel.name} established connection`, undefined, 'success')
         } else if (status === 'disconnected') {
@@ -141,7 +157,9 @@ export const useConnectionHealthStore = create<ConnectionHealthState>((set, get)
         if (ch) ch.retries++
         return { channels: newChannels }
       })
-      eventLog.connection(`Retrying ${channel.name}`, `Attempt ${channel.retries} of ${channel.maxRetries}`)
+      if (!id.startsWith('telemetry-')) {
+        eventLog.connection(`Retrying ${channel.name}`, `Attempt ${channel.retries} of ${channel.maxRetries}`)
+      }
     }
   },
 }))
@@ -180,7 +198,7 @@ export class RobustWebSocket {
   constructor(url: string, channelId: string) {
     this.url = url
     this.channelId = channelId
-    useConnectionHealthStore.getState().registerChannel(channelId, `WebSocket: ${url}`)
+    useConnectionHealthStore.getState().registerChannel(channelId, `Telemetry stream ${channelId.replace('telemetry-', '#')}`)
   }
 
   connect() {
@@ -207,7 +225,11 @@ export class RobustWebSocket {
 
       this.ws.onclose = () => {
         this.stopHeartbeat()
-        useConnectionHealthStore.getState().updateChannelStatus(this.channelId, 'disconnected')
+        if (this.shouldReconnect) {
+          useConnectionHealthStore.getState().updateChannelStatus(this.channelId, 'disconnected')
+        } else {
+          useConnectionHealthStore.getState().removeChannel(this.channelId)
+        }
         this.onCloseCallback?.()
         if (this.shouldReconnect) this.attemptReconnect()
       }

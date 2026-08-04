@@ -29,15 +29,16 @@ interface Props {
 
 export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloadName, stale = false, onRemove }: Props) {
   const frame = useTelemetryStore(s => s.frames[drone.id])
+  const liveFrame = connected ? frame : null
   const lastActivity = getDroneLastActivity(drone)
 
-  const battColor = !frame ? '#6b7280'
-    : frame.battery_remaining_pct > 50 ? '#22c55e'
-    : frame.battery_remaining_pct > 20 ? '#f59e0b' : '#ef4444'
+  const battColor = !liveFrame ? '#6b7280'
+    : liveFrame.battery_remaining_pct > 50 ? '#22c55e'
+    : liveFrame.battery_remaining_pct > 20 ? '#f59e0b' : '#ef4444'
 
   const modeColor = !connected ? '#374151'
-    : frame?.flight_mode === 'AUTO' ? '#22c55e'
-    : frame?.flight_mode?.includes('RTL') || frame?.flight_mode?.includes('LAND') ? '#f59e0b'
+    : liveFrame?.flight_mode === 'AUTO' ? '#22c55e'
+    : liveFrame?.flight_mode?.includes('RTL') || liveFrame?.flight_mode?.includes('LAND') ? '#f59e0b'
     : '#3b82f6'
 
   return (
@@ -47,7 +48,7 @@ export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloa
         <div>
           <div className="flex items-center gap-2">
             <span className="font-semibold">{drone.call_sign}</span>
-            {frame?.is_armed && (
+            {liveFrame?.is_armed && (
               <span className="da-badge" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
                 ARMED
               </span>
@@ -64,9 +65,9 @@ export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloa
           }}>
             {connected ? 'ONLINE' : 'OFFLINE'}
           </span>
-          {frame && (
+          {liveFrame && (
             <span className="da-badge text-[10px] mono" style={{ background: modeColor + '22', color: modeColor }}>
-              {frame.flight_mode}
+              {liveFrame.flight_mode}
             </span>
           )}
           {connectionInfo?.hf && (
@@ -76,21 +77,21 @@ export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloa
       </div>
 
       {/* Telemetry grid */}
-      {connected && frame ? (
+      {liveFrame ? (
         <div className="grid grid-cols-2 gap-2">
           <TelRow icon={<Battery size={12} />} label="Battery"
-            val={frame.battery_remaining_pct >= 0 ? `${frame.battery_remaining_pct}%` : 'N/A'}
+            val={liveFrame.battery_remaining_pct >= 0 ? `${liveFrame.battery_remaining_pct}%` : 'N/A'}
             color={battColor} />
           <TelRow icon={<Navigation size={12} />} label="Altitude"
-            val={`${frame.alt_agl.toFixed(1)} m AGL`} />
+            val={`${liveFrame.alt_agl.toFixed(1)} m AGL`} />
           <TelRow icon={<Gauge size={12} />} label="Speed"
-            val={`${frame.groundspeed_ms.toFixed(1)} m/s`} />
+            val={`${liveFrame.groundspeed_ms.toFixed(1)} m/s`} />
           <TelRow icon={<Satellite size={12} />} label="GPS"
-            val={`${frame.gps_satellites} sats · ${frame.gps_fix_type}`} />
+            val={`${liveFrame.gps_satellites} sats · ${liveFrame.gps_fix_type}`} />
           <TelRow icon={<Wifi size={12} />} label="RSSI"
-            val={`${frame.rssi}`} />
+            val={`${liveFrame.rssi}`} />
           <TelRow icon={<Gauge size={12} />} label="Heading"
-            val={`${frame.heading.toFixed(0)}°`} />
+            val={`${liveFrame.heading.toFixed(0)}°`} />
         </div>
       ) : (
         <div className="text-xs text-center py-4" style={{ color: '#374151' }}>
@@ -99,9 +100,9 @@ export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloa
       )}
 
       {/* Position */}
-      {frame && frame.lat !== 0 && (
+      {liveFrame && liveFrame.lat !== 0 && (
         <p className="text-[11px] mono" style={{ color: '#4b5563' }}>
-          {frame.lat.toFixed(6)}, {frame.lon.toFixed(6)}
+          {liveFrame.lat.toFixed(6)}, {liveFrame.lon.toFixed(6)}
         </p>
       )}
 

@@ -1,0 +1,24 @@
+{
+  "fingerprint": "e67f6462205599e1cab6902fc2d4c5d1ba86ed5ec3ef9708c04f60b076f10816",
+  "nodeids": [
+    "app/tests/test_hf_link_adapter.py::test_get_all_statuses_returns_status_for_every_registered_adapter",
+    "app/tests/test_hf_link_adapter.py::test_get_or_create_creates_distinct_adapters_per_drone_id",
+    "app/tests/test_hf_link_adapter.py::test_get_or_create_returns_same_instance_for_same_drone_id",
+    "app/tests/test_hf_link_adapter.py::test_get_status_reports_expected_fields",
+    "app/tests/test_hf_link_adapter.py::test_initial_state_is_connected",
+    "app/tests/test_hf_link_adapter.py::test_on_message_received_restores_connected_state_from_degraded",
+    "app/tests/test_hf_link_adapter.py::test_on_message_received_updates_last_rx_timestamp",
+    "app/tests/test_hf_link_adapter.py::test_remove_deletes_adapter_and_is_idempotent",
+    "app/tests/test_hf_link_adapter.py::test_run_tick_loop_ticks_all_registered_adapters",
+    "app/tests/test_hf_link_adapter.py::test_should_forward_critical_never_rate_limited",
+    "app/tests/test_hf_link_adapter.py::test_should_forward_high_priority_rate_limited",
+    "app/tests/test_hf_link_adapter.py::test_should_forward_low_priority_always_blocked",
+    "app/tests/test_hf_link_adapter.py::test_should_forward_medium_priority_rate_limited_independently_of_high",
+    "app/tests/test_hf_link_adapter.py::test_should_forward_unknown_message_type_defaults_to_low_and_is_blocked",
+    "app/tests/test_hf_link_adapter.py::test_tick_stays_connected_within_degraded_threshold",
+    "app/tests/test_hf_link_adapter.py::test_tick_transitions_to_degraded_after_threshold",
+    "app/tests/test_hf_link_adapter.py::test_tick_transitions_to_lost_after_lost_threshold",
+    "app/tests/test_hf_link_adapter.py::test_update_link_quality_logs_warning_on_poor_snr",
+    "app/tests/test_hf_link_adapter.py::test_update_link_quality_stores_snr_and_ber"
+  ]
+}

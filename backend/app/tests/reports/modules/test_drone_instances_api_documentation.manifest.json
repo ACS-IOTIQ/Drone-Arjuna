@@ -1,5 +1,5 @@
 {
-  "fingerprint": "256ae759813acd7bdc6f4d9e87a2f818b2c5170ec0c4a781b0080c3f946ba5a6",
+  "fingerprint": "b804732c40c42b6f3518c6e26268a383de997f49c8c69f313baa81b8f0984ca2",
   "nodeids": [
     "app/tests/test_drone_instances_api.py::test_assign_payload_drone_not_found_404",
     "app/tests/test_drone_instances_api.py::test_assign_payload_nonexistent_type_404",
@@ -17,12 +17,14 @@
     "app/tests/test_drone_instances_api.py::test_patch_drone_status_200",
     "app/tests/test_drone_instances_api.py::test_patch_drone_status_invalid_400",
     "app/tests/test_drone_instances_api.py::test_patch_drone_status_viewer_403",
+    "app/tests/test_drone_instances_api.py::test_recent_drone_cannot_be_removed_from_fleet_overview",
     "app/tests/test_drone_instances_api.py::test_register_drone_201",
     "app/tests/test_drone_instances_api.py::test_register_drone_duplicate_callsign_409",
     "app/tests/test_drone_instances_api.py::test_register_drone_duplicate_serial_409",
     "app/tests/test_drone_instances_api.py::test_register_drone_invalid_type_404",
     "app/tests/test_drone_instances_api.py::test_remove_drone_no_missions_200",
     "app/tests/test_drone_instances_api.py::test_remove_drone_unassigns_referencing_missions",
+    "app/tests/test_drone_instances_api.py::test_stale_drone_can_be_removed_from_fleet_overview",
     "app/tests/test_drone_instances_api.py::test_update_drone_notes_200",
     "app/tests/test_drone_instances_api.py::test_viewer_blocked_from_register_drone_403"
   ]

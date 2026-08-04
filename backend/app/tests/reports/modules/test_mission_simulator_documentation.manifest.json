@@ -1,5 +1,5 @@
 {
-  "fingerprint": "ad42fcfd2d871c05989dc92a0438274d6fe59d23b28ecda7b07d10296f87092e",
+  "fingerprint": "a50b42a7b673c3d4b912d55b032e48c4a6f9f49ba1d497e7422ec66061f1a3a7",
   "nodeids": [
     "app/tests/test_mission_simulator.py::test_apply_manual_velocity_moves_and_expires",
     "app/tests/test_mission_simulator.py::test_arm_rejected_when_not_idle",
@@ -8,6 +8,7 @@
     "app/tests/test_mission_simulator.py::test_bearing_due_north",
     "app/tests/test_mission_simulator.py::test_bearing_due_south",
     "app/tests/test_mission_simulator.py::test_bearing_due_west",
+    "app/tests/test_mission_simulator.py::test_collision_avoidance_moves_give_way_drone_clear_of_other_drone",
     "app/tests/test_mission_simulator.py::test_disarm_rejected_from_flying",
     "app/tests/test_mission_simulator.py::test_disarm_succeeds_from_armed",
     "app/tests/test_mission_simulator.py::test_disarm_succeeds_from_landed",

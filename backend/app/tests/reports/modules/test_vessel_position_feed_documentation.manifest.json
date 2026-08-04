@@ -1,0 +1,16 @@
+{
+  "fingerprint": "001b7339c19a2d59db5741f0fe2deb7888ab5f95d613f58753154739814e2ba8",
+  "nodeids": [
+    "app/tests/test_vessel_position_feed.py::test_handle_position_message_callback_exception_is_swallowed",
+    "app/tests/test_vessel_position_feed.py::test_handle_position_message_converts_units_and_invokes_callback",
+    "app/tests/test_vessel_position_feed.py::test_handle_position_message_heading_sentinel_is_none",
+    "app/tests/test_vessel_position_feed.py::test_handle_position_message_maps_correct_vessel_pk_from_boundary_ids",
+    "app/tests/test_vessel_position_feed.py::test_handle_position_message_no_callback_registered_does_not_raise",
+    "app/tests/test_vessel_position_feed.py::test_handle_position_message_unknown_system_id_is_noop",
+    "app/tests/test_vessel_position_feed.py::test_handle_position_message_zero_velocity_gives_zero_speed",
+    "app/tests/test_vessel_position_feed.py::test_is_vessel_sys_id_outside_range",
+    "app/tests/test_vessel_position_feed.py::test_is_vessel_sys_id_within_range",
+    "app/tests/test_vessel_position_feed.py::test_load_vessel_map_populates_and_replaces_mapping",
+    "app/tests/test_vessel_position_feed.py::test_register_update_callback_sets_module_global"
+  ]
+}

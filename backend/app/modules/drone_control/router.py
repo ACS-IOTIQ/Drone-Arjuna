@@ -710,10 +710,15 @@ async def telemetry_stream(drone_id: int, ws: WebSocket):
             pass
 
     async def _sender():
-        """Drains the queue and writes frames to the WebSocket."""
+        """Drains the queue and writes the latest frame to the WebSocket."""
         try:
             while True:
                 text = await queue.get()
+                while True:
+                    try:
+                        text = queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
                 await ws.send_text(text)
         except Exception:
             pass

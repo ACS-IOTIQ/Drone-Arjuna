@@ -21,9 +21,10 @@ from app.models.user import User, AccessRequest
 from app.schemas.user import (
     TokenOut, UserOut, UserCreate,
     AccessRequestCreate, AccessRequestOut, AcceptBody, RejectBody,
+    ForgotPasswordRequest, ResetPasswordRequest,
 )
 from app.core.security import PasswordPolicy, AuditLogger
-from app.core.email import send_approval_email
+from app.core.email import send_approval_email, send_password_reset_email, send_forgot_password_email
 from pydantic import BaseModel
 
 cfg = get_settings()
@@ -167,6 +168,98 @@ async def list_users(
         raise HTTPException(status_code=403, detail="Admin role required")
     result = await db.execute(select(User).order_by(User.id))
     return result.scalars().all()
+
+
+@router.post("/users/{user_id}/reset-password", status_code=200)
+async def reset_user_password(
+    user_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current: Annotated[User, Depends(get_current_user)],
+):
+    if current.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    if not cfg.smtp_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SMTP is disabled; password reset email cannot be sent",
+        )
+
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    temp_pwd = _make_temp_password()
+    user.hashed_password = hash_password(temp_pwd)
+    user.must_change_password = True
+    db.add(user)
+    await db.commit()
+
+    asyncio.create_task(
+        send_password_reset_email(
+            to_email=user.email,
+            full_name=user.full_name or user.username,
+            username=user.username,
+            temp_password=temp_pwd,
+        )
+    )
+    return {"message": f"Password reset email queued for {user.email}"}
+
+
+@router.post("/forgot-password", status_code=200)
+async def forgot_password(
+    body: ForgotPasswordRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Public endpoint — request a password-reset email for the given address."""
+    generic_response = {"message": "If that email is registered, a reset link has been sent."}
+
+    result = await db.execute(select(User).where(User.email == body.email))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active or not cfg.smtp_enabled:
+        return generic_response
+
+    token = secrets.token_urlsafe(32)
+    user.reset_token = token
+    user.reset_token_expires = datetime.now(timezone.utc) + timedelta(minutes=30)
+    db.add(user)
+    await db.commit()
+
+    reset_url = f"http://localhost:3000/reset-password?token={token}"
+    asyncio.create_task(
+        send_forgot_password_email(
+            to_email=user.email,
+            full_name=user.full_name or user.username,
+            reset_url=reset_url,
+        )
+    )
+    return generic_response
+
+
+@router.post("/reset-password", status_code=200)
+async def reset_password(
+    body: ResetPasswordRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Public endpoint — consume a reset token and set a new password."""
+    result = await db.execute(select(User).where(User.reset_token == body.token))
+    user = result.scalar_one_or_none()
+    if (
+        not user
+        or not user.reset_token_expires
+        or user.reset_token_expires < datetime.now(timezone.utc)
+    ):
+        raise HTTPException(status_code=400, detail="Reset link is invalid or has expired")
+
+    PasswordPolicy.enforce(body.new_password)
+    user.hashed_password = hash_password(body.new_password)
+    user.must_change_password = False
+    user.reset_token = None
+    user.reset_token_expires = None
+    db.add(user)
+    await db.commit()
+    await AuditLogger(db).user_password_changed(user.id)
+    return {"message": "Password updated. You can now sign in."}
 
 
 # ── Access Requests ───────────────────────────────────────────────

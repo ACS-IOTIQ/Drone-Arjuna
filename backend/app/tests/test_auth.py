@@ -213,9 +213,82 @@ async def test_setup_password_updates_credentials(
     assert login.status_code == 200
 
 
-# ═══════════════════════════════════════════════════════════════════════
+async def test_admin_can_send_user_password_reset_email(
+    client: AsyncClient, admin_user, make_token, monkeypatch
+):
+    from app.models.user import User
+    from app.tests.conftest import _TestSession
+    from app import core as app_core
+
+    monkeypatch.setattr(app_core.auth.cfg, "smtp_enabled", True)
+
+    async with _TestSession() as session:
+        new_user = User(
+            username="reset_user",
+            email="reset_user@example.com",
+            hashed_password="fakehash",
+            full_name="Reset User",
+            role="viewer",
+            is_active=True,
+            must_change_password=False,
+        )
+        session.add(new_user)
+        await session.commit()
+        await session.refresh(new_user)
+        user_id = new_user.id
+
+    token = make_token(admin_user.id, admin_user.role)
+    resp = await client.post(
+        f"/api/auth/users/{user_id}/reset-password",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 200
+    assert "Password reset email queued" in resp.json()["message"]
+
+    async with _TestSession() as session:
+        saved = await session.get(User, user_id)
+        assert saved is not None
+        assert saved.must_change_password is True
+
+
+async def test_admin_reset_password_fails_when_smtp_disabled(
+    client: AsyncClient, admin_user, make_token, monkeypatch
+):
+    from app.models.user import User
+    from app.tests.conftest import _TestSession
+    from app import core as app_core
+
+    monkeypatch.setattr(app_core.auth.cfg, "smtp_enabled", False)
+
+    async with _TestSession() as session:
+        new_user = User(
+            username="reset_user_disabled",
+            email="reset_user_disabled@example.com",
+            hashed_password="fakehash",
+            full_name="Reset Disabled",
+            role="viewer",
+            is_active=True,
+            must_change_password=False,
+        )
+        session.add(new_user)
+        await session.commit()
+        await session.refresh(new_user)
+        user_id = new_user.id
+
+    token = make_token(admin_user.id, admin_user.role)
+    resp = await client.post(
+        f"/api/auth/users/{user_id}/reset-password",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "SMTP is disabled; password reset email cannot be sent"
+
+
+# ═══════════════════════════════════════════════════════════════
 # 4. Token expiry
-# ═══════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════
 
 async def test_expired_token_is_401(
     client: AsyncClient, admin_user, make_expired_token

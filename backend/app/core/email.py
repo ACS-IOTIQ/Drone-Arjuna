@@ -138,6 +138,153 @@ def _build_message(
     return msg
 
 
+def _build_password_reset_message(
+    to_email: str,
+    full_name: str,
+    username: str,
+    temp_password: str,
+) -> MIMEMultipart:
+    cfg = get_settings()
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"[DroneArjuna] Password reset request"
+    msg["From"] = cfg.smtp_from
+    msg["To"] = to_email
+
+    plain = f"""
+Hello {full_name},
+
+An administrator has requested a password reset for your DroneArjuna account.
+
+Username: {username}
+Temporary password: {temp_password}
+
+Please sign in at http://localhost:3000 and set a new permanent password.
+
+If you did not request this reset, contact your administrator immediately.
+"""
+
+    html = f"""
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; color: #334155;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 24px;">
+    <h2 style="color: #0f172a;">DroneArjuna password reset request</h2>
+    <p>Hello {full_name},</p>
+    <p>An administrator has requested a password reset for your DroneArjuna account.</p>
+    <table style="width:100%; border-collapse: collapse; margin: 16px 0;">
+      <tr><td style="padding: 8px; border: 1px solid #e2e8f0;"><strong>Username</strong></td><td style="padding: 8px; border: 1px solid #e2e8f0;">{username}</td></tr>
+      <tr><td style="padding: 8px; border: 1px solid #e2e8f0;"><strong>Temporary password</strong></td><td style="padding: 8px; border: 1px solid #e2e8f0;"><code>{temp_password}</code></td></tr>
+    </table>
+    <p>Please sign in at <a href="http://localhost:3000">DroneArjuna</a> and set a new permanent password.</p>
+    <p>If you did not request this reset, contact your administrator immediately.</p>
+  </div>
+</body>
+</html>
+"""
+
+    msg.attach(MIMEText(plain, "plain"))
+    msg.attach(MIMEText(html, "html"))
+    return msg
+
+
+async def send_password_reset_email(
+    to_email: str,
+    full_name: str,
+    username: str,
+    temp_password: str,
+) -> None:
+    cfg = get_settings()
+
+    if not cfg.smtp_enabled:
+        log.warning("password_reset_email_skipped", reason="SMTP_ENABLED=false", to=to_email)
+        return
+
+    msg = _build_password_reset_message(to_email, full_name, username, temp_password)
+
+    send_kwargs: dict = {
+        "hostname": cfg.smtp_host,
+        "port": cfg.smtp_port,
+    }
+    if cfg.smtp_user and cfg.smtp_password:
+        send_kwargs["username"] = cfg.smtp_user
+        send_kwargs["password"] = cfg.smtp_password
+        send_kwargs["start_tls"] = cfg.smtp_use_tls  # MailHog has no TLS; real SMTP needs it
+
+    try:
+        await aiosmtplib.send(msg, **send_kwargs)
+        log.info("password_reset_email_sent", to=to_email, username=username)
+    except Exception as exc:
+        log.error("password_reset_email_failed", to=to_email, error=str(exc))
+
+
+def _build_forgot_password_message(to_email: str, full_name: str, reset_url: str) -> MIMEMultipart:
+    cfg = get_settings()
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "[DroneArjuna] Reset your password"
+    msg["From"] = cfg.smtp_from
+    msg["To"] = to_email
+
+    plain = f"""
+Hello {full_name},
+
+We received a request to reset the password for your DroneArjuna account.
+
+Click the link below to choose a new password. This link expires in 30 minutes:
+{reset_url}
+
+If you did not request this, you can safely ignore this email — your password will not change.
+"""
+
+    html = f"""
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; color: #334155;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 24px;">
+    <h2 style="color: #0f172a;">Reset your DroneArjuna password</h2>
+    <p>Hello {full_name},</p>
+    <p>We received a request to reset the password for your DroneArjuna account.</p>
+    <div style="text-align:center;margin:24px 0">
+      <a href="{reset_url}" style="display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;
+        font-size:14px;font-weight:600;padding:12px 28px;border-radius:6px">Reset Password</a>
+    </div>
+    <p style="font-size:12px;color:#64748b">This link expires in 30 minutes. If you did not request this,
+    you can safely ignore this email — your password will not change.</p>
+  </div>
+</body>
+</html>
+"""
+
+    msg.attach(MIMEText(plain, "plain"))
+    msg.attach(MIMEText(html, "html"))
+    return msg
+
+
+async def send_forgot_password_email(to_email: str, full_name: str, reset_url: str) -> None:
+    """Send a self-service password-reset link. Silently skipped if SMTP is disabled."""
+    cfg = get_settings()
+
+    if not cfg.smtp_enabled:
+        log.warning("forgot_password_email_skipped", reason="SMTP_ENABLED=false", to=to_email)
+        return
+
+    msg = _build_forgot_password_message(to_email, full_name, reset_url)
+
+    send_kwargs: dict = {
+        "hostname": cfg.smtp_host,
+        "port": cfg.smtp_port,
+    }
+    if cfg.smtp_user and cfg.smtp_password:
+        send_kwargs["username"] = cfg.smtp_user
+        send_kwargs["password"] = cfg.smtp_password
+        send_kwargs["start_tls"] = cfg.smtp_use_tls  # MailHog has no TLS; real SMTP needs it
+
+    try:
+        await aiosmtplib.send(msg, **send_kwargs)
+        log.info("forgot_password_email_sent", to=to_email)
+    except Exception as exc:
+        log.error("forgot_password_email_failed", to=to_email, error=str(exc))
+
+
 async def send_approval_email(
     to_email: str,
     full_name: str,
@@ -162,7 +309,7 @@ async def send_approval_email(
     if cfg.smtp_user and cfg.smtp_password:
         send_kwargs["username"] = cfg.smtp_user
         send_kwargs["password"] = cfg.smtp_password
-        send_kwargs["start_tls"] = True   # required for Gmail / real SMTP
+        send_kwargs["start_tls"] = cfg.smtp_use_tls  # MailHog has no TLS; real SMTP needs it
 
     try:
         await aiosmtplib.send(msg, **send_kwargs)

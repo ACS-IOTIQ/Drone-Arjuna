@@ -115,6 +115,16 @@ export function UserManager() {
     }
   }
 
+  const resetUserPassword = async (user: UserRecord) => {
+    if (!user.id) return
+    try {
+      await api.post(`/api/auth/users/${user.id}/reset-password`)
+      notify.success('Email sent', `Password reset email queued for ${user.email}`)
+    } catch (e: any) {
+      notify.danger('Email failed', e?.response?.data?.detail ?? 'Could not send password reset email')
+    }
+  }
+
   const rejectRequest = async (req: AccessRequestOut) => {
     setRequestErr('')
     try {
@@ -237,7 +247,7 @@ export function UserManager() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--da-border)', background: '#f8fafc' }}>
-              {['Username', 'Full Name', 'Email', 'Role', 'Status'].map(h => (
+              {['Username', 'Full Name', 'Email', 'Role', 'Status', 'Action'].map(h => (
                 <th key={h} className="px-3 py-2 text-left text-xs font-medium" style={{ color: '#475569' }}>{h}</th>
               ))}
             </tr>
@@ -261,6 +271,15 @@ export function UserManager() {
                     background: user.is_active ? '#dcfce7' : '#fee2e2',
                     color: user.is_active ? '#166534' : '#991b1b',
                   }}>{user.is_active ? 'active' : 'disabled'}</span>
+                </td>
+                <td className="px-3 py-2">
+                  <button
+                    type="button"
+                    className="da-btn da-btn-ghost text-xs"
+                    onClick={() => resetUserPassword(user)}
+                  >
+                    <Mail size={13} /> Email
+                  </button>
                 </td>
               </tr>
             ))}

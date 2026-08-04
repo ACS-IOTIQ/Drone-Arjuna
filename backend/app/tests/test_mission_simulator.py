@@ -314,6 +314,38 @@ def test_apply_manual_velocity_moves_and_expires():
     assert flight._manual_vz == 0.0
 
 
+def test_collision_avoidance_moves_give_way_drone_clear_of_other_drone():
+    manager = SimulationManager()
+    manager.get_positions = lambda exclude_drone_id=None: [{
+        "drone_id": 1,
+        "lat": 12.9716,
+        "lon": 77.5946,
+        "alt_msl": 80.0,
+    }]
+
+    lead = _SimulatedFlight()
+    lead.drone_id = 1
+    lead.phase = SimPhase.FLYING
+    lead.lat = 12.9716
+    lead.lon = 77.5946
+    lead.alt = 30.0
+
+    follow = _SimulatedFlight()
+    follow.drone_id = 2
+    follow.phase = SimPhase.FLYING
+    follow.lat = 12.9716
+    follow.lon = 77.5946
+    follow.alt = 30.0
+    follow._manager = manager
+
+    follow._apply_collision_avoidance(0.1)
+
+    dist_m = _haversine_m(follow.lat, follow.lon, lead.lat, lead.lon)
+    assert dist_m >= 5.0
+    assert follow.lat != pytest.approx(lead.lat, abs=1e-12)
+    assert follow.lon != pytest.approx(lead.lon, abs=1e-12)
+
+
 def test_enter_rtl_shortest_path_clears_route():
     flight = make_flight()
     flight.waypoints = [

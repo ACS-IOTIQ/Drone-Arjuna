@@ -14,7 +14,32 @@
       "Bash(git commit -m ' *)",
       "Bash(git pull *)",
       "Bash(timeout 20 docker compose logs backend --no-color --tail 3000)",
-      "Bash(wc -l /tmp_backend_logs.txt)"
+      "Bash(wc -l /tmp_backend_logs.txt)",
+      "PowerShell(docker rmi elasticsearch:8.12.0 --force 2>&1)",
+      "PowerShell(docker pull elasticsearch:8.12.0 2>&1)",
+      "Bash(docker exec *)",
+      "PowerShell(docker volume ls 2>&1)",
+      "Bash(awk '/^COPY public.drone_instances/,/^\\\\\\\\\\\\./' \"c:\\\\Users\\\\Chandrasekhar\\\\Downloads\\\\DroneArjuna_final\\\\DroneArjuna\\\\database_dumps\\\\dronearjuna_backup_20260803_182656.sql\")",
+      "PowerShell(docker exec da_postgres psql -U da_admin -d dronearjuna -c \"SELECT id, username, email FROM users;\")",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:8000/api/auth/forgot-password\" -Method Post -ContentType \"application/json\" -Body '{\"email\":\"csekhar.bandaluppi@gmail.com\"}')",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:8025/api/v2/messages\" -Method Get)",
+      "Bash(ls -la \"c:\\\\Users\\\\Chandrasekhar\\\\Downloads\\\\DroneArjuna_final\\\\DroneArjuna\\\\.claude\" 2>&1; ls -la \"c:\\\\Users\\\\Chandrasekhar\\\\Downloads\\\\DroneArjuna_final\\\\DroneArjuna\" | grep -i mcp 2>&1; find / -maxdepth 2 -iname \".mcp.json\" 2>/dev/null)",
+      "Read(//c//**)",
+      "Bash(python -c \"import mcp\")",
+      "Bash(python -m pip uninstall -y mcp mcp-types)",
+      "Bash(python -m pip install \"pydantic==2.9.2\" \"starlette==0.37.2\" \"sse-starlette==0.10.3\")",
+      "Bash(python -m pip show httpx)",
+      "Bash(python -m pip show httpx2)",
+      "Bash(python -m pip show httpcore2)",
+      "Bash(python -m pip uninstall -y httpx2 httpcore2)",
+      "Bash(python -m pip show pyjwt)",
+      "Bash(python -m pip show truststore)",
+      "Bash(python -m pip show uvicorn)",
+      "Bash(python -m pip show pyjwt truststore idna)",
+      "Bash(python -m pip uninstall -y truststore)",
+      "Bash(./.venv/Scripts/python.exe -m pip install --quiet mcp)",
+      "Bash(./.venv/Scripts/python.exe -m pip show mcp)",
+      "Bash(./.venv/Scripts/python.exe -c \"from mcp.server.fastmcp import FastMCP; print\\('OK'\\)\")"
     ]
   }
 }

@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = "DroneArjuna GCS <noreply@dronearjuna.local>"
+    # MailHog (dev) has no TLS support at all — STARTTLS against it fails with
+    # "SMTP STARTTLS extension not supported by server". Real SMTP (Gmail, etc.)
+    # requires it. Default True for prod safety; set false in .env for MailHog.
+    smtp_use_tls: bool = True
 
 
 @lru_cache

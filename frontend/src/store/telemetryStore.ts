@@ -238,12 +238,37 @@ function normalizeTelemetryFrame(raw: unknown, prev?: TelemetryFrame): Telemetry
   return frame
 }
 
+function telemetryFramesEqual(a: TelemetryFrame, b: TelemetryFrame): boolean {
+  const keys: Array<keyof TelemetryFrame> = [
+    'drone_id', 'call_sign', 'lat', 'lon', 'alt_msl', 'alt_agl', 'heading',
+    'roll_deg', 'pitch_deg', 'yaw_deg', 'airspeed_ms', 'groundspeed_ms',
+    'climb_rate_ms', 'throttle_pct', 'battery_voltage_v', 'battery_remaining_pct',
+    'battery_current_a', 'gps_fix_type', 'gps_satellites', 'gps_hdop', 'flight_mode',
+    'is_armed', 'rssi', 'cpu_load_pct', 'geofence_breach', 'breach_lat', 'breach_lon',
+    'proximity_alert', 'manual_control_required', 'proximity_distance_m',
+    'proximity_intruder_drone_id', 'sim_phase', 'mission_id', 'sim_progress', 'sim_waypoint_idx',
+    'sim_waypoint_count', 'nav_wp_dist_m', 'nav_alt_err_m', 'nav_xtrack_err_m',
+    'current_wp_num', 'last_status_text', 'last_status_severity', 'home_lat', 'home_lon',
+    'home_alt', 'terrain_alt_m', 'ekf_ok', 'ekf_vel_ratio', 'ekf_pos_h_ratio',
+    'ekf_pos_v_ratio', 'ekf_compass_ratio', 'ekf_terrain_ratio', 'vibe_x', 'vibe_y',
+    'vibe_z', 'vibe_clip_0', 'vibe_clip_1', 'vibe_clip_2', 'imu_xacc', 'imu_yacc',
+    'imu_zacc', 'imu_xgyro', 'imu_ygyro', 'imu_zgyro', 'roll_rate_dps', 'pitch_rate_dps',
+    'yaw_rate_dps', 'vel_n_ms', 'vel_e_ms', 'vel_d_ms', 'rc_rssi', 'rc1', 'rc2',
+    'rc3', 'rc4', 'rc5', 'rc6', 'rc7', 'rc8', 'servo1', 'servo2', 'servo3', 'servo4',
+    'press_abs_hpa', 'press_diff_hpa', 'temperature_c',
+  ]
+
+  return keys.every(key => a[key] === b[key])
+}
+
 function mergeFrame(droneId: number, raw: unknown, set: (partial: Partial<TelemetryState> | ((state: TelemetryState) => Partial<TelemetryState>)) => void, get: () => TelemetryState) {
   const frame = normalizeTelemetryFrame(raw, get().frames[droneId])
   if (!frame) return
 
-  const wasBreach = Boolean(frame.geofence_breach)
   const prevFrame = get().frames[droneId]
+  if (prevFrame && telemetryFramesEqual(frame, prevFrame)) return
+
+  const wasBreach = Boolean(frame.geofence_breach)
   const wasPrevBreach = Boolean(prevFrame?.geofence_breach)
   const hasProximityAlert = Boolean(frame.proximity_alert && frame.manual_control_required)
   const hadProximityAlert = Boolean(prevFrame?.proximity_alert && prevFrame?.manual_control_required)

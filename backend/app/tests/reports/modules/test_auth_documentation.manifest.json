@@ -1,6 +1,8 @@
 {
-  "fingerprint": "23a8e1e373d08ef74b6e2458f901201e1f64ce2296f74804cf0299cd1b6a96dc",
+  "fingerprint": "e74265694cf3d0e1f91124cb87b01e3b33d0ea7b53263dd990c1f0e03f34ee4b",
   "nodeids": [
+    "app/tests/test_auth.py::test_admin_can_send_user_password_reset_email",
+    "app/tests/test_auth.py::test_admin_reset_password_fails_when_smtp_disabled",
     "app/tests/test_auth.py::test_expired_token_is_401",
     "app/tests/test_auth.py::test_inactive_user_token_is_401_on_me",
     "app/tests/test_auth.py::test_login_returns_access_token",

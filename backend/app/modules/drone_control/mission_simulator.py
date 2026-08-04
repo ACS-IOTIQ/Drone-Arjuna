@@ -137,6 +137,7 @@ class _SimulatedFlight:
     AVOID_ALT_STEP_M   = 15.0   # altitude offset the give-way drone climbs to
     AVOID_ALT_RATE_MS  = 3.0    # max climb/descent rate while avoiding, m/s
     AVOID_LATERAL_MS   = 6.0    # max sideways push speed while avoiding, m/s
+    LANDING_PAD_RADIUS_M = 8.0   # min clearance from another drone's landing spot
 
     def __init__(self):
         self._sm      = None   # StateManager injected on start()
@@ -374,6 +375,7 @@ class _SimulatedFlight:
             elif mode == "RTL":
                 self._enter_rtl(shortest_path=True)
             elif mode == "LAND":
+                self._clear_landing_pad()
                 self.phase = SimPhase.LANDING
             elif mode == "GUIDED" and self.phase not in (SimPhase.IDLE, SimPhase.LANDED, SimPhase.LANDING):
                 self.phase = SimPhase.GUIDED
@@ -386,6 +388,7 @@ class _SimulatedFlight:
             self._enter_rtl(shortest_path=params.get("shortest_path", True))
 
         elif action == "land":
+            self._clear_landing_pad()
             self.phase = SimPhase.LANDING
 
         elif action == "velocity":
@@ -676,16 +679,32 @@ class _SimulatedFlight:
                           SimPhase.RTL, SimPhase.TAKEOFF):
             self._apply_collision_avoidance(dt)
 
+    def _clear_landing_pad(self):
+        """
+        Called once on entry to LANDING. If another drone (flying or already
+        landed) occupies the current lat/lon within LANDING_PAD_RADIUS_M, side-steps
+        this drone's position so it touches down beside it rather than on top of it.
+        """
+        if not self._manager or self.drone_id is None:
+            return
+        occupants = self._manager.get_positions(
+            exclude_drone_id=self.drone_id, include_grounded=True,
+        )
+        for other in occupants:
+            dist = _haversine_m(self.lat, self.lon, other["lat"], other["lon"])
+            if dist >= self.LANDING_PAD_RADIUS_M:
+                continue
+            bearing_away = (self.heading + 90.0) % 360 if dist <= 0.5 else \
+                _bearing_deg(other["lat"], other["lon"], self.lat, self.lon)
+            self.lat, self.lon = _move_toward(self.lat, self.lon, bearing_away, self.LANDING_PAD_RADIUS_M)
+
     def _apply_collision_avoidance(self, dt: float):
         """
         Multi-drone separation assurance. Runs every tick for every drone in an
         active flight phase. If another simulated drone is within CONFLICT_RADIUS_M
         horizontally and CONFLICT_ALT_M vertically, the two drones are in conflict:
-        the one with the higher drone_id "gives way" — it climbs clear of the
-        other's altitude layer (top) and simultaneously side-steps directly away
-        from it (aside), exactly like right-of-way separation between real aircraft.
-        Both adjustments are rate-limited so the avoidance manoeuvre is smooth and
-        unwinds back onto the planned path once the conflict clears.
+        the give-way drone climbs away slightly and simultaneously side-steps directly
+        away from the other drone so their lat/lon positions remain distinct.
         """
         if not self._manager or self.drone_id is None:
             return
@@ -706,14 +725,18 @@ class _SimulatedFlight:
                 continue  # lower drone_id holds course; this drone gives way below
 
             conflict = True
-            proximity = 1.0 - (dist / self.CONFLICT_RADIUS_M)
+            proximity = max(0.0, 1.0 - (dist / self.CONFLICT_RADIUS_M))
             alt_bias_target = max(alt_bias_target, self.AVOID_ALT_STEP_M * proximity)
 
-            bearing_away = (
-                _bearing_deg(other["lat"], other["lon"], self.lat, self.lon)
-                if dist > 0.5 else (self.heading + 90.0) % 360
-            )
-            mag = self.AVOID_LATERAL_MS * proximity * dt
+            # When drones are exactly co-located, choose a deterministic lateral escape
+            # bearing so the give-way drone moves aside rather than remaining in the same spot.
+            if dist <= 0.5:
+                bearing_away = (self.heading + 90.0) % 360
+            else:
+                bearing_away = _bearing_deg(other["lat"], other["lon"], self.lat, self.lon)
+
+            base_mag = self.AVOID_LATERAL_MS * max(proximity, 0.25) * dt
+            mag = max(base_mag, 6.0 if dist <= 0.5 else 1.0)
             rad = math.radians(bearing_away)
             push_north += mag * math.cos(rad)
             push_east  += mag * math.sin(rad)
@@ -729,7 +752,12 @@ class _SimulatedFlight:
         if push_north or push_east:
             mag = math.hypot(push_north, push_east)
             bearing = (math.degrees(math.atan2(push_east, push_north)) + 360) % 360
-            self.lat, self.lon = _move_toward(self.lat, self.lon, bearing, mag)
+            new_lat, new_lon = _move_toward(self.lat, self.lon, bearing, mag)
+            # Guarantee the drone moves to a distinct lat/lon pair when a conflict exists.
+            if conflict and (new_lat == self.lat and new_lon == self.lon):
+                fallback_bearing = (bearing + 90.0) % 360
+                new_lat, new_lon = _move_toward(self.lat, self.lon, fallback_bearing, max(mag, 1.0))
+            self.lat, self.lon = new_lat, new_lon
 
     # ── Telemetry push ────────────────────────────────────────────
 
@@ -844,17 +872,19 @@ class SimulationManager:
     def active_drone_ids(self) -> list[int]:
         return [did for did, f in self._flights.items() if f.active]
 
-    def get_positions(self, exclude_drone_id: Optional[int] = None) -> list[dict]:
+    def get_positions(self, exclude_drone_id: Optional[int] = None, include_grounded: bool = False) -> list[dict]:
         """
-        Current lat/lon/altitude of every other actively-flying simulated drone,
-        used by _SimulatedFlight to detect and avoid mid-air conflicts. Drones on
-        the ground (idle/armed/landed) are excluded — only airborne traffic matters.
+        Current lat/lon/altitude of every other simulated drone, used by
+        _SimulatedFlight to detect and avoid conflicts. By default drones on the
+        ground (idle/armed/landed) are excluded — only airborne traffic matters
+        for in-flight avoidance. Pass include_grounded=True (e.g. for landing-pad
+        clearance checks) to also see drones parked on the ground.
         """
         grounded = (SimPhase.IDLE, SimPhase.ARMED, SimPhase.LANDED)
         return [
             {"drone_id": did, "lat": f.lat, "lon": f.lon, "alt_msl": f.alt + f.HOME_MSL}
             for did, f in self._flights.items()
-            if did != exclude_drone_id and f.active and f.phase not in grounded
+            if did != exclude_drone_id and f.active and (include_grounded or f.phase not in grounded)
         ]
 
     def get_status(self, drone_id: Optional[int] = None):

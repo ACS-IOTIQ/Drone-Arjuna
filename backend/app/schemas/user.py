@@ -107,3 +107,12 @@ class AcceptBody(BaseModel):
 
 class RejectBody(BaseModel):
     admin_note: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str

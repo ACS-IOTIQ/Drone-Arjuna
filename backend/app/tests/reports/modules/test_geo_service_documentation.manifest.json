@@ -1,0 +1,20 @@
+{
+  "fingerprint": "a8f5e52ce304e3d0ded44a60e6da1c23fb06d48f2e76dbfc4f1cd0ad7b1f31c9",
+  "nodeids": [
+    "app/tests/test_geo_service.py::TestBatteryEstimate::test_battery_pct_is_capped_at_100",
+    "app/tests/test_geo_service.py::TestBatteryEstimate::test_battery_pct_matches_manual_formula_for_known_case",
+    "app/tests/test_geo_service.py::TestBatteryEstimate::test_battery_pct_scales_with_flight_time",
+    "app/tests/test_geo_service.py::TestDistanceComputation::test_3d_distance_uses_pythagoras",
+    "app/tests/test_geo_service.py::TestDistanceComputation::test_altitude_change_increases_distance_over_flat_path",
+    "app/tests/test_geo_service.py::TestDistanceComputation::test_multi_leg_mission_sums_all_segments",
+    "app/tests/test_geo_service.py::TestDistanceComputation::test_two_waypoints_matches_haversine",
+    "app/tests/test_geo_service.py::TestEmptyAndSingleton::test_empty_list_returns_zeroed_summary",
+    "app/tests/test_geo_service.py::TestEmptyAndSingleton::test_single_waypoint_returns_zeroed_summary",
+    "app/tests/test_geo_service.py::TestFlightTimeComputation::test_loiter_only_applies_to_destination_not_origin",
+    "app/tests/test_geo_service.py::TestFlightTimeComputation::test_loiter_time_is_added_to_destination",
+    "app/tests/test_geo_service.py::TestFlightTimeComputation::test_per_waypoint_speed_overrides_default",
+    "app/tests/test_geo_service.py::TestFlightTimeComputation::test_uses_default_cruise_speed_when_speed_not_set",
+    "app/tests/test_geo_service.py::TestWaypointCount::test_rounding_applied_to_outputs",
+    "app/tests/test_geo_service.py::TestWaypointCount::test_waypoint_count_reflects_input_length"
+  ]
+}

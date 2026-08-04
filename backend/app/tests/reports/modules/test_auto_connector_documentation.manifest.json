@@ -1,0 +1,27 @@
+{
+  "fingerprint": "f6f86e8b084700bc71801edabae8d20cf418b85effc1d92b91fa8e71ceb123a1",
+  "nodeids": [
+    "app/tests/test_auto_connector.py::test_build_candidates_bridge_connected_is_first",
+    "app/tests/test_auto_connector.py::test_build_candidates_bridge_none_no_bridge_entry",
+    "app/tests/test_auto_connector.py::test_build_candidates_bridge_present_but_not_connected_no_bridge_entry",
+    "app/tests/test_auto_connector.py::test_build_candidates_includes_serial_scan_results",
+    "app/tests/test_auto_connector.py::test_connect_drone_all_candidates_fail_returns_false",
+    "app/tests/test_auto_connector.py::test_connect_drone_exception_on_candidate_is_swallowed_and_retried",
+    "app/tests/test_auto_connector.py::test_connect_drone_falls_through_to_second_candidate",
+    "app/tests/test_auto_connector.py::test_connect_drone_no_candidates_returns_false_without_calling_connect",
+    "app/tests/test_auto_connector.py::test_connect_drone_success_on_first_candidate",
+    "app/tests/test_auto_connector.py::test_get_bridge_status_bad_json_returns_none",
+    "app/tests/test_auto_connector.py::test_get_bridge_status_bridge_not_running_returns_none",
+    "app/tests/test_auto_connector.py::test_get_bridge_status_success",
+    "app/tests/test_auto_connector.py::test_get_unconnected_drones_excludes_live_connections",
+    "app/tests/test_auto_connector.py::test_get_unconnected_drones_includes_stale_disconnected_entry",
+    "app/tests/test_auto_connector.py::test_get_unconnected_drones_no_drones_returns_empty",
+    "app/tests/test_auto_connector.py::test_run_auto_connector_cancelled_during_startup_delay_stops_cleanly",
+    "app/tests/test_auto_connector.py::test_run_auto_connector_connects_unconnected_drone_then_stops",
+    "app/tests/test_auto_connector.py::test_run_auto_connector_cycle_error_is_logged_and_loop_continues",
+    "app/tests/test_auto_connector.py::test_run_auto_connector_no_drone_instances_skips_connect",
+    "app/tests/test_auto_connector.py::test_scan_linux_serial_no_ports_returns_empty",
+    "app/tests/test_auto_connector.py::test_scan_linux_serial_non_usb_device_tries_two_bauds",
+    "app/tests/test_auto_connector.py::test_scan_linux_serial_usb_device_tries_three_bauds"
+  ]
+}

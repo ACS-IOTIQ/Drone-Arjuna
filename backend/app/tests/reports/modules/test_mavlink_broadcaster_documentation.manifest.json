@@ -1,0 +1,33 @@
+{
+  "fingerprint": "73d4271502c820cfff01837ca34f84a794b83294691dc7ecfc4014391cf20ec1",
+  "nodeids": [
+    "app/tests/test_mavlink_broadcaster.py::TestCommandHandlerRegistration::test_clear_command_handler_removes_callback",
+    "app/tests/test_mavlink_broadcaster.py::TestCommandHandlerRegistration::test_clear_command_handler_unknown_drone_is_noop",
+    "app/tests/test_mavlink_broadcaster.py::TestCommandHandlerRegistration::test_set_command_handler_registers_callback",
+    "app/tests/test_mavlink_broadcaster.py::TestHandleIncomingCommands::test_arm_disarm_dispatches_to_handler",
+    "app/tests/test_mavlink_broadcaster.py::TestHandleIncomingCommands::test_disarm_dispatches_to_handler",
+    "app/tests/test_mavlink_broadcaster.py::TestHandleIncomingCommands::test_drain_commands_processes_multiple_then_stops",
+    "app/tests/test_mavlink_broadcaster.py::TestHandleIncomingCommands::test_drain_commands_swallows_recv_exceptions",
+    "app/tests/test_mavlink_broadcaster.py::TestHandleIncomingCommands::test_handler_exception_does_not_prevent_ack",
+    "app/tests/test_mavlink_broadcaster.py::TestHandleIncomingCommands::test_no_handler_registered_still_acks_command",
+    "app/tests/test_mavlink_broadcaster.py::TestHandleIncomingCommands::test_non_actionable_command_long_is_acked_as_noop",
+    "app/tests/test_mavlink_broadcaster.py::TestHandleIncomingCommands::test_non_command_long_message_is_ignored",
+    "app/tests/test_mavlink_broadcaster.py::TestHandleIncomingCommands::test_set_home_dispatches_to_handler_with_params",
+    "app/tests/test_mavlink_broadcaster.py::TestHandleIncomingCommands::test_set_home_use_current_flag",
+    "app/tests/test_mavlink_broadcaster.py::TestLinkLifecycle::test_get_link_opens_and_caches_link",
+    "app/tests/test_mavlink_broadcaster.py::TestLinkLifecycle::test_get_link_returns_none_and_does_not_raise_on_failure",
+    "app/tests/test_mavlink_broadcaster.py::TestLinkLifecycle::test_get_link_uses_configured_target",
+    "app/tests/test_mavlink_broadcaster.py::TestLinkLifecycle::test_remove_closes_link_and_clears_bookkeeping",
+    "app/tests/test_mavlink_broadcaster.py::TestLinkLifecycle::test_remove_swallows_close_exception",
+    "app/tests/test_mavlink_broadcaster.py::TestLinkLifecycle::test_remove_unknown_drone_is_noop",
+    "app/tests/test_mavlink_broadcaster.py::TestSend::test_send_drains_incoming_commands_before_sending",
+    "app/tests/test_mavlink_broadcaster.py::TestSend::test_send_heartbeat_reflects_armed_state",
+    "app/tests/test_mavlink_broadcaster.py::TestSend::test_send_heartbeat_reflects_disarmed_state",
+    "app/tests/test_mavlink_broadcaster.py::TestSend::test_send_missing_state_fields_uses_defaults_and_does_not_raise",
+    "app/tests/test_mavlink_broadcaster.py::TestSend::test_send_sends_heartbeat_position_attitude_hud_sysstatus_gps",
+    "app/tests/test_mavlink_broadcaster.py::TestSend::test_send_swallows_exceptions_from_link",
+    "app/tests/test_mavlink_broadcaster.py::TestSend::test_send_throttles_heartbeat_to_1hz",
+    "app/tests/test_mavlink_broadcaster.py::TestSend::test_send_with_no_listener_registered_does_not_error",
+    "app/tests/test_mavlink_broadcaster.py::test_module_level_singleton_exists"
+  ]
+}

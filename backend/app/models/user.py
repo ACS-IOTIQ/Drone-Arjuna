@@ -19,6 +19,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(32), default="viewer")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    reset_token: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
+    reset_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

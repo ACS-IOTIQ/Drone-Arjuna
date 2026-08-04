@@ -40,6 +40,18 @@ _HEARTBEAT_TIMEOUT: dict[str, float] = {
 
 HF_TRANSPORTS = {"hf_serial", "hf_tcp"}
 
+# Steady-state "no messages received" timeout once a link is up. Independent of
+# the initial-connect heartbeat_timeout (which can be as low as a few seconds
+# during autoconnect port-probing) — a live link tolerates brief silence/jitter
+# without being torn down.
+_LINK_LIVENESS_TIMEOUT: dict[str, float] = {
+    "udp":       10.0,
+    "tcp":       10.0,
+    "serial":    10.0,
+    "hf_serial": HF_HEARTBEAT_TIMEOUT_S,
+    "hf_tcp":    HF_HEARTBEAT_TIMEOUT_S,
+}
+
 
 @dataclass
 class DroneConnection:
@@ -56,6 +68,7 @@ class DroneConnection:
     hf_adapter: Optional[HFLinkAdapter] = None   # set when transport is HF
     home_task: Optional[asyncio.Task] = None      # vessel home-point updater
     errors: list[str] = field(default_factory=list)
+    link_timeout_s: float = 10.0   # no message received within this window => link considered lost
 
 
 class MAVLinkManager:
@@ -162,6 +175,7 @@ class MAVLinkManager:
             log.info("Stream rates requested", drone_id=drone_id)
 
             conn.connected = True
+            conn.link_timeout_s = max(heartbeat_timeout, _LINK_LIVENESS_TIMEOUT.get(transport, 10.0))
             self._connections[drone_id] = conn
             self.state.init_drone(drone_id, call_sign)
 
@@ -249,6 +263,7 @@ class MAVLinkManager:
         import time as _time
         log.info("MAVLink reader started", drone_id=drone_id)
         last_hb = _time.monotonic()
+        last_msg = _time.monotonic()
         consecutive_errors = 0
 
         def _recv_and_heartbeat():
@@ -269,7 +284,16 @@ class MAVLinkManager:
                 msg = await loop.run_in_executor(None, _recv_and_heartbeat)
                 consecutive_errors = 0   # successful recv resets counter
                 if msg is None:
+                    # recv_match times out (returns None) on a dead/unplugged link
+                    # without raising — a plain "no message this second" doesn't
+                    # mean the link failed, but no message for link_timeout_s does.
+                    if _time.monotonic() - last_msg >= conn.link_timeout_s:
+                        log.error("Link timeout — no messages received, auto-disconnecting",
+                                  drone_id=drone_id, timeout_s=conn.link_timeout_s)
+                        break
                     continue
+
+                last_msg = _time.monotonic()
 
                 # HF adapter: mark liveness and apply bandwidth filtering
                 if conn.hf_adapter:

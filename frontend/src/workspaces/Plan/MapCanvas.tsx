@@ -8,7 +8,14 @@ import { useTelemetryStore } from '@/store/telemetryStore'
 import { droneFlightApi } from '@/api/droneFlight'
 import { notify } from '@/store/notificationStore'
 import { buildZoneLayers } from '@/utils/geofenceZones'
-import { buildRegulatoryZoneLayers, getRegulatoryRule, regulatoryZones } from '@/utils/regulatoryZones'
+import {
+  buildRegulatoryZoneLayers,
+  drawnPolygonContainsRestrictedZone,
+  getRegulatoryRule,
+  loadDgcaRegulatoryZones,
+  routeSegmentCrossesRestrictedZone,
+  subscribeRegulatoryZoneUpdates,
+} from '@/utils/regulatoryZones'
 import { findRouteCollisions, formatCollisionCoord, type LatLngPoint } from '@/utils/routeCollision'
 
 const FLEET_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d']
@@ -117,46 +124,12 @@ function isPointInsidePolygon(point: GeoPoint, polygon: GeoPoint[]) {
   return inside
 }
 
-function segmentMinDistanceM(
-  aLat: number, aLng: number,
-  bLat: number, bLng: number,
-  pLat: number, pLng: number,
-): number {
-  const refLat = (aLat + bLat + pLat) / 3
-  const scaleLat = 111_320
-  const scaleLon = 111_320 * Math.cos((refLat * Math.PI) / 180)
-  const ax = aLng * scaleLon, ay = aLat * scaleLat
-  const bx = bLng * scaleLon, by = bLat * scaleLat
-  const px = pLng * scaleLon, py = pLat * scaleLat
-  const dx = bx - ax, dy = by - ay
-  const lenSq = dx * dx + dy * dy
-  if (lenSq === 0) return Math.hypot(px - ax, py - ay)
-  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq))
-  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
-}
-
 function edgeCrossesRestrictedZone(prev: GeoPoint, next: GeoPoint): string | null {
-  for (const zone of regulatoryZones) {
-    if (!zone.center) continue
-    const [zLat, zLon] = zone.center
-    // Use the outer radius of the zone as the threshold
-    const radius = (zone as any).outerRadiusM ?? 12_000
-    const dist = segmentMinDistanceM(prev.lat, prev.lng, next.lat, next.lng, zLat, zLon)
-    if (dist <= radius) return zone.name
-  }
-  return null
+  return routeSegmentCrossesRestrictedZone(prev, next)
 }
 
 function geofenceEnclosesRestrictedZone(pts: GeoPoint[]): string | null {
-  if (pts.length < 3) return null
-  for (const zone of regulatoryZones) {
-    if (!zone.center) continue
-    const [zLat, zLon] = zone.center
-    if (isPointInsidePolygon({ lat: zLat, lng: zLon }, pts)) {
-      return zone.name
-    }
-  }
-  return null
+  return drawnPolygonContainsRestrictedZone(pts)
 }
 
 function validateGovernmentPlacement(lat: number, lng: number, target: 'waypoint' | 'geofence vertex') {
@@ -325,7 +298,14 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
   const [manualLng, setManualLng] = useState('')
   const [showAllMissions, setShowAllMissions] = useState(false)
   const [activePanel, setActivePanel] = useState<'coordinates' | 'collisions' | 'missions' | 'airspace' | null>(null)
+  const [regulatoryZoneVersion, setRegulatoryZoneVersion] = useState(0)
   const collisionNoticeKeyRef = useRef('')
+
+  useEffect(() => {
+    const unsubscribe = subscribeRegulatoryZoneUpdates(() => setRegulatoryZoneVersion(version => version + 1))
+    loadDgcaRegulatoryZones().finally(() => setRegulatoryZoneVersion(version => version + 1))
+    return unsubscribe
+  }, [])
 
   const droneName = (id: number | null | undefined) =>
     instances.find(i => i.id === id)?.call_sign ?? (id != null ? `Drone #${id}` : 'Unassigned')
@@ -405,7 +385,7 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
     const centerLng = geofence.reduce((sum, p) => sum + p.lng, 0) / geofence.length
     return buildZoneLayers(centerLat, centerLng, geofence)
   }, [geofence])
-  const regulatoryZoneLayers = useMemo(() => buildRegulatoryZoneLayers(), [])
+  const regulatoryZoneLayers = useMemo(() => buildRegulatoryZoneLayers(), [regulatoryZoneVersion])
   useEffect(() => {
     if (activeMissionId && draftWaypoints.length > 0) setRouteDrawing(false)
   }, [activeMissionId, draftWaypoints.length])

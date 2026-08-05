@@ -9,7 +9,12 @@ import { useTelemetryStore } from '@/store/telemetryStore'
 import { useFleetStore } from '@/store/fleetStore'
 import { useVesselStore } from '@/store/vesselStore'
 import { buildZoneLayers, getZoneRule } from '@/utils/geofenceZones'
-import { buildRegulatoryZoneLayers, getRegulatoryRule } from '@/utils/regulatoryZones'
+import {
+  buildRegulatoryZoneLayers,
+  getRegulatoryRule,
+  loadDgcaRegulatoryZones,
+  subscribeRegulatoryZoneUpdates,
+} from '@/utils/regulatoryZones'
 import { findRouteCollisions, formatCollisionCoord, type LatLngPoint } from '@/utils/routeCollision'
 import { AlertTriangle, ShieldAlert, X } from 'lucide-react'
 
@@ -189,6 +194,7 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
   const missionGeofence = useMissionStore(s => s.geofence)
   const [runtimeGeofence, setRuntimeGeofence] = useState<any | null>(null)
   const [activeDetail, setActiveDetail] = useState<'airspace' | 'collisions' | null>(null)
+  const [regulatoryZoneVersion, setRegulatoryZoneVersion] = useState(0)
   const lastRegulatoryRef = useRef<string | null>(null)
   const lastComplianceRef = useRef<string | null>(null)
   const liveCollisionNoticeKeyRef = useRef('')
@@ -199,6 +205,12 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     .filter((_, i) => i % 5 === 0)
     .map(f => [f.lat, f.lon] as [number, number])
     .filter(([lat, lon]) => lat !== 0 || lon !== 0)
+
+  useEffect(() => {
+    const unsubscribe = subscribeRegulatoryZoneUpdates(() => setRegulatoryZoneVersion(version => version + 1))
+    loadDgcaRegulatoryZones().finally(() => setRegulatoryZoneVersion(version => version + 1))
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
     const hasSimFrame = Object.values(frames).some(f => f?.sim_phase)
@@ -254,11 +266,11 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     const lon = frame?.lon ?? 0
     return buildZoneLayers(lat, lon, displayGeofence)
   }, [frame, displayGeofence])
-  const regulatoryZones = useMemo(() => buildRegulatoryZoneLayers(), [])
+  const regulatoryZones = useMemo(() => buildRegulatoryZoneLayers(), [regulatoryZoneVersion])
   const currentRegulatoryZone = useMemo(() => {
     if (!frame) return null
     return getRegulatoryRule(frame.lat, frame.lon, frame.alt_agl ?? 0)
-  }, [frame])
+  }, [frame, regulatoryZoneVersion])
 
   const droneName = (id: number, callSign?: string) =>
     callSign ?? instances.find(i => i.id === id)?.call_sign ?? `Drone #${id}`

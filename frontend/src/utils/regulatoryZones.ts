@@ -34,6 +34,7 @@ export interface RegulatoryZone {
   restriction: string
   center?: [number, number]
   polygon?: [number, number][]
+  polygons?: [number, number][][]
   innerRadiusM?: number
   outerRadiusM: number
   maxAltitudeM: number
@@ -77,6 +78,21 @@ const MAPPLS_AIRSPACE_SOURCE: RegulatorySource = {
   notes:
     'Documents DigitalSky layer ids including International Boundary - 25km, Airport Red, and Airport Yellow layers. This app uses a built-in approximation unless a Mappls access token/provider feed is configured.',
 }
+
+const DGCA_DIGITAL_SKY_SOURCE: RegulatorySource = {
+  name: 'DigitalSky official airspace zone feed',
+  authority: 'DGCA / Ministry of Civil Aviation / AAI',
+  url: 'https://digitalsky.aai.aero/api-documentation',
+  checkedOn: '2026-08-05',
+  notes:
+    'Official DigitalSky/DGCA airspace FeatureCollections are loaded at runtime and adapted into the existing DroneArjuna rule model.',
+}
+
+const DGCA_ZONE_API_URL =
+  (import.meta as any).env?.VITE_DGCA_ZONES_API_URL ||
+  '/dgca-api/airspace/v1/hdsbpm/getAllZones'
+
+const DGCA_ZONE_API_KEY = (import.meta as any).env?.VITE_DGCA_ZONES_API_KEY || ''
 
 const AIRPORTS: Array<{ id: string; name: string; lat: number; lon: number }> = [
   { id: 'agartala-veat', name: 'Agartala Maharaja Bir Bikram Airport', lat: 23.8869, lon: 91.2404 },
@@ -350,6 +366,55 @@ function pointInPolygon(lat: number, lon: number, polygon: [number, number][]) {
   return inside
 }
 
+function orientation(a: [number, number], b: [number, number], c: [number, number]) {
+  return (b[1] - a[1]) * (c[0] - b[0]) - (b[0] - a[0]) * (c[1] - b[1])
+}
+
+function onSegment(a: [number, number], b: [number, number], c: [number, number]) {
+  return b[0] <= Math.max(a[0], c[0]) && b[0] >= Math.min(a[0], c[0]) &&
+    b[1] <= Math.max(a[1], c[1]) && b[1] >= Math.min(a[1], c[1])
+}
+
+function segmentsIntersect(a: [number, number], b: [number, number], c: [number, number], d: [number, number]) {
+  const o1 = orientation(a, b, c)
+  const o2 = orientation(a, b, d)
+  const o3 = orientation(c, d, a)
+  const o4 = orientation(c, d, b)
+
+  if ((o1 > 0) !== (o2 > 0) && (o3 > 0) !== (o4 > 0)) return true
+  if (Math.abs(o1) < 1e-12 && onSegment(a, c, b)) return true
+  if (Math.abs(o2) < 1e-12 && onSegment(a, d, b)) return true
+  if (Math.abs(o3) < 1e-12 && onSegment(c, a, d)) return true
+  if (Math.abs(o4) < 1e-12 && onSegment(c, b, d)) return true
+  return false
+}
+
+function segmentCrossesPolygon(a: [number, number], b: [number, number], polygon: [number, number][]) {
+  if (pointInPolygon(a[0], a[1], polygon) || pointInPolygon(b[0], b[1], polygon)) return true
+
+  for (let i = 0; i < polygon.length; i += 1) {
+    const next = (i + 1) % polygon.length
+    if (segmentsIntersect(a, b, polygon[i], polygon[next])) return true
+  }
+
+  return false
+}
+
+function zonePolygons(zone: RegulatoryZone) {
+  if (zone.polygons) return zone.polygons
+  if (zone.polygon) return [zone.polygon]
+  return []
+}
+
+function polygonCentroid(polygon: [number, number][]): [number, number] | null {
+  if (polygon.length === 0) return null
+  const total = polygon.reduce(
+    (sum, point) => [sum[0] + point[0], sum[1] + point[1]] as [number, number],
+    [0, 0] as [number, number],
+  )
+  return [total[0] / polygon.length, total[1] / polygon.length]
+}
+
 function circleRing(centerLat: number, centerLon: number, radiusM: number, steps = 96): [number, number][] {
   const latRadius = radiusM / 111_320
   const lonRadius = radiusM / metersPerDegreeLon(centerLat)
@@ -438,11 +503,243 @@ function buildAirportZones(): RegulatoryZone[] {
   })
 }
 
-export const regulatoryZones: RegulatoryZone[] = [
+function featureCollectionEntries(payload: any): Array<[string, any]> {
+  const data = payload?.data ?? payload
+  if (!data || typeof data !== 'object') return []
+
+  if (data.type === 'FeatureCollection') return [['dgca_airspace_zones', data]]
+
+  return Object.entries(data).filter(([, value]: [string, any]) =>
+    value?.type === 'FeatureCollection' && Array.isArray(value.features),
+  )
+}
+
+function dgcaZoneType(sourceKey: string): string {
+  if (sourceKey === 'airport_red') return 'airport-red'
+  if (sourceKey === 'airport_yellow_5_8_km') return 'airport-5-8'
+  if (sourceKey === 'airport_green_8_12_km') return 'airport-8-12-green'
+  if (sourceKey === 'airport_yellow_8_12_km') return 'airport-8-12-yellow'
+  if (sourceKey === 'coastal_zone_0_5_km') return 'coastal-0-5'
+  if (sourceKey === 'coastal_zone_0_8_km') return 'coastal-0-8'
+  if (sourceKey === 'coastal_zone_25_km') return 'coastal-25'
+  if (sourceKey === 'coastal_green') return 'coastal-green'
+  if (sourceKey === 'coastal_yellow') return 'coastal-yellow'
+  if (sourceKey === 'india_region') return 'india-region'
+  if (sourceKey === 'pan_india_boundary') return 'pan-india-boundary'
+  if (sourceKey === 'red_zone_data') return 'red-zone'
+  return sourceKey.replace(/_/g, '-')
+}
+
+function dgcaZoneLabel(zoneType: string) {
+  return {
+    'airport-red': 'Airport Red',
+    'airport-5-8': 'Airport Yellow (5-8 km)',
+    'airport-8-12-green': 'Airport Green (8-12 km)',
+    'airport-8-12-yellow': 'Airport Yellow (8-12 km)',
+    'coastal-0-5': 'Coastal Zone (0-5 km)',
+    'coastal-0-8': 'Coastal Zone (0-8 km)',
+    'coastal-25': 'International Border / Coastal 25 km',
+    'coastal-green': 'Coastal Green',
+    'coastal-yellow': 'Coastal Yellow',
+    'india-region': 'India Region',
+    'pan-india-boundary': 'Pan India Boundary',
+    'red-zone': 'Red Zone',
+  }[zoneType] ?? zoneType
+}
+
+function dgcaZoneKind(zoneType: string, geozoneType?: string | null): RegulatoryZoneKind {
+  const text = `${zoneType} ${geozoneType ?? ''}`.toLowerCase()
+  if (text.includes('red') || text.includes('restricted') || zoneType === 'coastal-25') return 'red'
+  if (text.includes('yellow') || text.includes('orange') || text.includes('controlled')) return 'orange'
+  return 'green'
+}
+
+function dgcaAction(kind: RegulatoryZoneKind, zoneType: string): RegulatoryAction {
+  if (kind === 'red') return 'rtl'
+  if (kind === 'orange') return zoneType === 'airport-5-8' ? 'hold' : 'reduce'
+  return 'continue'
+}
+
+function altitudeMetersFromFeature(properties: Record<string, any>, kind: RegulatoryZoneKind, zoneType: string) {
+  if (kind === 'red') return 0
+
+  const rawAltitude = Number(properties.upr_alt ?? properties.upper_altitude ?? properties.max_altitude)
+  if (Number.isFinite(rawAltitude) && rawAltitude > 0) {
+    return Math.round(rawAltitude * 0.3048)
+  }
+
+  if (zoneType === 'airport-5-8') return 0
+  if (zoneType === 'airport-8-12-yellow') return 60
+  return 120
+}
+
+function dgcaRestriction(kind: RegulatoryZoneKind, zoneType: string, maxAltitudeM: number) {
+  if (kind === 'red') {
+    return `${dgcaZoneLabel(zoneType)} from the official DigitalSky/DGCA layer. No-drone operation unless permission is granted.`
+  }
+  if (kind === 'orange') {
+    if (maxAltitudeM <= 0) {
+      return `${dgcaZoneLabel(zoneType)} from the official DigitalSky/DGCA layer. Hold unless ATC/competent authority permission is granted.`
+    }
+    return `${dgcaZoneLabel(zoneType)} from the official DigitalSky/DGCA layer. Stay below ${maxAltitudeM} m AGL unless permission is granted.`
+  }
+  return `${dgcaZoneLabel(zoneType)} from the official DigitalSky/DGCA layer. Standard green-zone limits apply.`
+}
+
+function ringToLatLng(ring: any): [number, number][] {
+  if (!Array.isArray(ring)) return []
+
+  const points = ring
+    .map((coord: any) => {
+      const lon = Number(coord?.[0])
+      const lat = Number(coord?.[1])
+      return [lat, lon] as [number, number]
+    })
+    .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]))
+
+  if (points.length > 1) {
+    const first = points[0]
+    const last = points[points.length - 1]
+    if (first[0] === last[0] && first[1] === last[1]) return points.slice(0, -1)
+  }
+
+  return points
+}
+
+function polygonsFromGeometry(geometry: any): [number, number][][] {
+  if (!geometry) return []
+
+  if (geometry.type === 'Polygon') {
+    const outer = ringToLatLng(geometry.coordinates?.[0])
+    return outer.length >= 3 ? [outer] : []
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    return (geometry.coordinates ?? [])
+      .map((polygon: any) => ringToLatLng(polygon?.[0]))
+      .filter((polygon: [number, number][]) => polygon.length >= 3)
+  }
+
+  return []
+}
+
+function createDgcaZone(feature: any, zoneType: string, sourceKey: string, index: number, polygon: [number, number][]): RegulatoryZone {
+  const properties = feature?.properties ?? {}
+  const geozoneType = properties.geozone_type ?? properties.geozoneNameType ?? null
+  const kind = dgcaZoneKind(zoneType, geozoneType)
+  const maxAltitudeM = altitudeMetersFromFeature(properties, kind, zoneType)
+  const action = dgcaAction(kind, zoneType)
+  const name = properties.name ?? properties.zone_name ?? properties.geozone_name ?? `${dgcaZoneLabel(zoneType)} ${index + 1}`
+
+  return {
+    id: String(properties.id ?? properties.zone_id ?? `${sourceKey}-${index}`),
+    name,
+    country: 'India',
+    authority: DGCA_DIGITAL_SKY_SOURCE.authority,
+    kind,
+    source: DGCA_DIGITAL_SKY_SOURCE,
+    restriction: dgcaRestriction(kind, zoneType, maxAltitudeM),
+    polygon,
+    outerRadiusM: 0,
+    maxAltitudeM,
+    maxSpeedMs: kind === 'red' ? 0 : kind === 'orange' ? 8 : 12,
+    recommendedAltitudeM: kind === 'red' ? 0 : Math.max(0, Math.min(maxAltitudeM || 60, maxAltitudeM > 0 ? maxAltitudeM - 10 : 0)),
+    recommendedSpeedMs: kind === 'red' ? 0 : kind === 'orange' ? 5 : 8,
+    requiresPermission: kind !== 'green',
+    action,
+  }
+}
+
+function normalizeDgcaZones(payload: any): RegulatoryZone[] {
+  return featureCollectionEntries(payload).flatMap(([sourceKey, collection]) => {
+    const zoneType = dgcaZoneType(sourceKey)
+    if (zoneType === 'india-region-dots') return []
+
+    return collection.features.flatMap((feature: any, featureIndex: number) =>
+      polygonsFromGeometry(feature.geometry)
+        .map((polygon, polygonIndex) =>
+          createDgcaZone(feature, zoneType, sourceKey, featureIndex + polygonIndex, polygon),
+        ),
+    )
+  })
+}
+
+export async function loadDgcaRegulatoryZones(force = false): Promise<RegulatoryZone[]> {
+  if (dgcaZonesLoaded && !force) return regulatoryZones
+  if (dgcaZoneLoadPromise && !force) return dgcaZoneLoadPromise
+
+  dgcaZoneLoadPromise = fetch(DGCA_ZONE_API_URL, {
+    headers: {
+      Accept: 'application/json',
+      ...(DGCA_ZONE_API_KEY ? { Authorization: `Bearer ${DGCA_ZONE_API_KEY}` } : {}),
+    },
+  })
+    .then(async response => {
+      if (!response.ok) throw new Error(`DGCA zone feed returned ${response.status}`)
+      const payload = await response.json()
+      const zones = normalizeDgcaZones(payload)
+      if (zones.length === 0) throw new Error('DGCA zone feed did not contain usable polygon features')
+      replaceRegulatoryZones(zones)
+      dgcaZonesLoaded = true
+      dgcaZonesLoadError = null
+      return zones
+    })
+    .catch(error => {
+      dgcaZonesLoaded = false
+      dgcaZonesLoadError = error instanceof Error ? error.message : 'DGCA zone feed failed'
+      replaceRegulatoryZones(FALLBACK_REGULATORY_ZONES)
+      return regulatoryZones
+    })
+    .finally(() => {
+      dgcaZoneLoadPromise = null
+    })
+
+  return dgcaZoneLoadPromise
+}
+
+const FALLBACK_REGULATORY_ZONES: RegulatoryZone[] = [
   ...BORDER_RED_ZONES,
   ...SENSITIVE_RED_ZONES,
   ...buildAirportZones(),
 ]
+
+export const regulatoryZones: RegulatoryZone[] = [...FALLBACK_REGULATORY_ZONES]
+
+let dgcaZoneLoadPromise: Promise<RegulatoryZone[]> | null = null
+let dgcaZonesLoaded = false
+let dgcaZonesLoadError: string | null = null
+let regulatoryZoneVersion = 0
+const regulatoryZoneListeners = new Set<() => void>()
+
+export function getRegulatoryZoneVersion() {
+  return regulatoryZoneVersion
+}
+
+export function getRegulatoryZoneLoadState() {
+  return {
+    loaded: dgcaZonesLoaded,
+    error: dgcaZonesLoadError,
+    sourceUrl: DGCA_ZONE_API_URL,
+    count: regulatoryZones.length,
+  }
+}
+
+export function subscribeRegulatoryZoneUpdates(listener: () => void) {
+  regulatoryZoneListeners.add(listener)
+  return () => {
+    regulatoryZoneListeners.delete(listener)
+  }
+}
+
+function publishRegulatoryZoneUpdate() {
+  regulatoryZoneVersion += 1
+  regulatoryZoneListeners.forEach(listener => listener())
+}
+
+function replaceRegulatoryZones(zones: RegulatoryZone[]) {
+  regulatoryZones.splice(0, regulatoryZones.length, ...zones)
+  publishRegulatoryZoneUpdate()
+}
 
 export function isInsideIndia(lat: number, lon: number) {
   return lat >= INDIA_BOUNDS.south && lat <= INDIA_BOUNDS.north &&
@@ -450,7 +747,8 @@ export function isInsideIndia(lat: number, lon: number) {
 }
 
 function isInsideZone(zone: RegulatoryZone, lat: number, lon: number) {
-  if (zone.polygon) return pointInPolygon(lat, lon, zone.polygon)
+  const polygons = zonePolygons(zone)
+  if (polygons.length > 0) return polygons.some(polygon => pointInPolygon(lat, lon, polygon))
   if (!zone.center) return false
   const d = distanceMeters(zone.center[0], zone.center[1], lat, lon)
   if (d > zone.outerRadiusM) return false
@@ -516,21 +814,96 @@ export function findRegulatoryZone(lat: number, lon: number, altitudeM = 0) {
   return getRegulatoryRule(lat, lon, altitudeM)
 }
 
-export function buildRegulatoryZoneLayers(): RegulatoryZoneLayer[] {
-  return regulatoryZones.map(zone => {
-    const style = styleFor(zone.kind)
-    const positions = zone.polygon
-      ? zone.polygon
-      : zone.innerRadiusM && zone.center
-      ? annulus(zone.center[0], zone.center[1], zone.innerRadiusM, zone.outerRadiusM)
-      : circleRing(zone.center![0], zone.center![1], zone.outerRadiusM)
+export function routeSegmentCrossesRestrictedZone(
+  prev: { lat: number; lng: number },
+  next: { lat: number; lng: number },
+): string | null {
+  const segmentStart: [number, number] = [prev.lat, prev.lng]
+  const segmentEnd: [number, number] = [next.lat, next.lng]
 
-    return {
-      ...toRule(zone),
-      positions,
-      ...style,
+  for (const zone of regulatoryZones) {
+    if (zone.kind === 'green') continue
+
+    const polygons = zonePolygons(zone)
+    if (polygons.some(polygon => segmentCrossesPolygon(segmentStart, segmentEnd, polygon))) return zone.name
+
+    if (zone.center) {
+      const [zLat, zLon] = zone.center
+      const radius = zone.outerRadiusM || 12_000
+      const dist = segmentMinDistanceMeters(prev.lat, prev.lng, next.lat, next.lng, zLat, zLon)
+      if (dist <= radius) return zone.name
     }
+  }
+
+  return null
+}
+
+export function drawnPolygonContainsRestrictedZone(points: { lat: number; lng: number }[]): string | null {
+  if (points.length < 3) return null
+  const polygon = points.map(point => [point.lat, point.lng] as [number, number])
+
+  for (const zone of regulatoryZones) {
+    if (zone.kind === 'green') continue
+
+    if (zone.center && pointInPolygon(zone.center[0], zone.center[1], polygon)) return zone.name
+
+    for (const zonePolygon of zonePolygons(zone)) {
+      const centroid = polygonCentroid(zonePolygon)
+      if (centroid && pointInPolygon(centroid[0], centroid[1], polygon)) return zone.name
+      if (zonePolygon.some(point => pointInPolygon(point[0], point[1], polygon))) return zone.name
+    }
+  }
+
+  return null
+}
+
+function segmentMinDistanceMeters(
+  aLat: number,
+  aLng: number,
+  bLat: number,
+  bLng: number,
+  pLat: number,
+  pLng: number,
+) {
+  const refLat = (aLat + bLat + pLat) / 3
+  const scaleLat = 111_320
+  const scaleLon = 111_320 * Math.cos(toRad(refLat))
+  const ax = aLng * scaleLon
+  const ay = aLat * scaleLat
+  const bx = bLng * scaleLon
+  const by = bLat * scaleLat
+  const px = pLng * scaleLon
+  const py = pLat * scaleLat
+  const dx = bx - ax
+  const dy = by - ay
+  const lenSq = dx * dx + dy * dy
+  if (lenSq === 0) return Math.hypot(px - ax, py - ay)
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq))
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+}
+
+export function buildRegulatoryZoneLayers(): RegulatoryZoneLayer[] {
+  return regulatoryZones.flatMap(zone => {
+    const style = styleFor(zone.kind)
+    const polygons = zonePolygons(zone)
+
+    if (polygons.length > 0) {
+      return polygons.map((positions, index) => ({
+        ...toRule(zone),
+        id: index === 0 ? zone.id : `${zone.id}-${index}`,
+        positions,
+        ...style,
+      }))
+    }
+
+    if (!zone.center) return []
+
+    const positions = zone.innerRadiusM
+      ? annulus(zone.center[0], zone.center[1], zone.innerRadiusM, zone.outerRadiusM)
+      : circleRing(zone.center[0], zone.center[1], zone.outerRadiusM)
+
+    return [{ ...toRule(zone), positions, ...style }]
   })
 }
 
-export const regulatorySources = [DIGITAL_SKY_SOURCE, PIB_SOURCE, MAPPLS_AIRSPACE_SOURCE]
+export const regulatorySources = [DGCA_DIGITAL_SKY_SOURCE, DIGITAL_SKY_SOURCE, PIB_SOURCE, MAPPLS_AIRSPACE_SOURCE]

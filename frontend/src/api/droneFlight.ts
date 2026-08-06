@@ -25,6 +25,7 @@ export interface MissionInput {
   home_vessel_id?: number
   waypoints?: WaypointInput[]
   geofence?: object
+  enforce_airspace?: boolean
 }
 
 export interface FleetTarget {

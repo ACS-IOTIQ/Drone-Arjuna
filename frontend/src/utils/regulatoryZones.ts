@@ -53,12 +53,12 @@ export interface RegulatoryZoneLayer extends RegulatoryRule {
 }
 
 const DIGITAL_SKY_SOURCE: RegulatorySource = {
-  name: 'DigitalSky airspace map rules',
+  name: 'DigitalSky airspace map rules (offline snapshot)',
   authority: 'Ministry of Civil Aviation / DGCA / AAI',
   url: 'https://digitalsky.aai.aero/digital-sky-map',
   checkedOn: '2026-07-09',
   notes:
-    'The official map is dynamic. This built-in layer derives airport red/yellow buffers from published DigitalSky guidance and should be replaced by an official provider feed when available.',
+    'The official DigitalSky map is dynamic and requires an authenticated, internet-connected registered-operator session. DroneArjuna does not call it live; this layer is a static offline snapshot of airport red/yellow buffers derived from published DigitalSky/PIB guidance, checked on the date above. Refresh manually from official sources when connectivity and credentials are available.',
 }
 
 const PIB_SOURCE: RegulatorySource = {
@@ -79,20 +79,7 @@ const MAPPLS_AIRSPACE_SOURCE: RegulatorySource = {
     'Documents DigitalSky layer ids including International Boundary - 25km, Airport Red, and Airport Yellow layers. This app uses a built-in approximation unless a Mappls access token/provider feed is configured.',
 }
 
-const DGCA_DIGITAL_SKY_SOURCE: RegulatorySource = {
-  name: 'DigitalSky official airspace zone feed',
-  authority: 'DGCA / Ministry of Civil Aviation / AAI',
-  url: 'https://digitalsky.aai.aero/api-documentation',
-  checkedOn: '2026-08-05',
-  notes:
-    'Official DigitalSky/DGCA airspace FeatureCollections are loaded at runtime and adapted into the existing DroneArjuna rule model.',
-}
-
-const DGCA_ZONE_API_URL =
-  (import.meta as any).env?.VITE_DGCA_ZONES_API_URL ||
-  '/dgca-api/airspace/v1/hdsbpm/getAllZones'
-
-const DGCA_ZONE_API_KEY = (import.meta as any).env?.VITE_DGCA_ZONES_API_KEY || ''
+const OFFLINE_SNAPSHOT_CHECKED_ON = '2026-07-09'
 
 const AIRPORTS: Array<{ id: string; name: string; lat: number; lon: number }> = [
   { id: 'agartala-veat', name: 'Agartala Maharaja Bir Bikram Airport', lat: 23.8869, lon: 91.2404 },
@@ -503,242 +490,18 @@ function buildAirportZones(): RegulatoryZone[] {
   })
 }
 
-function featureCollectionEntries(payload: any): Array<[string, any]> {
-  const data = payload?.data ?? payload
-  if (!data || typeof data !== 'object') return []
-
-  if (data.type === 'FeatureCollection') return [['dgca_airspace_zones', data]]
-
-  return Object.entries(data).filter(([, value]: [string, any]) =>
-    value?.type === 'FeatureCollection' && Array.isArray(value.features),
-  )
-}
-
-function dgcaZoneType(sourceKey: string): string {
-  if (sourceKey === 'airport_red') return 'airport-red'
-  if (sourceKey === 'airport_yellow_5_8_km') return 'airport-5-8'
-  if (sourceKey === 'airport_green_8_12_km') return 'airport-8-12-green'
-  if (sourceKey === 'airport_yellow_8_12_km') return 'airport-8-12-yellow'
-  if (sourceKey === 'coastal_zone_0_5_km') return 'coastal-0-5'
-  if (sourceKey === 'coastal_zone_0_8_km') return 'coastal-0-8'
-  if (sourceKey === 'coastal_zone_25_km') return 'coastal-25'
-  if (sourceKey === 'coastal_green') return 'coastal-green'
-  if (sourceKey === 'coastal_yellow') return 'coastal-yellow'
-  if (sourceKey === 'india_region') return 'india-region'
-  if (sourceKey === 'pan_india_boundary') return 'pan-india-boundary'
-  if (sourceKey === 'red_zone_data') return 'red-zone'
-  return sourceKey.replace(/_/g, '-')
-}
-
-function dgcaZoneLabel(zoneType: string) {
-  return {
-    'airport-red': 'Airport Red',
-    'airport-5-8': 'Airport Yellow (5-8 km)',
-    'airport-8-12-green': 'Airport Green (8-12 km)',
-    'airport-8-12-yellow': 'Airport Yellow (8-12 km)',
-    'coastal-0-5': 'Coastal Zone (0-5 km)',
-    'coastal-0-8': 'Coastal Zone (0-8 km)',
-    'coastal-25': 'International Border / Coastal 25 km',
-    'coastal-green': 'Coastal Green',
-    'coastal-yellow': 'Coastal Yellow',
-    'india-region': 'India Region',
-    'pan-india-boundary': 'Pan India Boundary',
-    'red-zone': 'Red Zone',
-  }[zoneType] ?? zoneType
-}
-
-function dgcaZoneKind(zoneType: string, geozoneType?: string | null): RegulatoryZoneKind {
-  const text = `${zoneType} ${geozoneType ?? ''}`.toLowerCase()
-  if (text.includes('red') || text.includes('restricted') || zoneType === 'coastal-25') return 'red'
-  if (text.includes('yellow') || text.includes('orange') || text.includes('controlled')) return 'orange'
-  return 'green'
-}
-
-function dgcaAction(kind: RegulatoryZoneKind, zoneType: string): RegulatoryAction {
-  if (kind === 'red') return 'rtl'
-  if (kind === 'orange') return zoneType === 'airport-5-8' ? 'hold' : 'reduce'
-  return 'continue'
-}
-
-function altitudeMetersFromFeature(properties: Record<string, any>, kind: RegulatoryZoneKind, zoneType: string) {
-  if (kind === 'red') return 0
-
-  const rawAltitude = Number(properties.upr_alt ?? properties.upper_altitude ?? properties.max_altitude)
-  if (Number.isFinite(rawAltitude) && rawAltitude > 0) {
-    return Math.round(rawAltitude * 0.3048)
-  }
-
-  if (zoneType === 'airport-5-8') return 0
-  if (zoneType === 'airport-8-12-yellow') return 60
-  return 120
-}
-
-function dgcaRestriction(kind: RegulatoryZoneKind, zoneType: string, maxAltitudeM: number) {
-  if (kind === 'red') {
-    return `${dgcaZoneLabel(zoneType)} from the official DigitalSky/DGCA layer. No-drone operation unless permission is granted.`
-  }
-  if (kind === 'orange') {
-    if (maxAltitudeM <= 0) {
-      return `${dgcaZoneLabel(zoneType)} from the official DigitalSky/DGCA layer. Hold unless ATC/competent authority permission is granted.`
-    }
-    return `${dgcaZoneLabel(zoneType)} from the official DigitalSky/DGCA layer. Stay below ${maxAltitudeM} m AGL unless permission is granted.`
-  }
-  return `${dgcaZoneLabel(zoneType)} from the official DigitalSky/DGCA layer. Standard green-zone limits apply.`
-}
-
-function ringToLatLng(ring: any): [number, number][] {
-  if (!Array.isArray(ring)) return []
-
-  const points = ring
-    .map((coord: any) => {
-      const lon = Number(coord?.[0])
-      const lat = Number(coord?.[1])
-      return [lat, lon] as [number, number]
-    })
-    .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]))
-
-  if (points.length > 1) {
-    const first = points[0]
-    const last = points[points.length - 1]
-    if (first[0] === last[0] && first[1] === last[1]) return points.slice(0, -1)
-  }
-
-  return points
-}
-
-function polygonsFromGeometry(geometry: any): [number, number][][] {
-  if (!geometry) return []
-
-  if (geometry.type === 'Polygon') {
-    const outer = ringToLatLng(geometry.coordinates?.[0])
-    return outer.length >= 3 ? [outer] : []
-  }
-
-  if (geometry.type === 'MultiPolygon') {
-    return (geometry.coordinates ?? [])
-      .map((polygon: any) => ringToLatLng(polygon?.[0]))
-      .filter((polygon: [number, number][]) => polygon.length >= 3)
-  }
-
-  return []
-}
-
-function createDgcaZone(feature: any, zoneType: string, sourceKey: string, index: number, polygon: [number, number][]): RegulatoryZone {
-  const properties = feature?.properties ?? {}
-  const geozoneType = properties.geozone_type ?? properties.geozoneNameType ?? null
-  const kind = dgcaZoneKind(zoneType, geozoneType)
-  const maxAltitudeM = altitudeMetersFromFeature(properties, kind, zoneType)
-  const action = dgcaAction(kind, zoneType)
-  const name = properties.name ?? properties.zone_name ?? properties.geozone_name ?? `${dgcaZoneLabel(zoneType)} ${index + 1}`
-
-  return {
-    id: String(properties.id ?? properties.zone_id ?? `${sourceKey}-${index}`),
-    name,
-    country: 'India',
-    authority: DGCA_DIGITAL_SKY_SOURCE.authority,
-    kind,
-    source: DGCA_DIGITAL_SKY_SOURCE,
-    restriction: dgcaRestriction(kind, zoneType, maxAltitudeM),
-    polygon,
-    outerRadiusM: 0,
-    maxAltitudeM,
-    maxSpeedMs: kind === 'red' ? 0 : kind === 'orange' ? 8 : 12,
-    recommendedAltitudeM: kind === 'red' ? 0 : Math.max(0, Math.min(maxAltitudeM || 60, maxAltitudeM > 0 ? maxAltitudeM - 10 : 0)),
-    recommendedSpeedMs: kind === 'red' ? 0 : kind === 'orange' ? 5 : 8,
-    requiresPermission: kind !== 'green',
-    action,
-  }
-}
-
-function normalizeDgcaZones(payload: any): RegulatoryZone[] {
-  return featureCollectionEntries(payload).flatMap(([sourceKey, collection]) => {
-    const zoneType = dgcaZoneType(sourceKey)
-    if (zoneType === 'india-region-dots') return []
-
-    return collection.features.flatMap((feature: any, featureIndex: number) =>
-      polygonsFromGeometry(feature.geometry)
-        .map((polygon, polygonIndex) =>
-          createDgcaZone(feature, zoneType, sourceKey, featureIndex + polygonIndex, polygon),
-        ),
-    )
-  })
-}
-
-export async function loadDgcaRegulatoryZones(force = false): Promise<RegulatoryZone[]> {
-  if (dgcaZonesLoaded && !force) return regulatoryZones
-  if (dgcaZoneLoadPromise && !force) return dgcaZoneLoadPromise
-
-  dgcaZoneLoadPromise = fetch(DGCA_ZONE_API_URL, {
-    headers: {
-      Accept: 'application/json',
-      ...(DGCA_ZONE_API_KEY ? { Authorization: `Bearer ${DGCA_ZONE_API_KEY}` } : {}),
-    },
-  })
-    .then(async response => {
-      if (!response.ok) throw new Error(`DGCA zone feed returned ${response.status}`)
-      const payload = await response.json()
-      const zones = normalizeDgcaZones(payload)
-      if (zones.length === 0) throw new Error('DGCA zone feed did not contain usable polygon features')
-      replaceRegulatoryZones(zones)
-      dgcaZonesLoaded = true
-      dgcaZonesLoadError = null
-      return zones
-    })
-    .catch(error => {
-      dgcaZonesLoaded = false
-      dgcaZonesLoadError = error instanceof Error ? error.message : 'DGCA zone feed failed'
-      replaceRegulatoryZones(FALLBACK_REGULATORY_ZONES)
-      return regulatoryZones
-    })
-    .finally(() => {
-      dgcaZoneLoadPromise = null
-    })
-
-  return dgcaZoneLoadPromise
-}
-
-const FALLBACK_REGULATORY_ZONES: RegulatoryZone[] = [
+export const regulatoryZones: RegulatoryZone[] = [
   ...BORDER_RED_ZONES,
   ...SENSITIVE_RED_ZONES,
   ...buildAirportZones(),
 ]
 
-export const regulatoryZones: RegulatoryZone[] = [...FALLBACK_REGULATORY_ZONES]
-
-let dgcaZoneLoadPromise: Promise<RegulatoryZone[]> | null = null
-let dgcaZonesLoaded = false
-let dgcaZonesLoadError: string | null = null
-let regulatoryZoneVersion = 0
-const regulatoryZoneListeners = new Set<() => void>()
-
-export function getRegulatoryZoneVersion() {
-  return regulatoryZoneVersion
-}
-
 export function getRegulatoryZoneLoadState() {
   return {
-    loaded: dgcaZonesLoaded,
-    error: dgcaZonesLoadError,
-    sourceUrl: DGCA_ZONE_API_URL,
+    offline: true,
+    checkedOn: OFFLINE_SNAPSHOT_CHECKED_ON,
     count: regulatoryZones.length,
   }
-}
-
-export function subscribeRegulatoryZoneUpdates(listener: () => void) {
-  regulatoryZoneListeners.add(listener)
-  return () => {
-    regulatoryZoneListeners.delete(listener)
-  }
-}
-
-function publishRegulatoryZoneUpdate() {
-  regulatoryZoneVersion += 1
-  regulatoryZoneListeners.forEach(listener => listener())
-}
-
-function replaceRegulatoryZones(zones: RegulatoryZone[]) {
-  regulatoryZones.splice(0, regulatoryZones.length, ...zones)
-  publishRegulatoryZoneUpdate()
 }
 
 export function isInsideIndia(lat: number, lon: number) {
@@ -906,4 +669,4 @@ export function buildRegulatoryZoneLayers(): RegulatoryZoneLayer[] {
   })
 }
 
-export const regulatorySources = [DGCA_DIGITAL_SKY_SOURCE, DIGITAL_SKY_SOURCE, PIB_SOURCE, MAPPLS_AIRSPACE_SOURCE]
+export const regulatorySources = [DIGITAL_SKY_SOURCE, PIB_SOURCE, MAPPLS_AIRSPACE_SOURCE]

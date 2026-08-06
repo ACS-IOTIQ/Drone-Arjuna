@@ -78,6 +78,7 @@ class MissionCreate(BaseModel):
     geofence: Optional[dict] = None        # GeoJSON Polygon
     payload_weight_kg: Optional[float] = None
     notes: Optional[str] = None
+    enforce_airspace: bool = True          # False when the operator disabled the Government airspace zones layer
 
     @field_validator("payload_weight_kg")
     @classmethod
@@ -129,6 +130,7 @@ class MissionUpdate(BaseModel):
     geofence: Optional[dict] = None
     payload_weight_kg: Optional[float] = None
     waypoints: Optional[list[WaypointCreate]] = None  # if provided, replaces all waypoints
+    enforce_airspace: bool = True          # False when the operator disabled the Government airspace zones layer
 
 
 class MissionStatusUpdate(BaseModel):

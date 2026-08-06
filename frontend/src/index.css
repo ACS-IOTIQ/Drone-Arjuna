@@ -3,22 +3,23 @@
 @tailwind utilities;
 
 :root {
-  --da-bg: #eef2f6;
+  /* Softer, modern pastel theme */
+  --da-bg: #f5f7fb;
   --da-surface: #ffffff;
-  --da-surface-soft: #f7f9fc;
+  --da-surface-soft: #fbfdff;
   --da-card: #ffffff;
-  --da-border: #d8e0ea;
-  --da-border-strong: #b9c5d3;
-  --da-accent: #2157d5;
-  --da-accent-dark: #173f9f;
-  --da-teal: #087f73;
-  --da-success: #15803d;
-  --da-warning: #b45309;
-  --da-danger: #c62828;
-  --da-muted: #64748b;
-  --da-text: #172033;
-  --da-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --da-shadow-md: 0 10px 30px rgba(15, 23, 42, 0.1);
+  --da-border: #e6edf6;
+  --da-border-strong: #d0dfee;
+  --da-accent: #3b82f6; /* blue-500 */
+  --da-accent-dark: #2563eb;
+  --da-teal: #20c997;
+  --da-success: #22c55e;
+  --da-warning: #f59e0b;
+  --da-danger: #ef4444;
+  --da-muted: #6b7280;
+  --da-text: #0f172a;
+  --da-shadow-sm: 0 6px 12px rgba(15, 23, 42, 0.06);
+  --da-shadow-md: 0 18px 48px rgba(15, 23, 42, 0.08);
   --da-topbar-height: 58px;
 }
 
@@ -43,6 +44,15 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Prefer GPU compositing for small, frequently-animated elements */
+button,
+.da-icon-button,
+.da-nav-item,
+.da-fly-header-btn {
+  transform: translateZ(0);
+  will-change: transform, opacity;
 }
 
 button,
@@ -77,8 +87,8 @@ textarea:focus-visible {
   padding: 0 16px;
   overflow: hidden;
   border-bottom: 1px solid var(--da-border);
-  background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,252,255,0.96));
+  box-shadow: var(--da-shadow-sm);
 }
 
 .da-workspace-title {
@@ -200,8 +210,8 @@ textarea:focus-visible {
   min-width: 64px;
   overflow: hidden;
   border-right: 1px solid var(--da-border);
-  background: #fbfcfe;
-  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.9);
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
+  box-shadow: 0 6px 18px rgba(15,23,42,0.04);
   transition:
     width 180ms ease,
     min-width 180ms ease,
@@ -234,11 +244,11 @@ textarea:focus-visible {
   flex: 0 0 40px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(33, 87, 213, 0.22);
-  border-radius: 8px;
+  border: 1px solid rgba(59,130,246,0.12);
+  border-radius: 10px;
   color: white;
   background: var(--da-accent);
-  box-shadow: 0 5px 14px rgba(33, 87, 213, 0.22);
+  box-shadow: 0 8px 20px rgba(59,130,246,0.12);
   font-family: "Rajdhani", sans-serif;
   font-size: 13px;
   font-weight: 700;
@@ -486,38 +496,25 @@ textarea:focus-visible {
   max-height: calc(100vh - 56px);
   padding: 34px;
   overflow-y: auto;
-  border: 1px solid rgba(178, 215, 246, 0.32);
-  border-radius: 18px;
-  color: #edf5fc;
-  background: linear-gradient(
-    145deg,
-    rgba(12, 30, 49, 0.76) 0%,
-    rgba(9, 28, 48, 0.62) 52%,
-    rgba(7, 22, 39, 0.72) 100%
-  );
-  box-shadow:
-    0 34px 100px rgba(0, 7, 17, 0.62),
-    0 10px 34px rgba(0, 14, 31, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -1px 0 rgba(121, 179, 228, 0.12);
-  backdrop-filter: blur(30px) saturate(125%);
-  -webkit-backdrop-filter: blur(30px) saturate(125%);
-  scrollbar-color: rgba(181, 207, 229, 0.42) transparent;
+  border: 1px solid var(--da-border);
+  border-radius: 14px;
+  color: var(--da-text);
+  background: linear-gradient(180deg, var(--da-surface), var(--da-surface-soft));
+  box-shadow: var(--da-shadow-md);
+  /* remove heavy backdrop-filter for smoother rendering */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  scrollbar-color: rgba(160,170,190,0.32) transparent;
 }
 
 .da-login-card::before {
+  /* subtle highlight */
   position: absolute;
   inset: 1px 1px auto;
   z-index: -1;
-  height: 46%;
-  border-radius: 17px 17px 50% 50%;
-  background:
-    radial-gradient(
-      circle at 18% 0%,
-      rgba(143, 198, 244, 0.16),
-      transparent 42%
-    ),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent);
+  height: 30%;
+  border-radius: 12px 12px 40% 40%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), transparent);
   content: "";
   pointer-events: none;
 }
@@ -584,8 +581,8 @@ textarea:focus-visible {
   padding: 4px;
   border: 1px solid rgba(195, 220, 242, 0.16);
   border-radius: 10px;
-  background: rgba(1, 11, 22, 0.3);
-  box-shadow: inset 0 1px 3px rgba(0, 7, 16, 0.34);
+  background: rgba(250,251,255,0.6);
+  box-shadow: inset 0 1px 2px rgba(15,23,42,0.04);
 }
 
 .da-login-tabs button {
@@ -643,20 +640,18 @@ textarea:focus-visible {
   align-items: center;
   overflow: hidden;
   border: 1px solid rgba(71, 85, 105, 0.28);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
   transition:
     border-color 150ms ease,
     box-shadow 150ms ease;
 }
 
 .da-input-shell:focus-within {
-  border-color: #2157d5;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow:
-    0 0 0 3px rgba(33, 87, 213, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border-color: var(--da-accent);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 6px 18px rgba(37,99,235,0.08);
 }
 
 .da-input-icon {
@@ -715,22 +710,20 @@ textarea:focus-visible {
 }
 
 .da-login-card .da-input-shell {
-  border-color: rgba(190, 216, 239, 0.24);
-  background: rgba(224, 239, 251, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  border-color: rgba(190, 216, 239, 0.12);
+  background: rgba(245,250,255,0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .da-login-card .da-input-shell:hover {
-  border-color: rgba(190, 216, 239, 0.38);
-  background: rgba(224, 239, 251, 0.14);
+  border-color: rgba(190, 216, 239, 0.26);
+  background: rgba(245,250,255,0.72);
 }
 
 .da-login-card .da-input-shell:focus-within {
   border-color: #79a9ff;
-  background: rgba(224, 239, 251, 0.17);
-  box-shadow:
-    0 0 0 3px rgba(82, 137, 238, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: rgba(245,250,255,0.85);
+  box-shadow: 0 8px 22px rgba(82,137,238,0.08);
 }
 
 .da-login-card .da-input-icon {

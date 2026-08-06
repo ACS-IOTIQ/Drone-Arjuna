@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, Tooltip, useMap, ZoomControl } from 'react-leaflet'
+import { LayersControl, LayerGroup, MapContainer, Marker, CircleMarker, Polygon, Polyline, Popup, TileLayer, Tooltip, useMap, ZoomControl } from 'react-leaflet'
 import L from 'leaflet'
 import { droneControlApi } from '@/api/droneControl'
 import { useMissionStore, type GeoPoint } from '@/store/missionStore'
@@ -153,7 +153,8 @@ function MapFollower({ lat, lon }: { lat: number; lon: number }) {
       map.setView([lat, lon], 15)
       firstRef.current = false
     } else {
-      map.panTo([lat, lon], { animate: true, duration: 0.8 })
+      // shorter pan duration for snappier follow while keeping smoothness
+      map.panTo([lat, lon], { animate: true, duration: 0.4 })
     }
   }, [lat, lon, map])
 
@@ -200,9 +201,9 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
   const liveCollisionNoticeKeyRef = useRef('')
   const autoActionRef = useRef<Map<string, number>>(new Map())
 
-  // Breadcrumb trail — every 5th frame, only for the active/followed drone
+  // Breadcrumb trail — downsampled to reduce polyline vertex count
   const trail = (history ?? [])
-    .filter((_, i) => i % 5 === 0)
+    .filter((_, i) => i % 10 === 0)
     .map(f => [f.lat, f.lon] as [number, number])
     .filter(([lat, lon]) => lat !== 0 || lon !== 0)
 
@@ -482,6 +483,8 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
       <div className="da-live-map-stage">
         <MapContainer
       center={[17.385, 78.4867]}
+      // preferCanvas causes vector layers (polylines/polygons) to render to canvas, improving perf
+      preferCanvas
       zoom={15}
       minZoom={3}
       maxZoom={18}
@@ -626,20 +629,20 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
             </Popup>
           </Marker>
         ) : (
-          <Marker
+          // Render non-active drones as lightweight canvas CircleMarker for better perf
+          <CircleMarker
             key={`drone-${id}`}
-            position={[f.lat, f.lon]}
-            icon={droneIcon(f.heading, id === droneId, f.call_sign)}
+            center={[f.lat, f.lon]}
+            radius={6}
+            pathOptions={{ color: colorForDrone(id), fillColor: colorForDrone(id), fillOpacity: 0.95, weight: 1, opacity: 0.9 }}
             eventHandlers={onSelectDrone ? { click: () => onSelectDrone(id) } : undefined}>
-            <Popup>
-              <div style={{ fontSize: 12, minWidth: 150 }}>
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>{f.call_sign ?? `Drone #${id}`}</div>
-                <div>Lat: {f.lat.toFixed(6)}</div>
-                <div>Lon: {f.lon.toFixed(6)}</div>
-                <div style={{ color: '#475569', marginTop: 4 }}>Alt AGL: {f.alt_agl.toFixed(1)} m</div>
+            <Tooltip direction="top" offset={[0, -10]}>
+              <div style={{ fontSize: 11, minWidth: 120 }}>
+                <div style={{ fontWeight: 700 }}>{f.call_sign ?? `Drone #${id}`}</div>
+                <div style={{ color: '#475569', marginTop: 2 }}>Alt: {f.alt_agl.toFixed(1)} m</div>
               </div>
-            </Popup>
-          </Marker>
+            </Tooltip>
+          </CircleMarker>
         )
       ))}
 

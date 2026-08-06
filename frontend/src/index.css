@@ -2482,20 +2482,6 @@ select.da-input {
   font-size: 9px;
 }
 
-.da-live-regulatory-badge {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  padding: 3px 8px;
-  border: 1px solid #cbd5e1;
-  border-radius: 999px;
-  color: #475569;
-  background: #f1f5f9;
-  font-size: 9px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
 .da-live-violation {
   padding: 8px;
   border: 1px solid #fecaca;

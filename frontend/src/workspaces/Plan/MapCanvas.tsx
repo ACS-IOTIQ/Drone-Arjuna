@@ -12,9 +12,8 @@ import {
   buildRegulatoryZoneLayers,
   drawnPolygonContainsRestrictedZone,
   getRegulatoryRule,
-  loadDgcaRegulatoryZones,
+  getRegulatoryZoneLoadState,
   routeSegmentCrossesRestrictedZone,
-  subscribeRegulatoryZoneUpdates,
 } from '@/utils/regulatoryZones'
 import { findRouteCollisions, formatCollisionCoord, type LatLngPoint } from '@/utils/routeCollision'
 
@@ -124,15 +123,18 @@ function isPointInsidePolygon(point: GeoPoint, polygon: GeoPoint[]) {
   return inside
 }
 
-function edgeCrossesRestrictedZone(prev: GeoPoint, next: GeoPoint): string | null {
+function edgeCrossesRestrictedZone(prev: GeoPoint, next: GeoPoint, enabled: boolean): string | null {
+  if (!enabled) return null
   return routeSegmentCrossesRestrictedZone(prev, next)
 }
 
-function geofenceEnclosesRestrictedZone(pts: GeoPoint[]): string | null {
+function geofenceEnclosesRestrictedZone(pts: GeoPoint[], enabled: boolean): string | null {
+  if (!enabled) return null
   return drawnPolygonContainsRestrictedZone(pts)
 }
 
-function validateGovernmentPlacement(lat: number, lng: number, target: 'waypoint' | 'geofence vertex') {
+function validateGovernmentPlacement(lat: number, lng: number, target: 'waypoint' | 'geofence vertex', enabled: boolean) {
+  if (!enabled) return true
   const rule = getRegulatoryRule(lat, lng, 0)
   if (!rule) return true
 
@@ -155,18 +157,18 @@ function validateGovernmentPlacement(lat: number, lng: number, target: 'waypoint
   return true
 }
 
-function MapClickHandler({ drawing, routeDrawing }: { drawing: boolean; routeDrawing: boolean }) {
+function MapClickHandler({ drawing, routeDrawing, governmentZonesEnabled }: { drawing: boolean; routeDrawing: boolean; governmentZonesEnabled: boolean }) {
   const { draftWaypoints, addWaypoint, geofence, setGeofence } = useMissionStore()
   useMapEvents({
     click(e) {
       if (drawing) {
         const newPt = { lat: e.latlng.lat, lng: e.latlng.lng }
         // 1. Vertex itself inside a restricted zone
-        if (!validateGovernmentPlacement(newPt.lat, newPt.lng, 'geofence vertex')) return
+        if (!validateGovernmentPlacement(newPt.lat, newPt.lng, 'geofence vertex', governmentZonesEnabled)) return
         // 2. Edge from the previous vertex to this one crosses a restricted zone
         if (geofence.length > 0) {
           const prev = geofence[geofence.length - 1]
-          const crossedZone = edgeCrossesRestrictedZone(prev, newPt)
+          const crossedZone = edgeCrossesRestrictedZone(prev, newPt, governmentZonesEnabled)
           if (crossedZone) {
             notify.danger(
               'Geofence edge crosses restricted airspace',
@@ -179,7 +181,7 @@ function MapClickHandler({ drawing, routeDrawing }: { drawing: boolean; routeDra
         const nextGeofence = [...geofence, newPt]
         // 3. Closing edge (last vertex back to first) would cross a zone
         if (nextGeofence.length >= 3) {
-          const closingZone = edgeCrossesRestrictedZone(newPt, nextGeofence[0])
+          const closingZone = edgeCrossesRestrictedZone(newPt, nextGeofence[0], governmentZonesEnabled)
           if (closingZone) {
             notify.danger(
               'Geofence closing edge crosses restricted airspace',
@@ -189,7 +191,7 @@ function MapClickHandler({ drawing, routeDrawing }: { drawing: boolean; routeDra
             return
           }
           // 4. Polygon encloses a zone centre
-          const enclosed = geofenceEnclosesRestrictedZone(nextGeofence)
+          const enclosed = geofenceEnclosesRestrictedZone(nextGeofence, governmentZonesEnabled)
           if (enclosed) {
             notify.danger(
               'Geofence encloses restricted airspace',
@@ -207,7 +209,7 @@ function MapClickHandler({ drawing, routeDrawing }: { drawing: boolean; routeDra
       const newWp = { lat: e.latlng.lat, lng: e.latlng.lng }
 
       // 1. New waypoint itself inside a restricted zone
-      const rule = getRegulatoryRule(newWp.lat, newWp.lng, 100)
+      const rule = governmentZonesEnabled ? getRegulatoryRule(newWp.lat, newWp.lng, 100) : null
       if (rule && (rule.kind === 'red' || rule.kind === 'orange')) {
         notify.danger(
           rule.kind === 'red' ? 'Waypoint blocked — restricted airspace' : 'Waypoint blocked — controlled airspace',
@@ -220,7 +222,7 @@ function MapClickHandler({ drawing, routeDrawing }: { drawing: boolean; routeDra
       if (draftWaypoints.length > 0) {
         const prev = draftWaypoints[draftWaypoints.length - 1]
         const prevPt = { lat: prev.latitude, lng: prev.longitude }
-        const crossedZone = edgeCrossesRestrictedZone(prevPt, newWp)
+        const crossedZone = edgeCrossesRestrictedZone(prevPt, newWp, governmentZonesEnabled)
         if (crossedZone) {
           notify.danger(
             'Flight path crosses restricted airspace',
@@ -233,7 +235,7 @@ function MapClickHandler({ drawing, routeDrawing }: { drawing: boolean; routeDra
       // 3. Waypoints placed so far (including this one) surround/enclose a restricted zone
       const routePts = [...draftWaypoints.map(w => ({ lat: w.latitude, lng: w.longitude })), newWp]
       if (routePts.length >= 3) {
-        const enclosedZone = geofenceEnclosesRestrictedZone(routePts)
+        const enclosedZone = geofenceEnclosesRestrictedZone(routePts, governmentZonesEnabled)
         if (enclosedZone) {
           notify.danger(
             'Flight path surrounds restricted airspace',
@@ -253,6 +255,18 @@ function MapClickHandler({ drawing, routeDrawing }: { drawing: boolean; routeDra
         action: 'none',
         is_home: seq === 1,
       })
+    },
+  })
+  return null
+}
+
+function GovernmentZonesToggleHandler({ onChange }: { onChange: (enabled: boolean) => void }) {
+  useMapEvents({
+    overlayadd(e) {
+      if (e.name === 'Government airspace zones') onChange(true)
+    },
+    overlayremove(e) {
+      if (e.name === 'Government airspace zones') onChange(false)
     },
   })
   return null
@@ -290,6 +304,8 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
     setGeofence,
     activeMissionId,
     missions,
+    governmentZonesEnabled,
+    setGovernmentZonesEnabled,
   } = useMissionStore()
   const instances = useFleetStore(s => s.instances)
   const [drawing, setDrawing] = useState(false)
@@ -298,14 +314,8 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
   const [manualLng, setManualLng] = useState('')
   const [showAllMissions, setShowAllMissions] = useState(false)
   const [activePanel, setActivePanel] = useState<'coordinates' | 'collisions' | 'missions' | 'airspace' | null>(null)
-  const [regulatoryZoneVersion, setRegulatoryZoneVersion] = useState(0)
   const collisionNoticeKeyRef = useRef('')
-
-  useEffect(() => {
-    const unsubscribe = subscribeRegulatoryZoneUpdates(() => setRegulatoryZoneVersion(version => version + 1))
-    loadDgcaRegulatoryZones().finally(() => setRegulatoryZoneVersion(version => version + 1))
-    return unsubscribe
-  }, [])
+  const regulatoryZoneLoadState = useMemo(() => getRegulatoryZoneLoadState(), [])
 
   const droneName = (id: number | null | undefined) =>
     instances.find(i => i.id === id)?.call_sign ?? (id != null ? `Drone #${id}` : 'Unassigned')
@@ -385,7 +395,7 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
     const centerLng = geofence.reduce((sum, p) => sum + p.lng, 0) / geofence.length
     return buildZoneLayers(centerLat, centerLng, geofence)
   }, [geofence])
-  const regulatoryZoneLayers = useMemo(() => buildRegulatoryZoneLayers(), [regulatoryZoneVersion])
+  const regulatoryZoneLayers = useMemo(() => buildRegulatoryZoneLayers(), [])
   useEffect(() => {
     if (activeMissionId && draftWaypoints.length > 0) setRouteDrawing(false)
   }, [activeMissionId, draftWaypoints.length])
@@ -428,7 +438,7 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
     for (let i = 0; i < geofence.length; i++) {
       const a = geofence[i]
       const b = geofence[(i + 1) % geofence.length]
-      const crossedZone = edgeCrossesRestrictedZone(a, b)
+      const crossedZone = edgeCrossesRestrictedZone(a, b, governmentZonesEnabled)
       if (crossedZone) {
         notify.danger(
           'Geofence crosses restricted airspace',
@@ -438,7 +448,7 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
         return
       }
     }
-    const enclosedZone = geofenceEnclosesRestrictedZone(geofence)
+    const enclosedZone = geofenceEnclosesRestrictedZone(geofence, governmentZonesEnabled)
     if (enclosedZone) {
       notify.danger(
         'Geofence encloses restricted airspace',
@@ -468,10 +478,10 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
     const lat = Number(manualLat)
     const lng = Number(manualLng)
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-    if (!validateGovernmentPlacement(lat, lng, 'geofence vertex')) return
+    if (!validateGovernmentPlacement(lat, lng, 'geofence vertex', governmentZonesEnabled)) return
     const newPt = { lat, lng }
     if (geofence.length > 0) {
-      const crossedZone = edgeCrossesRestrictedZone(geofence[geofence.length - 1], newPt)
+      const crossedZone = edgeCrossesRestrictedZone(geofence[geofence.length - 1], newPt, governmentZonesEnabled)
       if (crossedZone) {
         notify.danger('Geofence edge crosses restricted airspace', `Edge crosses ${crossedZone}. Adjust coordinates.`)
         return
@@ -660,7 +670,7 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
                 const n = geofence.length
 
                 // 1. Vertex itself inside a restricted zone
-                if (!validateGovernmentPlacement(newPt.lat, newPt.lng, 'geofence vertex')) {
+                if (!validateGovernmentPlacement(newPt.lat, newPt.lng, 'geofence vertex', governmentZonesEnabled)) {
                   marker.setLatLng([point.lat, point.lng])
                   return
                 }
@@ -668,8 +678,8 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
                 // 2. Check both adjacent edges (prev→new and new→next)
                 const prevPt = geofence[(idx - 1 + n) % n]
                 const nextPt = geofence[(idx + 1) % n]
-                const crossPrev = n > 1 ? edgeCrossesRestrictedZone(prevPt, newPt) : null
-                const crossNext = n > 1 ? edgeCrossesRestrictedZone(newPt, nextPt) : null
+                const crossPrev = n > 1 ? edgeCrossesRestrictedZone(prevPt, newPt, governmentZonesEnabled) : null
+                const crossNext = n > 1 ? edgeCrossesRestrictedZone(newPt, nextPt, governmentZonesEnabled) : null
                 const crossed = crossPrev ?? crossNext
                 if (crossed) {
                   notify.danger(
@@ -682,7 +692,7 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
 
                 // 3. Check if updated polygon encloses a zone centre
                 const updated = geofence.map((p, i) => i === idx ? newPt : p)
-                const enclosed = geofenceEnclosesRestrictedZone(updated)
+                const enclosed = geofenceEnclosesRestrictedZone(updated, governmentZonesEnabled)
                 if (enclosed) {
                   notify.danger(
                     'Geofence encloses restricted airspace',
@@ -773,7 +783,8 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
           </Marker>
         )}
 
-        <MapClickHandler drawing={drawing} routeDrawing={routeDrawing} />
+        <MapClickHandler drawing={drawing} routeDrawing={routeDrawing} governmentZonesEnabled={governmentZonesEnabled} />
+        <GovernmentZonesToggleHandler onChange={setGovernmentZonesEnabled} />
       </MapContainer>
 
           <div className="da-map-toolbar" role="toolbar" aria-label="Planning tools">
@@ -954,6 +965,9 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
       </div>
 
       <div className="da-plan-statusbar" role="status">
+        <span className="da-live-regulatory-badge" title="DGCA zone boundaries are a static offline snapshot, not a live feed">
+          DGCA zones: offline snapshot (checked {regulatoryZoneLoadState.checkedOn})
+        </span>
         <strong className={drawing ? 'is-teal' : routeDrawing ? 'is-blue' : ''}>{planningState}</strong>
         <span>{draftWaypoints.length} waypoints</span>
         <span>{geofence.length} fence vertices</span>

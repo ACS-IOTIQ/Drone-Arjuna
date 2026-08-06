@@ -42,8 +42,14 @@ async def list_missions(db: DbDep, _: ViewerDep):
     return out
 
 
-def _enforce_airspace(waypoints_body, geofence_body):
-    """Raise 422 if the mission violates any government airspace restriction."""
+def _enforce_airspace(waypoints_body, geofence_body, enforce: bool = True):
+    """Raise 422 if the mission violates any government airspace restriction.
+
+    Skipped when `enforce` is False, i.e. the operator disabled the
+    Government airspace zones layer in the planner.
+    """
+    if not enforce:
+        return
     wp_points = [
         (wp.latitude, wp.longitude, f"Waypoint {i + 1}")
         for i, wp in enumerate(waypoints_body or [])
@@ -55,7 +61,7 @@ def _enforce_airspace(waypoints_body, geofence_body):
 
 @router.post("/missions", response_model=MissionOut, status_code=201)
 async def create_mission(body: MissionCreate, db: DbDep, user: PilotDep):
-    _enforce_airspace(body.waypoints, body.geofence)
+    _enforce_airspace(body.waypoints, body.geofence, body.enforce_airspace)
 
     existing_count = await db.scalar(
         select(func.count()).select_from(Mission).where(
@@ -131,9 +137,9 @@ async def update_mission(
     if m.status not in ("planning",):
         raise HTTPException(409, f"Cannot edit a mission with status '{m.status}'")
 
-    _enforce_airspace(body.waypoints, body.geofence)
+    _enforce_airspace(body.waypoints, body.geofence, body.enforce_airspace)
 
-    update_data = body.model_dump(exclude_unset=True, exclude={"waypoints"})
+    update_data = body.model_dump(exclude_unset=True, exclude={"waypoints", "enforce_airspace"})
     for field, value in update_data.items():
         setattr(m, field, value)
 

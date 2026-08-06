@@ -12,13 +12,24 @@ import { buildZoneLayers, getZoneRule } from '@/utils/geofenceZones'
 import {
   buildRegulatoryZoneLayers,
   getRegulatoryRule,
-  loadDgcaRegulatoryZones,
-  subscribeRegulatoryZoneUpdates,
+  getRegulatoryZoneLoadState,
+  type RegulatoryRule,
 } from '@/utils/regulatoryZones'
 import { findRouteCollisions, formatCollisionCoord, type LatLngPoint } from '@/utils/routeCollision'
 import { AlertTriangle, ShieldAlert, X } from 'lucide-react'
 
 const FLEET_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d']
+
+const REGULATORY_CHECK_MIN_MOVE_M = 15
+
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(a))
+}
 
 function colorForDrone(droneId: number | null | undefined) {
   if (droneId == null) return '#64748b'
@@ -194,7 +205,6 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
   const missionGeofence = useMissionStore(s => s.geofence)
   const [runtimeGeofence, setRuntimeGeofence] = useState<any | null>(null)
   const [activeDetail, setActiveDetail] = useState<'airspace' | 'collisions' | null>(null)
-  const [regulatoryZoneVersion, setRegulatoryZoneVersion] = useState(0)
   const lastRegulatoryRef = useRef<string | null>(null)
   const lastComplianceRef = useRef<string | null>(null)
   const liveCollisionNoticeKeyRef = useRef('')
@@ -205,12 +215,6 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     .filter((_, i) => i % 5 === 0)
     .map(f => [f.lat, f.lon] as [number, number])
     .filter(([lat, lon]) => lat !== 0 || lon !== 0)
-
-  useEffect(() => {
-    const unsubscribe = subscribeRegulatoryZoneUpdates(() => setRegulatoryZoneVersion(version => version + 1))
-    loadDgcaRegulatoryZones().finally(() => setRegulatoryZoneVersion(version => version + 1))
-    return unsubscribe
-  }, [])
 
   useEffect(() => {
     const hasSimFrame = Object.values(frames).some(f => f?.sim_phase)
@@ -266,11 +270,19 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
     const lon = frame?.lon ?? 0
     return buildZoneLayers(lat, lon, displayGeofence)
   }, [frame, displayGeofence])
-  const regulatoryZones = useMemo(() => buildRegulatoryZoneLayers(), [regulatoryZoneVersion])
+  const regulatoryZones = useMemo(() => buildRegulatoryZoneLayers(), [])
+  const regulatoryZoneLoadState = useMemo(() => getRegulatoryZoneLoadState(), [])
+  const regulatoryCheckRef = useRef<{ lat: number; lon: number; rule: RegulatoryRule | null } | null>(null)
   const currentRegulatoryZone = useMemo(() => {
     if (!frame) return null
-    return getRegulatoryRule(frame.lat, frame.lon, frame.alt_agl ?? 0)
-  }, [frame, regulatoryZoneVersion])
+    const cached = regulatoryCheckRef.current
+    if (cached && haversineMeters(cached.lat, cached.lon, frame.lat, frame.lon) < REGULATORY_CHECK_MIN_MOVE_M) {
+      return cached.rule
+    }
+    const rule = getRegulatoryRule(frame.lat, frame.lon, frame.alt_agl ?? 0)
+    regulatoryCheckRef.current = { lat: frame.lat, lon: frame.lon, rule }
+    return rule
+  }, [frame])
 
   const droneName = (id: number, callSign?: string) =>
     callSign ?? instances.find(i => i.id === id)?.call_sign ?? `Drone #${id}`
@@ -702,6 +714,9 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
           <div className="da-live-map-detail-scroll">
             {activeDetail === 'airspace' && frame && zoneRule && (
               <div className="da-live-map-detail-section">
+                <div className="da-live-regulatory-badge" title="DGCA zone boundaries are a static offline snapshot, not a live feed">
+                  DGCA zones: offline snapshot (checked {regulatoryZoneLoadState.checkedOn})
+                </div>
                 <div className={activeCompliance?.hasViolation ? 'da-live-zone-summary is-danger' : 'da-live-zone-summary'}>
                   <ShieldAlert size={17} />
                   <div>

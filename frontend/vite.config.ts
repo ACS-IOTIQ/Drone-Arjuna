@@ -7,8 +7,6 @@ const apiProxyTarget =
   process.env.VITE_API_PROXY_TARGET ||
   (existsSync('/.dockerenv') ? 'http://backend:8000' : 'http://localhost:8000')
 
-const dgcaProxyTarget = process.env.VITE_DGCA_PROXY_TARGET || 'https://digitalsky.aai.aero/api'
-
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -22,11 +20,6 @@ export default defineConfig({
     },
     proxy: {
       '/api': { target: apiProxyTarget, changeOrigin: true, ws: true },
-      '/dgca-api': {
-        target: dgcaProxyTarget,
-        changeOrigin: true,
-        rewrite: path => path.replace(/^\/dgca-api/, ''),
-      },
     },
   },
   resolve: { alias: { '@': '/src' } },

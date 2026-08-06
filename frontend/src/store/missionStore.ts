@@ -35,6 +35,8 @@ interface MissionState {
   draftWaypoints: WaypointInput[]
   geofence: GeoPoint[]
   isLoading: boolean
+  governmentZonesEnabled: boolean
+  setGovernmentZonesEnabled: (enabled: boolean) => void
   fetchMissions: () => Promise<void>
   setActiveMission: (id: number | null) => void
   addWaypoint: (wp: WaypointInput) => void
@@ -72,6 +74,9 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   draftWaypoints: [],
   geofence: [],
   isLoading: false,
+  governmentZonesEnabled: true,
+
+  setGovernmentZonesEnabled: (enabled) => set({ governmentZonesEnabled: enabled }),
 
   fetchMissions: async () => {
     set({ isLoading: true })
@@ -113,6 +118,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
       home_vessel_id: homePointType === 'dynamic_vessel' ? homeVesselId : undefined,
       waypoints: get().draftWaypoints,
       geofence: geofenceToGeoJson(get().geofence),
+      enforce_airspace: get().governmentZonesEnabled,
     })
     set(s => ({ missions: [data, ...s.missions], activeMissionId: data.id }))
   },
@@ -125,6 +131,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
       home_vessel_id: homePointType === 'dynamic_vessel' ? homeVesselId : undefined,
       waypoints: get().draftWaypoints,
       geofence: geofenceToGeoJson(get().geofence),
+      enforce_airspace: get().governmentZonesEnabled,
     })
     set(s => ({
       missions: s.missions.map(m => m.id === id ? { ...m, ...data } : m),

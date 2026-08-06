@@ -19,28 +19,74 @@ $VbsPath = Join-Path $ScriptDir "start-bridge.vbs"
 # then substitute the actual paths in afterward.
 # ---------------------------------------------------------------------------
 $profileBlock = '
-# DroneArjuna: auto-start com_bridge whenever docker compose up is called
-function Invoke-Docker {
-    $argsStr = $args -join " "
-    if ($argsStr -match "compose" -and $argsStr -match "up") {
-        $running = Get-WmiObject Win32_Process -Filter "Name=''python.exe'' OR Name=''python3.exe''" 2>$null |
-                   Where-Object { $_.CommandLine -like "*com_bridge*" }
-        if (-not $running) {
-            Write-Host "[bridge] Starting com_bridge.py..." -ForegroundColor Cyan
-            if (Test-Path "VBSPATH_PLACEHOLDER") {
-                Start-Process wscript.exe -ArgumentList """VBSPATH_PLACEHOLDER""" -WindowStyle Hidden
-            } else {
-                Start-Process python -ArgumentList """BRIDGESCRIPT_PLACEHOLDER""" -WindowStyle Minimized
-            }
-            Start-Sleep -Seconds 2
-            Write-Host "[bridge] Bridge started." -ForegroundColor Green
-        } else {
-            Write-Host "[bridge] com_bridge.py already running." -ForegroundColor DarkGray
-        }
+# DroneArjuna: auto-start com_bridge for Docker Compose workflows
+function Get-DroneArjunaBridgeStatus {
+    try {
+        $response = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:5761/ports" -TimeoutSec 1
+        return ($response.Content | ConvertFrom-Json)
+    } catch {
+        return $null
     }
+}
+
+function Get-DroneArjunaBridgePortsText {
+    param($Status)
+    if (-not $Status -or -not $Status.ports) { return "none" }
+    $ports = @($Status.ports | ForEach-Object { $_.port })
+    if (-not $ports -or $ports.Count -eq 0) { return "none" }
+    return ($ports -join ", ")
+}
+
+function Start-DroneArjunaBridge {
+    $status = Get-DroneArjunaBridgeStatus
+    if ($status) {
+        if ($status.connected -eq $true -and $status.tcp_port) {
+            Write-Host "[bridge] COM bridge ready: $($status.active_port) -> host.docker.internal:$($status.tcp_port)." -ForegroundColor DarkGray
+        } else {
+            $portsText = Get-DroneArjunaBridgePortsText -Status $status
+            if ($portsText -eq "none") {
+                Write-Host "[bridge] COM bridge is running and waiting for a Windows serial device. None detected yet." -ForegroundColor Yellow
+            } else {
+                Write-Host "[bridge] COM bridge is running and waiting to open a serial device. Available ports: $portsText" -ForegroundColor Yellow
+            }
+        }
+        return
+    }
+
+    Write-Host "[bridge] Starting com_bridge.py..." -ForegroundColor Cyan
+    if (Test-Path "VBSPATH_PLACEHOLDER") {
+        Start-Process wscript.exe -ArgumentList """VBSPATH_PLACEHOLDER""" -WindowStyle Hidden
+    } else {
+        Start-Process python -ArgumentList """BRIDGESCRIPT_PLACEHOLDER""" -WindowStyle Minimized
+    }
+
+    Start-Sleep -Seconds 3
+    $status = Get-DroneArjunaBridgeStatus
+    if ($status -and $status.connected -eq $true) {
+        Write-Host "[bridge] Bridge ready: $($status.active_port) -> host.docker.internal:$($status.tcp_port)." -ForegroundColor Green
+    } elseif ($status) {
+        $portsText = Get-DroneArjunaBridgePortsText -Status $status
+        if ($portsText -eq "none") {
+            Write-Host "[bridge] Bridge started and is waiting for a Windows serial device. Plug in or replug the drone." -ForegroundColor Yellow
+        } else {
+            Write-Host "[bridge] Bridge started, but the serial port is not open yet. If one of these is your drone, close Mission Planner/QGC first: $portsText" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "[bridge] Bridge did not start. Check bridge.err.log." -ForegroundColor Red
+    }
+}
+
+function Invoke-Docker {
+    $dockerArgs = @($args)
+    $argsStr = $dockerArgs -join " "
+
+    if ($dockerArgs.Count -gt 0 -and $dockerArgs[0] -eq "compose" -and $argsStr -notmatch "\b(down|stop)\b") {
+        Start-DroneArjunaBridge
+    }
+
     $dockerExe = Get-Command docker -CommandType Application |
                  Select-Object -First 1 -ExpandProperty Source
-    & $dockerExe @args
+    & $dockerExe @dockerArgs
 }
 Set-Alias -Name docker -Value Invoke-Docker -Scope Global -Force
 # End DroneArjuna

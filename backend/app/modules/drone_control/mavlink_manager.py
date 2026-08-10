@@ -21,6 +21,7 @@ from app.modules.drone_control.state_manager import StateManager, home_point_upd
 from app.modules.drone_control.health_monitor import HealthMonitor
 from app.modules.drone_control.data_recorder import data_recorder
 from app.modules.drone_control.command_controller import CommandController, CommandRecord
+from app.modules.drone_control.mavlink_broadcaster import mavlink_broadcaster
 from app.modules.drone_control import hf_link_adapter
 from app.modules.drone_control.hf_link_adapter import (
     HFLinkAdapter, HFLinkState,
@@ -250,6 +251,7 @@ class MAVLinkManager:
         self.state.remove_drone(drone_id)
         del self._connections[drone_id]
         hf_link_adapter.remove(drone_id)  # no-op for non-HF drones
+        mavlink_broadcaster.remove(drone_id)  # no-op if no broadcast link was opened
         log.info("Drone disconnected", drone_id=drone_id)
 
     async def _read_loop(self, drone_id: int):
@@ -327,6 +329,7 @@ class MAVLinkManager:
             self.state.remove_drone(drone_id)
             self._connections.pop(drone_id, None)
             hf_link_adapter.remove(drone_id)
+            mavlink_broadcaster.remove(drone_id)
             log.info("Auto-disconnected", drone_id=drone_id)
 
     def attach_simulation(self, drone_id: int, call_sign: str):

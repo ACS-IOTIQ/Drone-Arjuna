@@ -580,6 +580,43 @@ textarea:focus-visible {
   flex: 0 0 auto;
 }
 
+/* The password-setup / reset-password cards sit on a light .da-card, unlike the
+   dark-glass .da-login-card — override the dark-surface input defaults so text
+   and placeholders stay legible instead of near-white-on-white. */
+.da-password-setup-page .da-input-shell {
+  border-color: rgba(15, 23, 42, 0.14);
+  background: #f8fafc;
+  box-shadow: none;
+}
+
+.da-password-setup-page .da-input-shell:focus-within {
+  border-color: #3b82f6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.da-password-setup-page .da-input-icon {
+  border-right-color: rgba(15, 23, 42, 0.1);
+  color: #64748b;
+  background: transparent;
+}
+
+.da-password-setup-page .da-input.da-input-embedded {
+  color: #0f172a;
+}
+
+.da-password-setup-page .da-input.da-input-embedded::placeholder {
+  color: #94a3b8;
+}
+
+.da-password-setup-page .da-password-toggle {
+  color: #64748b;
+}
+
+.da-password-setup-page .da-password-toggle:hover {
+  color: #334155;
+}
+
 .da-login-mobile-brand {
   display: none;
   margin-bottom: 5px;

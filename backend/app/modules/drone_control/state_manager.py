@@ -5,6 +5,7 @@ Thread-safe via asyncio locks.
 """
 import asyncio
 import json
+import time
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
@@ -16,6 +17,11 @@ from app.modules.drone_control.proximity_monitor import ProximityMonitor
 log = structlog.get_logger()
 
 HOME_POLL_INTERVAL_S = 5
+# Proximity evaluation is an O(n^2) pairwise scan across all connected drones.
+# Telemetry arrives at ~10 Hz per drone, but a drone's separation from others
+# can't meaningfully change faster than this — decoupling the scan from the
+# per-message rate keeps the cost from scaling with (drone_count^2 * hz).
+PROXIMITY_EVAL_INTERVAL_S = 0.5
 
 _DEFAULT_STATE = {
     "lat": 0.0, "lon": 0.0,
@@ -44,6 +50,7 @@ class StateManager:
         self._locks: dict[int, asyncio.Lock] = {}
         self._listeners: list[Callable] = []
         self._proximity_monitor = ProximityMonitor()
+        self._last_proximity_eval = 0.0
 
     def init_drone(self, drone_id: int, call_sign: str):
         self._states[drone_id] = {**_DEFAULT_STATE, "call_sign": call_sign}
@@ -62,11 +69,14 @@ class StateManager:
             self._states[drone_id].update(data)
             self._states[drone_id]["last_updated"] = datetime.now(timezone.utc).isoformat()
 
-        proximity_updates = self._proximity_monitor.evaluate(self.get_all())
         changed_ids = {drone_id}
-        for affected_id, patch in proximity_updates.items():
-            if await self._apply_patch(affected_id, patch):
-                changed_ids.add(affected_id)
+        now = time.monotonic()
+        if now - self._last_proximity_eval >= PROXIMITY_EVAL_INTERVAL_S:
+            self._last_proximity_eval = now
+            proximity_updates = self._proximity_monitor.evaluate(self.get_all())
+            for affected_id, patch in proximity_updates.items():
+                if await self._apply_patch(affected_id, patch):
+                    changed_ids.add(affected_id)
 
         for changed_id in changed_ids:
             await self._notify(changed_id)

@@ -23,3 +23,16 @@ export async function getMe() {
   const { data } = await api.get('/api/auth/me')
   return data
 }
+
+export async function forgotPassword(email: string) {
+  const { data } = await api.post('/api/auth/forgot-password', { email })
+  return data as { message: string }
+}
+
+export async function resetPassword(token: string, newPassword: string) {
+  const { data } = await api.post('/api/auth/reset-password', {
+    token,
+    new_password: newPassword,
+  })
+  return data as { message: string }
+}

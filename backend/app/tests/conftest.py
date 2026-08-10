@@ -41,6 +41,11 @@ os.environ["SECRET_KEY"] = (
 )
 os.environ["REDIS_URL"] = "redis://localhost:6379"
 os.environ["RABBITMQ_URL"] = "amqp://guest:guest@localhost:5672/"
+# Never let tests reach the real SMTP server configured in .env (Gmail) —
+# approval/reject flows fire send_approval_email() as a background task via
+# asyncio.create_task, and a real SMTP connection attempt outlives the test's
+# event loop, producing "Task was destroyed but it is pending!" errors.
+os.environ["SMTP_ENABLED"] = "false"
 
 # Clear any cached Settings so our env vars are read fresh
 from app.config import get_settings  # noqa: E402 — must be after os.environ setup

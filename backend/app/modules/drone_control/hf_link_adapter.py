@@ -109,7 +109,7 @@ class HFLinkAdapter:
         self.state       = HFLinkState.CONNECTED
         self._last_rx    = time.monotonic()
         self._degraded_at: Optional[float] = None
-        self._last_sent: dict[MsgPriority, float] = {p: 0.0 for p in MsgPriority}
+        self._last_sent: dict[MsgPriority, float] = {p: float("-inf") for p in MsgPriority}
 
         # SNR/BER metrics updated by modem ALE interface if available
         self.snr_db: Optional[float] = None

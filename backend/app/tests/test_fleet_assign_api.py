@@ -17,7 +17,7 @@ a real MAVLink connection.
 import pytest_asyncio
 from httpx import AsyncClient
 
-from app.modules.drone_control import mavlink_manager
+from app.modules.drone_control.mavlink_manager import mavlink_manager
 
 _TARGETS = [
     {"id": "T1", "lat": 17.40, "lon": 78.50},

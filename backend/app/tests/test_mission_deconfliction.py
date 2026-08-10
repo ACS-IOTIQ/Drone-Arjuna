@@ -226,9 +226,9 @@ def _wp(seq, lat, lon):
 
 
 # Bangalore non-overlapping areas
-_API_WPS_A = [_wp(0, 12.965, 77.585), _wp(1, 12.975, 77.595)]
-_API_WPS_B = [_wp(0, 13.100, 77.700), _wp(1, 13.110, 77.710)]
-_API_WPS_OVERLAP_A = [_wp(0, 12.960, 77.580), _wp(1, 12.980, 77.600)]
+_API_WPS_A = [_wp(0, 10.000, 70.000), _wp(1, 10.010, 70.010)]
+_API_WPS_B = [_wp(0, 10.200, 70.200), _wp(1, 10.210, 70.210)]
+_API_WPS_OVERLAP_A = [_wp(0, 9.995, 69.995), _wp(1, 10.015, 70.015)]
 
 
 async def test_approve_no_conflict_returns_200(

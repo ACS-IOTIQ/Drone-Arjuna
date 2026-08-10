@@ -11,7 +11,7 @@ from app.schemas.mission import (
     MissionCreate, MissionOut, MissionSummary,
     MissionStatusUpdate, MissionUpdate, WaypointOut, LiveWaypointSync,
 )
-from app.modules.drone_control import mavlink_manager
+from app.modules.drone_control.mavlink_manager import mavlink_manager
 from app.modules.drone_flight.geo_service import compute_mission_summary
 from app.modules.drone_flight.mission_planner import MissionPlanner, deconflict_missions
 from app.modules.drone_flight.airspace_service import validate_mission_airspace

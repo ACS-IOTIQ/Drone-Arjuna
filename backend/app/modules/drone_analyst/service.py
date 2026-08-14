@@ -4,7 +4,8 @@ Drone Analyst Service
 Business logic for the Drone Analyst module.
 
 V1 scope:
-  - Analysis job registry (create, track, retrieve results)
+  - Analysis job registry (create, track, retrieve results) — persisted in
+    PostgreSQL and processed asynchronously via a RabbitMQ job-queue consumer
   - Mission telemetry statistics from TimescaleDB
   - Detection result storage and query (schema ready, no AI inference yet)
   - Model registry (records available models for V2 activation)
@@ -17,7 +18,6 @@ V2 will add:
   - Automated report generation
   - Elasticsearch indexing of detection results
 """
-import uuid
 import structlog
 from datetime import datetime, timezone
 from typing import Optional
@@ -26,12 +26,17 @@ from sqlalchemy import select, text
 from fastapi import HTTPException
 
 from app.database import TSSessionLocal
+from app.models.analysis import AnalysisJob, JobArtifact
+from app.core.events import publish
+from app.core import storage
 
 log = structlog.get_logger()
 
-# ── In-memory job store (V1) ──────────────────────────────────────
-# V2 will persist jobs in PostgreSQL via a proper AnalysisJob ORM model.
-_job_store: dict[str, dict] = {}
+JOB_QUEUE_ROUTING_KEY = "drone_analyst.job_submitted"
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 # ── Model registry (V1) ───────────────────────────────────────────
 # V2 will load these from a DB table populated by the model deployment pipeline.
@@ -80,19 +85,26 @@ class AnalystService:
 
     # ── Module status ─────────────────────────────────────────────
 
-    def get_status(self) -> dict:
-        active_jobs   = sum(1 for j in _job_store.values() if j["status"] == "running")
-        pending_jobs  = sum(1 for j in _job_store.values() if j["status"] == "pending")
-        complete_jobs = sum(1 for j in _job_store.values() if j["status"] == "complete")
+    async def get_status(self) -> dict:
+        total = (await self.db.execute(select(AnalysisJob.id))).scalars().all()
+        running = (await self.db.execute(
+            select(AnalysisJob.id).where(AnalysisJob.status == "running")
+        )).scalars().all()
+        queued = (await self.db.execute(
+            select(AnalysisJob.id).where(AnalysisJob.status == "queued")
+        )).scalars().all()
+        done = (await self.db.execute(
+            select(AnalysisJob.id).where(AnalysisJob.status == "done")
+        )).scalars().all()
 
         return {
             "module_version":     "1.0.0",
             "ai_inference_ready": False,    # Becomes True in V2
             "jobs": {
-                "active":   active_jobs,
-                "pending":  pending_jobs,
-                "complete": complete_jobs,
-                "total":    len(_job_store),
+                "active":   len(running),
+                "pending":  len(queued),
+                "complete": len(done),
+                "total":    len(total),
             },
             "registered_models": len(_MODEL_REGISTRY),
             "capabilities": {
@@ -107,7 +119,7 @@ class AnalystService:
 
     # ── Analysis jobs ─────────────────────────────────────────────
 
-    def create_job(
+    async def create_job(
         self,
         job_type: str,
         mission_id: Optional[int],
@@ -115,11 +127,11 @@ class AnalystService:
         model_id: Optional[str],
         params: dict,
         submitted_by: int,
-    ) -> dict:
+    ) -> AnalysisJob:
         """
-        Creates an analysis job record.
-        V1: Stores in memory, returns immediately with status 'pending'.
-        V2: Dispatches to Celery worker for actual inference.
+        Creates an analysis job record and enqueues it for processing.
+        Status starts at 'queued'; the job-queue consumer transitions it
+        to 'running' and finally 'done'/'failed'.
         """
         valid_types = {
             "object_detection", "change_detection",
@@ -131,57 +143,132 @@ class AnalystService:
         if model_id and model_id not in {m["id"] for m in _MODEL_REGISTRY}:
             raise HTTPException(404, f"Model '{model_id}' not found in registry")
 
-        job_id = str(uuid.uuid4())
-        job = {
-            "id":           job_id,
-            "type":         job_type,
-            "mission_id":   mission_id,
-            "drone_id":     drone_id,
-            "model_id":     model_id,
-            "params":       params,
-            "submitted_by": submitted_by,
-            "status":       "pending",
-            "created_at":   datetime.now(timezone.utc).isoformat(),
-            "started_at":   None,
-            "completed_at": None,
-            "result":       None,
-            "error":        None,
-            "note":         "AI inference available in V2 — job queued for future processing",
-        }
-        _job_store[job_id] = job
-        log.info("Analysis job created", job_id=job_id, type=job_type)
+        job = AnalysisJob(
+            job_type=job_type,
+            mission_id=mission_id,
+            drone_id=drone_id,
+            model_id=model_id,
+            params=params,
+            submitted_by=submitted_by,
+            status="queued",
+        )
+        self.db.add(job)
+        await self.db.commit()
+        await self.db.refresh(job)
+
+        await publish(JOB_QUEUE_ROUTING_KEY, {"job_id": job.id})
+        log.info("Analysis job queued", job_id=job.id, type=job_type)
         return job
 
-    def get_job(self, job_id: str) -> dict:
-        job = _job_store.get(job_id)
+    async def get_job(self, job_id: str) -> AnalysisJob:
+        job = await self.db.get(AnalysisJob, job_id)
         if not job:
             raise HTTPException(404, f"Analysis job '{job_id}' not found")
         return job
 
-    def list_jobs(
+    async def list_jobs(
         self,
         mission_id: Optional[int] = None,
         job_type:   Optional[str] = None,
         status:     Optional[str] = None,
         limit:      int = 50,
-    ) -> list[dict]:
-        jobs = list(_job_store.values())
+    ) -> list[AnalysisJob]:
+        stmt = select(AnalysisJob)
         if mission_id is not None:
-            jobs = [j for j in jobs if j["mission_id"] == mission_id]
+            stmt = stmt.where(AnalysisJob.mission_id == mission_id)
         if job_type:
-            jobs = [j for j in jobs if j["type"] == job_type]
+            stmt = stmt.where(AnalysisJob.job_type == job_type)
         if status:
-            jobs = [j for j in jobs if j["status"] == status]
-        # Sort newest first
-        jobs.sort(key=lambda j: j["created_at"], reverse=True)
-        return jobs[:limit]
+            stmt = stmt.where(AnalysisJob.status == status)
+        stmt = stmt.order_by(AnalysisJob.created_at.desc()).limit(limit)
+        return (await self.db.execute(stmt)).scalars().all()
 
-    def cancel_job(self, job_id: str) -> dict:
-        job = self.get_job(job_id)
-        if job["status"] in ("complete", "failed", "cancelled"):
-            raise HTTPException(409, f"Cannot cancel job in status '{job['status']}'")
-        job["status"]       = "cancelled"
-        job["completed_at"] = datetime.now(timezone.utc).isoformat()
+    # ── Job artifacts (images, videos, PDF reports) — stored in MinIO ─
+
+    async def upload_artifact(
+        self,
+        job_id: str,
+        filename: str,
+        content: bytes,
+        content_type: str,
+        uploaded_by: int,
+    ) -> JobArtifact:
+        """
+        Uploads a source image, video, or generated PDF report for a job to
+        MinIO and records it as a JobArtifact row. Only images, videos, and
+        application/pdf content types are accepted.
+        """
+        job = await self.get_job(job_id)
+
+        try:
+            kind = storage.classify_content_type(content_type)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+        object_key = storage.build_object_key(job_id, filename)
+        await storage.ensure_bucket()
+        await storage.upload_bytes(object_key, content, content_type)
+
+        artifact = JobArtifact(
+            job_id=job_id,
+            kind=kind,
+            object_key=object_key,
+            filename=filename,
+            content_type=content_type,
+            size_bytes=len(content),
+            uploaded_by=uploaded_by,
+        )
+        self.db.add(artifact)
+        await self.db.commit()
+        await self.db.refresh(artifact)
+        log.info(
+            "Job artifact uploaded",
+            job_id=job_id, kind=kind, object_key=object_key,
+        )
+        return artifact
+
+    async def list_artifacts(
+        self,
+        job_id: str,
+        kind: Optional[str] = None,
+    ) -> list[JobArtifact]:
+        await self.get_job(job_id)  # 404 if job doesn't exist
+        stmt = select(JobArtifact).where(JobArtifact.job_id == job_id)
+        if kind:
+            stmt = stmt.where(JobArtifact.kind == kind)
+        stmt = stmt.order_by(JobArtifact.created_at.desc())
+        return (await self.db.execute(stmt)).scalars().all()
+
+    async def get_artifact_url(self, job_id: str, artifact_id: str) -> dict:
+        artifact = await self.db.get(JobArtifact, artifact_id)
+        if not artifact or artifact.job_id != job_id:
+            raise HTTPException(404, f"Artifact '{artifact_id}' not found for job '{job_id}'")
+        url = await storage.get_presigned_url(artifact.object_key)
+        return {
+            "artifact_id": artifact.id,
+            "job_id": job_id,
+            "kind": artifact.kind,
+            "filename": artifact.filename,
+            "object_key": artifact.object_key,
+            "url": url,
+        }
+
+    async def delete_artifact(self, job_id: str, artifact_id: str) -> None:
+        artifact = await self.db.get(JobArtifact, artifact_id)
+        if not artifact or artifact.job_id != job_id:
+            raise HTTPException(404, f"Artifact '{artifact_id}' not found for job '{job_id}'")
+        await storage.delete_object(artifact.object_key)
+        await self.db.delete(artifact)
+        await self.db.commit()
+
+    async def cancel_job(self, job_id: str) -> AnalysisJob:
+        job = await self.get_job(job_id)
+        if job.status in ("done", "failed", "cancelled"):
+            raise HTTPException(409, f"Cannot cancel job in status '{job.status}'")
+        job.status = "cancelled"
+        job.completed_at = _utcnow()
+        await self.db.commit()
+        await self.db.refresh(job)
         return job
 
     # ── Detection results ─────────────────────────────────────────

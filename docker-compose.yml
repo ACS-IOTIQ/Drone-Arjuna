@@ -127,7 +127,9 @@ services:
 
   # ── Elasticsearch (full-text search — P4-06) ─────────────────────
   elasticsearch:
-    image: elasticsearch:8.12.0
+    # Use Elastic's official registry directly; Docker Hub pulls were intermittently
+    # failing with EOF through Docker Desktop's proxy on this machine.
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
     container_name: da_elasticsearch
     restart: unless-stopped
     environment:

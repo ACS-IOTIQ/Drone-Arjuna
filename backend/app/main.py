@@ -58,6 +58,14 @@ async def lifespan(app: FastAPI):
     from app.modules.drone_control.mavlink_manager import mavlink_manager
     await mavlink_manager.start_geofence_rtl_consumer()
 
+    # Start Drone Analyst job-queue consumer (queued -> running -> done/failed)
+    from app.modules.drone_analyst.job_consumer import start_job_consumer
+    await start_job_consumer()
+
+    # Ensure the MinIO bucket for Analyst source imagery exists
+    from app.core.storage import ensure_bucket
+    await ensure_bucket()
+
     # Start telemetry recorder (creates TimescaleDB hypertable if needed)
     await data_recorder.start()
 

@@ -1,0 +1,30 @@
+{
+  "fingerprint": "e93bcaee2ae4d9e559ee8ef71f8a0ef6998665cd34404b07b916b7f318f140bd",
+  "nodeids": [
+    "app/tests/test_storage.py::test_allowed_kinds_matches_classifier_outputs",
+    "app/tests/test_storage.py::test_build_object_key_is_unique_per_call",
+    "app/tests/test_storage.py::test_build_object_key_layout",
+    "app/tests/test_storage.py::test_build_object_key_sanitizes_backslashes",
+    "app/tests/test_storage.py::test_build_object_key_sanitizes_forward_slashes",
+    "app/tests/test_storage.py::test_classify_content_type_recognized[Application/PDF-report_pdf]",
+    "app/tests/test_storage.py::test_classify_content_type_recognized[IMAGE/PNG-image]",
+    "app/tests/test_storage.py::test_classify_content_type_recognized[application/pdf-report_pdf]",
+    "app/tests/test_storage.py::test_classify_content_type_recognized[image/jpeg-image]",
+    "app/tests/test_storage.py::test_classify_content_type_recognized[image/png-image]",
+    "app/tests/test_storage.py::test_classify_content_type_recognized[video/mp4-video]",
+    "app/tests/test_storage.py::test_classify_content_type_recognized[video/quicktime-video]",
+    "app/tests/test_storage.py::test_classify_content_type_rejects_unsupported[]",
+    "app/tests/test_storage.py::test_classify_content_type_rejects_unsupported[application/json]",
+    "app/tests/test_storage.py::test_classify_content_type_rejects_unsupported[application/zip]",
+    "app/tests/test_storage.py::test_classify_content_type_rejects_unsupported[text/plain]",
+    "app/tests/test_storage.py::test_delete_object_calls_delete_object",
+    "app/tests/test_storage.py::test_ensure_bucket_creates_when_missing",
+    "app/tests/test_storage.py::test_ensure_bucket_noop_when_exists",
+    "app/tests/test_storage.py::test_get_client_constructs_once",
+    "app/tests/test_storage.py::test_get_client_uses_configured_endpoint",
+    "app/tests/test_storage.py::test_get_presigned_url_calls_generate_presigned_url",
+    "app/tests/test_storage.py::test_get_presigned_url_default_expiry",
+    "app/tests/test_storage.py::test_upload_bytes_calls_put_object_with_correct_args",
+    "app/tests/test_storage.py::test_upload_bytes_defaults_content_type"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "fingerprint": "524014eefe4241f83a850ff96dfe7f6f0d6dd00f1d98a2bd2f6425f6eccf7b5e",
+  "nodeids": [
+    "app/tests/test_analyst_artifacts.py::test_delete_artifact_removes_from_listing",
+    "app/tests/test_analyst_artifacts.py::test_delete_artifact_unauthenticated_401",
+    "app/tests/test_analyst_artifacts.py::test_delete_artifact_viewer_403",
+    "app/tests/test_analyst_artifacts.py::test_delete_unknown_artifact_404",
+    "app/tests/test_analyst_artifacts.py::test_get_artifact_url",
+    "app/tests/test_analyst_artifacts.py::test_get_artifact_url_unauthenticated_401",
+    "app/tests/test_analyst_artifacts.py::test_get_artifact_url_unknown_artifact_404",
+    "app/tests/test_analyst_artifacts.py::test_get_artifact_url_wrong_job_404",
+    "app/tests/test_analyst_artifacts.py::test_list_artifacts_filtered_by_kind",
+    "app/tests/test_analyst_artifacts.py::test_list_artifacts_nonexistent_job_404",
+    "app/tests/test_analyst_artifacts.py::test_list_artifacts_returns_all_uploaded",
+    "app/tests/test_analyst_artifacts.py::test_list_artifacts_unauthenticated_401",
+    "app/tests/test_analyst_artifacts.py::test_upload_calls_storage_with_correct_args",
+    "app/tests/test_analyst_artifacts.py::test_upload_image_classified_correctly",
+    "app/tests/test_analyst_artifacts.py::test_upload_nonexistent_job_404",
+    "app/tests/test_analyst_artifacts.py::test_upload_pdf_report_classified_correctly",
+    "app/tests/test_analyst_artifacts.py::test_upload_unauthenticated_401",
+    "app/tests/test_analyst_artifacts.py::test_upload_unsupported_content_type_rejected",
+    "app/tests/test_analyst_artifacts.py::test_upload_video_classified_correctly",
+    "app/tests/test_analyst_artifacts.py::test_upload_viewer_403"
+  ]
+}

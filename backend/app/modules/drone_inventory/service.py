@@ -25,6 +25,7 @@ from fastapi import HTTPException
 from app.models.drone import DroneType, DroneInstance
 from app.models.payload import PayloadType
 from app.models.threat import ThreatSystem
+from app.models.inventory_link import DronePayloadLink, DroneThreatLink, PayloadThreatLink
 
 log = structlog.get_logger()
 
@@ -278,6 +279,218 @@ class InventoryService:
         asyncio.create_task(delete_document(INDEX_THREAT, doc_id))
         await self.db.flush()
 
+    # ── Inventory links: drone <-> payload <-> threat ──────────────
+
+    async def _get_or_404(self, model, obj_id: int, label: str):
+        obj = await self.db.get(model, obj_id)
+        if not obj:
+            raise HTTPException(404, f"{label} #{obj_id} not found")
+        return obj
+
+    # -- drone <-> payload --
+
+    async def create_drone_payload_link(self, data: dict) -> DronePayloadLink:
+        await self._get_or_404(DroneType, data["drone_type_id"], "Drone type")
+        await self._get_or_404(PayloadType, data["payload_type_id"], "Payload type")
+        existing = await self.db.execute(
+            select(DronePayloadLink).where(
+                DronePayloadLink.drone_type_id == data["drone_type_id"],
+                DronePayloadLink.payload_type_id == data["payload_type_id"],
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(409, "Link between this drone type and payload type already exists")
+        link = DronePayloadLink(**data)
+        self.db.add(link)
+        await self.db.flush()
+        await self.db.refresh(link)
+        return link
+
+    async def update_drone_payload_link(self, link_id: int, data: dict) -> DronePayloadLink:
+        link = await self._get_or_404(DronePayloadLink, link_id, "Drone-payload link")
+        for key, value in data.items():
+            setattr(link, key, value)
+        await self.db.flush()
+        await self.db.refresh(link)
+        return link
+
+    async def delete_drone_payload_link(self, link_id: int) -> None:
+        link = await self._get_or_404(DronePayloadLink, link_id, "Drone-payload link")
+        await self.db.delete(link)
+        await self.db.flush()
+
+    async def list_payloads_for_drone(self, drone_type_id: int) -> list[dict]:
+        await self._get_or_404(DroneType, drone_type_id, "Drone type")
+        result = await self.db.execute(
+            select(DronePayloadLink, PayloadType)
+            .join(PayloadType, PayloadType.id == DronePayloadLink.payload_type_id)
+            .where(DronePayloadLink.drone_type_id == drone_type_id)
+        )
+        return [
+            {**self._link_card(link), "payload": self._payload_card(pt)}
+            for link, pt in result.all()
+        ]
+
+    async def list_drones_for_payload(self, payload_type_id: int) -> list[dict]:
+        await self._get_or_404(PayloadType, payload_type_id, "Payload type")
+        result = await self.db.execute(
+            select(DronePayloadLink, DroneType)
+            .join(DroneType, DroneType.id == DronePayloadLink.drone_type_id)
+            .where(DronePayloadLink.payload_type_id == payload_type_id)
+        )
+        return [
+            {**self._link_card(link), "drone": self._drone_card(dt)}
+            for link, dt in result.all()
+        ]
+
+    # -- drone <-> threat --
+
+    async def create_drone_threat_link(self, data: dict) -> DroneThreatLink:
+        await self._get_or_404(DroneType, data["drone_type_id"], "Drone type")
+        await self._get_or_404(ThreatSystem, data["threat_system_id"], "Threat system")
+        existing = await self.db.execute(
+            select(DroneThreatLink).where(
+                DroneThreatLink.drone_type_id == data["drone_type_id"],
+                DroneThreatLink.threat_system_id == data["threat_system_id"],
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(409, "Link between this drone type and threat system already exists")
+        link = DroneThreatLink(**data)
+        self.db.add(link)
+        await self.db.flush()
+        await self.db.refresh(link)
+        return link
+
+    async def update_drone_threat_link(self, link_id: int, data: dict) -> DroneThreatLink:
+        link = await self._get_or_404(DroneThreatLink, link_id, "Drone-threat link")
+        for key, value in data.items():
+            setattr(link, key, value)
+        await self.db.flush()
+        await self.db.refresh(link)
+        return link
+
+    async def delete_drone_threat_link(self, link_id: int) -> None:
+        link = await self._get_or_404(DroneThreatLink, link_id, "Drone-threat link")
+        await self.db.delete(link)
+        await self.db.flush()
+
+    async def list_threats_for_drone(self, drone_type_id: int) -> list[dict]:
+        await self._get_or_404(DroneType, drone_type_id, "Drone type")
+        result = await self.db.execute(
+            select(DroneThreatLink, ThreatSystem)
+            .join(ThreatSystem, ThreatSystem.id == DroneThreatLink.threat_system_id)
+            .where(DroneThreatLink.drone_type_id == drone_type_id)
+        )
+        return [
+            {**self._link_card(link), "threat": self._threat_card(ts)}
+            for link, ts in result.all()
+        ]
+
+    async def list_drones_for_threat(self, threat_system_id: int) -> list[dict]:
+        await self._get_or_404(ThreatSystem, threat_system_id, "Threat system")
+        result = await self.db.execute(
+            select(DroneThreatLink, DroneType)
+            .join(DroneType, DroneType.id == DroneThreatLink.drone_type_id)
+            .where(DroneThreatLink.threat_system_id == threat_system_id)
+        )
+        return [
+            {**self._link_card(link), "drone": self._drone_card(dt)}
+            for link, dt in result.all()
+        ]
+
+    # -- payload <-> threat --
+
+    async def create_payload_threat_link(self, data: dict) -> PayloadThreatLink:
+        await self._get_or_404(PayloadType, data["payload_type_id"], "Payload type")
+        await self._get_or_404(ThreatSystem, data["threat_system_id"], "Threat system")
+        existing = await self.db.execute(
+            select(PayloadThreatLink).where(
+                PayloadThreatLink.payload_type_id == data["payload_type_id"],
+                PayloadThreatLink.threat_system_id == data["threat_system_id"],
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(409, "Link between this payload type and threat system already exists")
+        link = PayloadThreatLink(**data)
+        self.db.add(link)
+        await self.db.flush()
+        await self.db.refresh(link)
+        return link
+
+    async def update_payload_threat_link(self, link_id: int, data: dict) -> PayloadThreatLink:
+        link = await self._get_or_404(PayloadThreatLink, link_id, "Payload-threat link")
+        for key, value in data.items():
+            setattr(link, key, value)
+        await self.db.flush()
+        await self.db.refresh(link)
+        return link
+
+    async def delete_payload_threat_link(self, link_id: int) -> None:
+        link = await self._get_or_404(PayloadThreatLink, link_id, "Payload-threat link")
+        await self.db.delete(link)
+        await self.db.flush()
+
+    async def list_threats_for_payload(self, payload_type_id: int) -> list[dict]:
+        await self._get_or_404(PayloadType, payload_type_id, "Payload type")
+        result = await self.db.execute(
+            select(PayloadThreatLink, ThreatSystem)
+            .join(ThreatSystem, ThreatSystem.id == PayloadThreatLink.threat_system_id)
+            .where(PayloadThreatLink.payload_type_id == payload_type_id)
+        )
+        return [
+            {**self._link_card(link), "threat": self._threat_card(ts)}
+            for link, ts in result.all()
+        ]
+
+    async def list_payloads_for_threat(self, threat_system_id: int) -> list[dict]:
+        await self._get_or_404(ThreatSystem, threat_system_id, "Threat system")
+        result = await self.db.execute(
+            select(PayloadThreatLink, PayloadType)
+            .join(PayloadType, PayloadType.id == PayloadThreatLink.payload_type_id)
+            .where(PayloadThreatLink.threat_system_id == threat_system_id)
+        )
+        return [
+            {**self._link_card(link), "payload": self._payload_card(pt)}
+            for link, pt in result.all()
+        ]
+
+    # -- cross-reference: full relational neighborhood of a drone type --
+
+    async def drone_cross_reference(self, drone_type_id: int) -> dict:
+        """
+        Everything linked to a drone type: compatible payloads, threats it's
+        exposed to, and — via those payloads — threats it can counter.
+        """
+        dt = await self._get_or_404(DroneType, drone_type_id, "Drone type")
+        payloads = await self.list_payloads_for_drone(drone_type_id)
+        threats = await self.list_threats_for_drone(drone_type_id)
+
+        payload_ids = [p["payload"]["id"] for p in payloads]
+        countered_threats: list[dict] = []
+        if payload_ids:
+            result = await self.db.execute(
+                select(PayloadThreatLink, ThreatSystem, PayloadType)
+                .join(ThreatSystem, ThreatSystem.id == PayloadThreatLink.threat_system_id)
+                .join(PayloadType, PayloadType.id == PayloadThreatLink.payload_type_id)
+                .where(PayloadThreatLink.payload_type_id.in_(payload_ids))
+            )
+            countered_threats = [
+                {
+                    **self._link_card(link),
+                    "via_payload": self._payload_card(pt),
+                    "threat": self._threat_card(ts),
+                }
+                for link, ts, pt in result.all()
+            ]
+
+        return {
+            "drone": self._drone_card(dt),
+            "compatible_payloads": payloads,
+            "exposed_to_threats": threats,
+            "can_counter_threats": countered_threats,
+        }
+
     # ── Internal helpers ──────────────────────────────────────────
 
     @staticmethod
@@ -313,6 +526,18 @@ class InventoryService:
             "notes":                  ts.notes,
             "classification":         ts.classification,
         }
+
+    @staticmethod
+    def _link_card(link) -> dict:
+        """Generic card for any of the three link types (excludes FK id columns)."""
+        card = {"id": link.id, "notes": link.notes, "created_at": link.created_at}
+        if isinstance(link, DronePayloadLink):
+            card.update(is_primary=link.is_primary, max_qty=link.max_qty)
+        elif isinstance(link, DroneThreatLink):
+            card.update(exposure_level=link.exposure_level)
+        elif isinstance(link, PayloadThreatLink):
+            card.update(effectiveness=link.effectiveness)
+        return card
 
     @staticmethod
     def _payload_card(pt: PayloadType) -> dict:

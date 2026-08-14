@@ -1,0 +1,31 @@
+{
+  "fingerprint": "8068e7c0137b65ca11207f219c275510fcddd122686669b2c881dc1ec0210094",
+  "nodeids": [
+    "app/tests/test_inventory_kb_service.py::TestAnalyticsMethods::test_entity_relationship_stats_drone",
+    "app/tests/test_inventory_kb_service.py::TestAnalyticsMethods::test_entity_relationship_stats_invalid_type",
+    "app/tests/test_inventory_kb_service.py::TestAnalyticsMethods::test_inventory_health_report_has_metrics",
+    "app/tests/test_inventory_kb_service.py::TestEdgeCasesAndErrors::test_capability_with_null_relationships",
+    "app/tests/test_inventory_kb_service.py::TestEdgeCasesAndErrors::test_multi_hop_query_with_empty_intermediates",
+    "app/tests/test_inventory_kb_service.py::TestEdgeCasesAndErrors::test_service_initialization",
+    "app/tests/test_inventory_kb_service.py::TestGetDroneCapabilityProfile::test_drone_capability_groups_by_primary_200",
+    "app/tests/test_inventory_kb_service.py::TestGetDroneCapabilityProfile::test_drone_capability_no_payloads_200",
+    "app/tests/test_inventory_kb_service.py::TestGetDroneCapabilityProfile::test_drone_capability_not_found_404",
+    "app/tests/test_inventory_kb_service.py::TestGetDroneVulnerabilityProfile::test_drone_vulnerability_200",
+    "app/tests/test_inventory_kb_service.py::TestGetDroneVulnerabilityProfile::test_drone_vulnerability_coverage_redundant",
+    "app/tests/test_inventory_kb_service.py::TestGetDroneVulnerabilityProfile::test_drone_vulnerability_no_threats_200",
+    "app/tests/test_inventory_kb_service.py::TestGetDroneVulnerabilityProfile::test_drone_vulnerability_not_found_404",
+    "app/tests/test_inventory_kb_service.py::TestGetPayloadCapabilityProfile::test_payload_capability_empty_200",
+    "app/tests/test_inventory_kb_service.py::TestGetPayloadCapabilityProfile::test_payload_capability_not_found_404",
+    "app/tests/test_inventory_kb_service.py::TestGetPayloadCapabilityProfile::test_payload_capability_with_links_200",
+    "app/tests/test_inventory_kb_service.py::TestGetThreatMitigationProfile::test_threat_mitigation_coverage_gap",
+    "app/tests/test_inventory_kb_service.py::TestGetThreatMitigationProfile::test_threat_mitigation_empty_200",
+    "app/tests/test_inventory_kb_service.py::TestGetThreatMitigationProfile::test_threat_mitigation_multi_hop_200",
+    "app/tests/test_inventory_kb_service.py::TestGetThreatMitigationProfile::test_threat_mitigation_not_found_404",
+    "app/tests/test_inventory_kb_service.py::TestHydrationMethods::test_hydrate_drone_with_inventory",
+    "app/tests/test_inventory_kb_service.py::TestHydrationMethods::test_hydrate_payload_with_inventory",
+    "app/tests/test_inventory_kb_service.py::TestHydrationMethods::test_hydrate_threat_with_inventory",
+    "app/tests/test_inventory_kb_service.py::TestSearchInventory::test_search_empty_query_returns_all",
+    "app/tests/test_inventory_kb_service.py::TestSearchInventory::test_search_free_text_returns_results",
+    "app/tests/test_inventory_kb_service.py::TestSearchInventory::test_search_with_filters_returns_filtered_results"
+  ]
+}

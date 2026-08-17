@@ -1,43 +1,82 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { LayersControl, LayerGroup, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents, ZoomControl } from 'react-leaflet'
-import L, { type LeafletEvent } from 'leaflet'
-import { AlertTriangle, CheckCircle2, Cpu, Eye, Info, MapPin, Pencil, PlusCircle, Route, Shield, Trash2, X } from 'lucide-react'
-import { useMissionStore, type GeoPoint } from '@/store/missionStore'
-import { useFleetStore } from '@/store/fleetStore'
-import { useTelemetryStore } from '@/store/telemetryStore'
-import { droneFlightApi } from '@/api/droneFlight'
-import { notify } from '@/store/notificationStore'
-import { buildZoneLayers } from '@/utils/geofenceZones'
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  LayersControl,
+  LayerGroup,
+  MapContainer,
+  Marker,
+  Polygon,
+  Polyline,
+  Popup,
+  TileLayer,
+  Tooltip,
+  useMap,
+  useMapEvents,
+  ZoomControl,
+} from "react-leaflet";
+import L, { type LeafletEvent } from "leaflet";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Cpu,
+  Eye,
+  Info,
+  MapPin,
+  Pencil,
+  PlusCircle,
+  Route,
+  Shield,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useMissionStore, type GeoPoint } from "@/store/missionStore";
+import { useFleetStore } from "@/store/fleetStore";
+import { useTelemetryStore } from "@/store/telemetryStore";
+import { droneFlightApi } from "@/api/droneFlight";
+import { notify } from "@/store/notificationStore";
+import { buildZoneLayers } from "@/utils/geofenceZones";
 import {
   buildRegulatoryZoneLayers,
   drawnPolygonContainsRestrictedZone,
   getRegulatoryRule,
   getRegulatoryZoneLoadState,
   routeSegmentCrossesRestrictedZone,
-} from '@/utils/regulatoryZones'
-import { findRouteCollisions, formatCollisionCoord, type LatLngPoint } from '@/utils/routeCollision'
+} from "@/utils/regulatoryZones";
+import {
+  findRouteCollisions,
+  formatCollisionCoord,
+  type LatLngPoint,
+} from "@/utils/routeCollision";
 
-const FLEET_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d']
+const FLEET_COLORS = [
+  "#2563eb",
+  "#dc2626",
+  "#16a34a",
+  "#d97706",
+  "#7c3aed",
+  "#0891b2",
+  "#db2777",
+  "#65a30d",
+];
 
 function colorForDrone(droneId: number | null | undefined) {
-  if (droneId == null) return '#64748b'
-  return FLEET_COLORS[droneId % FLEET_COLORS.length]
+  if (droneId == null) return "#64748b";
+  return FLEET_COLORS[droneId % FLEET_COLORS.length];
 }
 
 function geofenceRingToLatLng(geofence: any): [number, number][] {
-  const ring = geofence?.coordinates?.[0]
-  if (!Array.isArray(ring)) return []
+  const ring = geofence?.coordinates?.[0];
+  if (!Array.isArray(ring)) return [];
   return ring
     .map((p: number[]) => [Number(p[1]), Number(p[0])] as [number, number])
-    .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]))
+    .filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
 }
 
 function wpIcon(seq: number, isHome: boolean, outside: boolean) {
-  const size = 26
-  const bg = outside ? '#dc2626' : isHome ? '#16a34a' : '#2563eb'
-  const border = outside ? '#991b1b' : isHome ? '#15803d' : '#1d4ed8'
+  const size = 26;
+  const bg = outside ? "#dc2626" : isHome ? "#16a34a" : "#2563eb";
+  const border = outside ? "#991b1b" : isHome ? "#15803d" : "#1d4ed8";
   return L.divIcon({
-    className: '',
+    className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     html: `<div style="
@@ -47,14 +86,14 @@ function wpIcon(seq: number, isHome: boolean, outside: boolean) {
       display:flex; align-items:center; justify-content:center;
       color:white; font-size:10px; font-weight:750;
       box-shadow:0 2px 6px rgba(15,23,42,0.30);
-    ">${outside ? '!' : isHome ? 'H' : seq}</div>`,
-  })
+    ">${outside ? "!" : isHome ? "H" : seq}</div>`,
+  });
 }
 
 function liveDroneIcon(heading: number, callSign?: string) {
-  const size = 32
+  const size = 32;
   return L.divIcon({
-    className: '',
+    className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     html: `<div style="position:relative; width:${size}px; height:${size}px;">
@@ -67,18 +106,22 @@ function liveDroneIcon(heading: number, callSign?: string) {
           <polygon points="12,2 7,22 12,18 17,22" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1"/>
         </svg>
       </div>
-      ${callSign ? `<div style="
+      ${
+        callSign
+          ? `<div style="
         position:absolute; top:100%; left:50%; transform:translateX(-50%);
         white-space:nowrap; font-size:9px; font-weight:700; color:#1d4ed8;
         background:rgba(255,255,255,0.9); padding:0 3px; border-radius:2px;
-      ">${callSign}</div>` : ''}
+      ">${callSign}</div>`
+          : ""
+      }
     </div>`,
-  })
+  });
 }
 
 function vertexIcon(idx: number) {
   return L.divIcon({
-    className: '',
+    className: "",
     iconSize: [20, 20],
     iconAnchor: [10, 10],
     html: `<div style="
@@ -88,13 +131,13 @@ function vertexIcon(idx: number) {
       color:#0f766e; font-size:9px; font-weight:800;
       box-shadow:0 1px 6px rgba(15,23,42,0.25);
     ">${idx + 1}</div>`,
-  })
+  });
 }
 
 function collisionIcon(idx: number) {
-  const size = 30
+  const size = 30;
   return L.divIcon({
-    className: '',
+    className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     html: `<div style="
@@ -105,199 +148,264 @@ function collisionIcon(idx: number) {
       color:#ffffff; font-size:11px; font-weight:900;
       box-shadow:0 0 0 3px rgba(249,115,22,0.20), 0 2px 8px rgba(15,23,42,0.34);
     ">${idx}</div>`,
-  })
+  });
 }
 
 function isPointInsidePolygon(point: GeoPoint, polygon: GeoPoint[]) {
-  if (polygon.length < 3) return true
-  let inside = false
+  if (polygon.length < 3) return true;
+  let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].lng
-    const yi = polygon[i].lat
-    const xj = polygon[j].lng
-    const yj = polygon[j].lat
-    const intersects = ((yi > point.lat) !== (yj > point.lat)) &&
-      (point.lng < ((xj - xi) * (point.lat - yi)) / (yj - yi || 1e-12) + xi)
-    if (intersects) inside = !inside
+    const xi = polygon[i].lng;
+    const yi = polygon[i].lat;
+    const xj = polygon[j].lng;
+    const yj = polygon[j].lat;
+    const intersects =
+      yi > point.lat !== yj > point.lat &&
+      point.lng < ((xj - xi) * (point.lat - yi)) / (yj - yi || 1e-12) + xi;
+    if (intersects) inside = !inside;
   }
-  return inside
+  return inside;
 }
 
-function edgeCrossesRestrictedZone(prev: GeoPoint, next: GeoPoint, enabled: boolean): string | null {
-  if (!enabled) return null
-  return routeSegmentCrossesRestrictedZone(prev, next)
+function edgeCrossesRestrictedZone(
+  prev: GeoPoint,
+  next: GeoPoint,
+  enabled: boolean,
+): string | null {
+  if (!enabled) return null;
+  return routeSegmentCrossesRestrictedZone(prev, next);
 }
 
-function geofenceEnclosesRestrictedZone(pts: GeoPoint[], enabled: boolean): string | null {
-  if (!enabled) return null
-  return drawnPolygonContainsRestrictedZone(pts)
+function geofenceEnclosesRestrictedZone(
+  pts: GeoPoint[],
+  enabled: boolean,
+): string | null {
+  if (!enabled) return null;
+  return drawnPolygonContainsRestrictedZone(pts);
 }
 
-function validateGovernmentPlacement(lat: number, lng: number, target: 'waypoint' | 'geofence vertex', enabled: boolean) {
-  if (!enabled) return true
-  const rule = getRegulatoryRule(lat, lng, 0)
-  if (!rule) return true
+function validateGovernmentPlacement(
+  lat: number,
+  lng: number,
+  target: "waypoint" | "geofence vertex",
+  enabled: boolean,
+) {
+  if (!enabled) return true;
+  const rule = getRegulatoryRule(lat, lng, 0);
+  if (!rule) return true;
 
-  if (rule.kind === 'red') {
+  if (rule.kind === "red") {
     notify.danger(
-      'Placement blocked — restricted airspace',
+      "Placement blocked — restricted airspace",
       `Cannot place ${target} inside ${rule.name}. ${rule.restriction}`,
-    )
-    return false
+    );
+    return false;
   }
 
-  if (rule.kind === 'orange') {
+  if (rule.kind === "orange") {
     notify.danger(
-      'Placement blocked — controlled airspace',
+      "Placement blocked — controlled airspace",
       `Cannot place ${target} inside ${rule.name}. ${rule.restriction} ATC/authority permission required.`,
-    )
-    return false
+    );
+    return false;
   }
 
-  return true
+  return true;
 }
 
-function MapClickHandler({ drawing, routeDrawing, governmentZonesEnabled }: { drawing: boolean; routeDrawing: boolean; governmentZonesEnabled: boolean }) {
-  const { draftWaypoints, addWaypoint, geofence, setGeofence } = useMissionStore()
+function MapClickHandler({
+  drawing,
+  routeDrawing,
+  governmentZonesEnabled,
+}: {
+  drawing: boolean;
+  routeDrawing: boolean;
+  governmentZonesEnabled: boolean;
+}) {
+  const { draftWaypoints, addWaypoint, geofence, setGeofence } =
+    useMissionStore();
   useMapEvents({
     click(e) {
       if (drawing) {
-        const newPt = { lat: e.latlng.lat, lng: e.latlng.lng }
+        const newPt = { lat: e.latlng.lat, lng: e.latlng.lng };
         // 1. Vertex itself inside a restricted zone
-        if (!validateGovernmentPlacement(newPt.lat, newPt.lng, 'geofence vertex', governmentZonesEnabled)) return
+        if (
+          !validateGovernmentPlacement(
+            newPt.lat,
+            newPt.lng,
+            "geofence vertex",
+            governmentZonesEnabled,
+          )
+        )
+          return;
         // 2. Edge from the previous vertex to this one crosses a restricted zone
         if (geofence.length > 0) {
-          const prev = geofence[geofence.length - 1]
-          const crossedZone = edgeCrossesRestrictedZone(prev, newPt, governmentZonesEnabled)
+          const prev = geofence[geofence.length - 1];
+          const crossedZone = edgeCrossesRestrictedZone(
+            prev,
+            newPt,
+            governmentZonesEnabled,
+          );
           if (crossedZone) {
             notify.danger(
-              'Geofence edge crosses restricted airspace',
+              "Geofence edge crosses restricted airspace",
               `The line from vertex ${geofence.length} to the new point crosses ${crossedZone}. Redraw to avoid all restricted zones.`,
-            )
-            setGeofence([])
-            return
+            );
+            setGeofence([]);
+            return;
           }
         }
-        const nextGeofence = [...geofence, newPt]
+        const nextGeofence = [...geofence, newPt];
         // 3. Closing edge (last vertex back to first) would cross a zone
         if (nextGeofence.length >= 3) {
-          const closingZone = edgeCrossesRestrictedZone(newPt, nextGeofence[0], governmentZonesEnabled)
+          const closingZone = edgeCrossesRestrictedZone(
+            newPt,
+            nextGeofence[0],
+            governmentZonesEnabled,
+          );
           if (closingZone) {
             notify.danger(
-              'Geofence closing edge crosses restricted airspace',
+              "Geofence closing edge crosses restricted airspace",
               `The closing edge of this polygon crosses ${closingZone}. Redraw to avoid all restricted zones.`,
-            )
-            setGeofence([])
-            return
+            );
+            setGeofence([]);
+            return;
           }
           // 4. Polygon encloses a zone centre
-          const enclosed = geofenceEnclosesRestrictedZone(nextGeofence, governmentZonesEnabled)
+          const enclosed = geofenceEnclosesRestrictedZone(
+            nextGeofence,
+            governmentZonesEnabled,
+          );
           if (enclosed) {
             notify.danger(
-              'Geofence encloses restricted airspace',
+              "Geofence encloses restricted airspace",
               `This polygon encloses ${enclosed}. Clear the geofence and redraw to exclude all restricted zones.`,
-            )
-            setGeofence([])
-            return
+            );
+            setGeofence([]);
+            return;
           }
         }
-        setGeofence(nextGeofence)
-        return
+        setGeofence(nextGeofence);
+        return;
       }
 
-      if (!routeDrawing) return
-      const newWp = { lat: e.latlng.lat, lng: e.latlng.lng }
+      if (!routeDrawing) return;
+      const newWp = { lat: e.latlng.lat, lng: e.latlng.lng };
 
       // 1. New waypoint itself inside a restricted zone
-      const rule = governmentZonesEnabled ? getRegulatoryRule(newWp.lat, newWp.lng, 100) : null
-      if (rule && (rule.kind === 'red' || rule.kind === 'orange')) {
+      const rule = governmentZonesEnabled
+        ? getRegulatoryRule(newWp.lat, newWp.lng, 100)
+        : null;
+      if (rule && (rule.kind === "red" || rule.kind === "orange")) {
         notify.danger(
-          rule.kind === 'red' ? 'Waypoint blocked — restricted airspace' : 'Waypoint blocked — controlled airspace',
+          rule.kind === "red"
+            ? "Waypoint blocked — restricted airspace"
+            : "Waypoint blocked — controlled airspace",
           `Cannot place waypoint inside ${rule.name}. ${rule.restriction}`,
-        )
-        return
+        );
+        return;
       }
 
       // 2. Flight line from previous waypoint to this one crosses a restricted zone
       if (draftWaypoints.length > 0) {
-        const prev = draftWaypoints[draftWaypoints.length - 1]
-        const prevPt = { lat: prev.latitude, lng: prev.longitude }
-        const crossedZone = edgeCrossesRestrictedZone(prevPt, newWp, governmentZonesEnabled)
+        const prev = draftWaypoints[draftWaypoints.length - 1];
+        const prevPt = { lat: prev.latitude, lng: prev.longitude };
+        const crossedZone = edgeCrossesRestrictedZone(
+          prevPt,
+          newWp,
+          governmentZonesEnabled,
+        );
         if (crossedZone) {
           notify.danger(
-            'Flight path crosses restricted airspace',
+            "Flight path crosses restricted airspace",
             `The line from waypoint ${draftWaypoints.length} to the new point crosses ${crossedZone}. Place waypoints to avoid restricted zones.`,
-          )
-          return
+          );
+          return;
         }
       }
 
       // 3. Waypoints placed so far (including this one) surround/enclose a restricted zone
-      const routePts = [...draftWaypoints.map(w => ({ lat: w.latitude, lng: w.longitude })), newWp]
+      const routePts = [
+        ...draftWaypoints.map((w) => ({ lat: w.latitude, lng: w.longitude })),
+        newWp,
+      ];
       if (routePts.length >= 3) {
-        const enclosedZone = geofenceEnclosesRestrictedZone(routePts, governmentZonesEnabled)
+        const enclosedZone = geofenceEnclosesRestrictedZone(
+          routePts,
+          governmentZonesEnabled,
+        );
         if (enclosedZone) {
           notify.danger(
-            'Flight path surrounds restricted airspace',
+            "Flight path surrounds restricted airspace",
             `These waypoints surround ${enclosedZone}. Place waypoints so the route does not enclose restricted zones.`,
-          )
-          return
+          );
+          return;
         }
       }
 
-      const seq = draftWaypoints.length + 1
+      const seq = draftWaypoints.length + 1;
       addWaypoint({
         sequence: seq,
         latitude: e.latlng.lat,
         longitude: e.latlng.lng,
         altitude_m: 100,
-        altitude_ref: 'AGL',
-        action: 'none',
-        is_home: seq === 1,
-      })
+        altitude_ref: "AGL",
+        action: "none",
+        is_home: false,
+      });
     },
-  })
-  return null
+  });
+  return null;
 }
 
-function GovernmentZonesToggleHandler({ onChange }: { onChange: (enabled: boolean) => void }) {
+function GovernmentZonesToggleHandler({
+  onChange,
+}: {
+  onChange: (enabled: boolean) => void;
+}) {
   useMapEvents({
     overlayadd(e) {
-      if (e.name === 'Government airspace zones') onChange(true)
+      if (e.name === "Government airspace zones") onChange(true);
     },
     overlayremove(e) {
-      if (e.name === 'Government airspace zones') onChange(false)
+      if (e.name === "Government airspace zones") onChange(false);
     },
-  })
-  return null
+  });
+  return null;
 }
 
 function MapResizeHandler() {
-  const map = useMap()
+  const map = useMap();
 
   useEffect(() => {
-    const container = map.getContainer()
-    const observer = new ResizeObserver(() => map.invalidateSize({ animate: false }))
-    observer.observe(container)
-    const frame = requestAnimationFrame(() => map.invalidateSize({ animate: false }))
+    const container = map.getContainer();
+    const observer = new ResizeObserver(() =>
+      map.invalidateSize({ animate: false }),
+    );
+    observer.observe(container);
+    const frame = requestAnimationFrame(() =>
+      map.invalidateSize({ animate: false }),
+    );
     return () => {
-      cancelAnimationFrame(frame)
-      observer.disconnect()
-    }
-  }, [map])
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [map]);
 
-  return null
+  return null;
 }
 
 type MapCanvasProps = {
-  onFleetAssign?: () => void
-}
+  onFleetAssign?: () => void;
+};
 
 export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
   const {
     draftWaypoints,
     geofence,
     removeWaypoint,
+    setHomeWaypoint,
+    clearHomeWaypoint,
     updateGeofencePoint,
     clearGeofence,
     clearDraft,
@@ -306,549 +414,852 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
     missions,
     governmentZonesEnabled,
     setGovernmentZonesEnabled,
-  } = useMissionStore()
-  const instances = useFleetStore(s => s.instances)
-  const [drawing, setDrawing] = useState(false)
-  const [routeDrawing, setRouteDrawing] = useState(true)
-  const [manualLat, setManualLat] = useState('')
-  const [manualLng, setManualLng] = useState('')
-  const [showAllMissions, setShowAllMissions] = useState(false)
-  const [activePanel, setActivePanel] = useState<'coordinates' | 'collisions' | 'missions' | 'airspace' | null>(null)
-  const collisionNoticeKeyRef = useRef('')
-  const regulatoryZoneLoadState = useMemo(() => getRegulatoryZoneLoadState(), [])
+  } = useMissionStore();
+  const instances = useFleetStore((s) => s.instances);
+  const [drawing, setDrawing] = useState(false);
+  const [routeDrawing, setRouteDrawing] = useState(true);
+  const [manualLat, setManualLat] = useState("");
+  const [manualLng, setManualLng] = useState("");
+  const [showAllMissions, setShowAllMissions] = useState(false);
+  const [activePanel, setActivePanel] = useState<
+    "coordinates" | "collisions" | "missions" | "airspace" | null
+  >(null);
+  const collisionNoticeKeyRef = useRef("");
+  const regulatoryZoneLoadState = useMemo(
+    () => getRegulatoryZoneLoadState(),
+    [],
+  );
 
   const droneName = (id: number | null | undefined) =>
-    instances.find(i => i.id === id)?.call_sign ?? (id != null ? `Drone #${id}` : 'Unassigned')
+    instances.find((i) => i.id === id)?.call_sign ??
+    (id != null ? `Drone #${id}` : "Unassigned");
 
   const activeMission = useMemo(
-    () => missions.find(m => m.id === activeMissionId) ?? null,
+    () => missions.find((m) => m.id === activeMissionId) ?? null,
     [missions, activeMissionId],
-  )
-  const liveDroneId = activeMission?.drone_instance_id ?? null
-  const liveFrame = useTelemetryStore(s => (liveDroneId != null ? s.frames[liveDroneId] : null))
-  const hasLivePosition = Boolean(liveFrame && (liveFrame.lat !== 0 || liveFrame.lon !== 0))
+  );
+  const liveDroneId = activeMission?.drone_instance_id ?? null;
+  const liveFrame = useTelemetryStore((s) =>
+    liveDroneId != null ? s.frames[liveDroneId] : null,
+  );
+  const hasLivePosition = Boolean(
+    liveFrame && (liveFrame.lat !== 0 || liveFrame.lon !== 0),
+  );
 
   // The map only ever reads telemetryStore passively — it never opened its
   // own socket. If Fly workspace (the only other subscriber) isn't mounted
   // right now, this drone's feed would otherwise sit dead while this mission
   // is being viewed here, showing a frozen marker instead of live movement.
-  const subscribeTelemetry = useTelemetryStore(s => s.subscribe)
+  const subscribeTelemetry = useTelemetryStore((s) => s.subscribe);
   useEffect(() => {
-    if (liveDroneId != null) subscribeTelemetry(liveDroneId)
-  }, [liveDroneId, subscribeTelemetry])
+    if (liveDroneId != null) subscribeTelemetry(liveDroneId);
+  }, [liveDroneId, subscribeTelemetry]);
 
   // While the operator draws/drags waypoints, mirror the draft route straight
   // to the drone over its live MAVLink link (UDP for SITL) — debounced so
   // dragging a vertex doesn't flood the link with a re-upload every frame.
-  const connections = useFleetStore(s => s.connections)
-  const isMavlinkConnected = liveDroneId != null
-    && connections[liveDroneId]?.connected
-    && connections[liveDroneId]?.transport !== 'simulation'
+  const connections = useFleetStore((s) => s.connections);
+  const isMavlinkConnected =
+    liveDroneId != null &&
+    connections[liveDroneId]?.connected &&
+    connections[liveDroneId]?.transport !== "simulation";
 
   useEffect(() => {
-    if (!isMavlinkConnected || liveDroneId == null || draftWaypoints.length === 0) return
+    if (
+      !isMavlinkConnected ||
+      liveDroneId == null ||
+      draftWaypoints.length === 0
+    )
+      return;
     const handle = setTimeout(() => {
       droneFlightApi
-        .liveSyncWaypoints(liveDroneId, draftWaypoints, geofence.length >= 3 ? { geofence } : null)
+        .liveSyncWaypoints(
+          liveDroneId,
+          draftWaypoints,
+          geofence.length >= 3 ? { geofence } : null,
+        )
         .catch((err: any) => {
           notify.danger(
-            'Live waypoint sync failed',
-            err?.response?.data?.detail || err?.message || 'Could not push waypoints to the drone',
-          )
-        })
-    }, 500)
-    return () => clearTimeout(handle)
-  }, [draftWaypoints, geofence, isMavlinkConnected, liveDroneId])
+            "Live waypoint sync failed",
+            err?.response?.data?.detail ||
+              err?.message ||
+              "Could not push waypoints to the drone",
+          );
+        });
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [draftWaypoints, geofence, isMavlinkConnected, liveDroneId]);
 
   const otherMissions = useMemo(
-    () => missions.filter(m => m.id !== activeMissionId && (m.waypoints?.length || m.geofence)),
+    () =>
+      missions.filter(
+        (m) => m.id !== activeMissionId && (m.waypoints?.length || m.geofence),
+      ),
     [missions, activeMissionId],
-  )
+  );
 
   const draftRoutePoints = useMemo<LatLngPoint[]>(
-    () => draftWaypoints.map(w => ({ lat: w.latitude, lng: w.longitude })),
+    () => draftWaypoints.map((w) => ({ lat: w.latitude, lng: w.longitude })),
     [draftWaypoints],
-  )
-  const routePositions = draftRoutePoints.map(w => [w.lat, w.lng] as [number, number])
-  const geofencePositions = geofence.map(p => [p.lat, p.lng] as [number, number])
+  );
+  const routePositions = draftRoutePoints.map(
+    (w) => [w.lat, w.lng] as [number, number],
+  );
+  const geofencePositions = geofence.map(
+    (p) => [p.lat, p.lng] as [number, number],
+  );
   const otherMissionRoutes = useMemo(
-    () => otherMissions
-      .map(m => ({
-        mission: m,
-        route: (m.waypoints ?? [])
-          .slice()
-          .sort((a, b) => a.sequence - b.sequence)
-          .map(w => ({ lat: w.latitude, lng: w.longitude })),
-      }))
-      .filter(item => item.route.length > 1),
+    () =>
+      otherMissions
+        .map((m) => ({
+          mission: m,
+          route: (m.waypoints ?? [])
+            .slice()
+            .sort((a, b) => a.sequence - b.sequence)
+            .map((w) => ({ lat: w.latitude, lng: w.longitude })),
+        }))
+        .filter((item) => item.route.length > 1),
     [otherMissions],
-  )
+  );
   const routeCollisions = useMemo(
-    () => otherMissionRoutes.flatMap(({ mission, route }) =>
-      findRouteCollisions(draftRoutePoints, route).map(collision => ({ ...collision, mission })),
-    ),
+    () =>
+      otherMissionRoutes.flatMap(({ mission, route }) =>
+        findRouteCollisions(draftRoutePoints, route).map((collision) => ({
+          ...collision,
+          mission,
+        })),
+      ),
     [draftRoutePoints, otherMissionRoutes],
-  )
+  );
   const zoneLayers = useMemo(() => {
-    if (geofence.length < 3) return []
-    const centerLat = geofence.reduce((sum, p) => sum + p.lat, 0) / geofence.length
-    const centerLng = geofence.reduce((sum, p) => sum + p.lng, 0) / geofence.length
-    return buildZoneLayers(centerLat, centerLng, geofence)
-  }, [geofence])
-  const regulatoryZoneLayers = useMemo(() => buildRegulatoryZoneLayers(), [])
+    if (geofence.length < 3) return [];
+    const centerLat =
+      geofence.reduce((sum, p) => sum + p.lat, 0) / geofence.length;
+    const centerLng =
+      geofence.reduce((sum, p) => sum + p.lng, 0) / geofence.length;
+    return buildZoneLayers(centerLat, centerLng, geofence);
+  }, [geofence]);
+  const regulatoryZoneLayers = useMemo(() => buildRegulatoryZoneLayers(), []);
   useEffect(() => {
-    if (activeMissionId && draftWaypoints.length > 0) setRouteDrawing(false)
-  }, [activeMissionId, draftWaypoints.length])
+    if (activeMissionId && draftWaypoints.length > 0) setRouteDrawing(false);
+  }, [activeMissionId, draftWaypoints.length]);
   const outsideCount = useMemo(
-    () => draftWaypoints.filter(w => !isPointInsidePolygon({ lat: w.latitude, lng: w.longitude }, geofence)).length,
+    () =>
+      draftWaypoints.filter(
+        (w) =>
+          !isPointInsidePolygon(
+            { lat: w.latitude, lng: w.longitude },
+            geofence,
+          ),
+      ).length,
     [draftWaypoints, geofence],
-  )
+  );
 
   useEffect(() => {
     if (routeCollisions.length === 0) {
-      collisionNoticeKeyRef.current = ''
-      return
+      collisionNoticeKeyRef.current = "";
+      return;
     }
 
     const key = routeCollisions
-      .map(c => `${c.mission.id}:${c.id}`)
+      .map((c) => `${c.mission.id}:${c.id}`)
       .sort()
-      .join('|')
-    if (collisionNoticeKeyRef.current === key) return
+      .join("|");
+    if (collisionNoticeKeyRef.current === key) return;
 
-    collisionNoticeKeyRef.current = key
-    const drones = Array.from(new Set(routeCollisions.map(c => droneName(c.mission.drone_instance_id)))).join(', ')
-    const coords = routeCollisions.slice(0, 3).map(c => formatCollisionCoord(c)).join('; ')
-    const suffix = routeCollisions.length > 3 ? `; +${routeCollisions.length - 3} more` : ''
+    collisionNoticeKeyRef.current = key;
+    const drones = Array.from(
+      new Set(
+        routeCollisions.map((c) => droneName(c.mission.drone_instance_id)),
+      ),
+    ).join(", ");
+    const coords = routeCollisions
+      .slice(0, 3)
+      .map((c) => formatCollisionCoord(c))
+      .join("; ");
+    const suffix =
+      routeCollisions.length > 3 ? `; +${routeCollisions.length - 3} more` : "";
     notify.warning(
-      'Route collision warning',
-      `${activeMission?.name ?? 'Current path'} collides with ${drones} at ${routeCollisions.length} point(s): ${coords}${suffix}.`,
-    )
-  }, [activeMission?.name, routeCollisions, instances])
+      "Route collision warning",
+      `${activeMission?.name ?? "Current path"} collides with ${drones} at ${routeCollisions.length} point(s): ${coords}${suffix}.`,
+    );
+  }, [activeMission?.name, routeCollisions, instances]);
 
   const startDrawing = () => {
-    clearGeofence()
-    setRouteDrawing(false)
-    setDrawing(true)
-  }
+    clearGeofence();
+    setRouteDrawing(false);
+    setDrawing(true);
+  };
 
   const finishDrawing = () => {
-    if (geofence.length < 3) return
+    if (geofence.length < 3) return;
     // Check all edges (including closing edge) for zone intersection
     for (let i = 0; i < geofence.length; i++) {
-      const a = geofence[i]
-      const b = geofence[(i + 1) % geofence.length]
-      const crossedZone = edgeCrossesRestrictedZone(a, b, governmentZonesEnabled)
+      const a = geofence[i];
+      const b = geofence[(i + 1) % geofence.length];
+      const crossedZone = edgeCrossesRestrictedZone(
+        a,
+        b,
+        governmentZonesEnabled,
+      );
       if (crossedZone) {
         notify.danger(
-          'Geofence crosses restricted airspace',
+          "Geofence crosses restricted airspace",
           `Geofence edge ${i + 1} crosses ${crossedZone}. Redraw to avoid all restricted zones.`,
-        )
-        clearGeofence()
-        return
+        );
+        clearGeofence();
+        return;
       }
     }
-    const enclosedZone = geofenceEnclosesRestrictedZone(geofence, governmentZonesEnabled)
+    const enclosedZone = geofenceEnclosesRestrictedZone(
+      geofence,
+      governmentZonesEnabled,
+    );
     if (enclosedZone) {
       notify.danger(
-        'Geofence encloses restricted airspace',
+        "Geofence encloses restricted airspace",
         `Your geofence contains ${enclosedZone}. Redraw it to exclude all restricted zones.`,
-      )
-      clearGeofence()
-      return
+      );
+      clearGeofence();
+      return;
     }
-    setDrawing(false)
-  }
+    setDrawing(false);
+  };
 
   const deleteZone = () => {
-    clearGeofence()
-    setDrawing(false)
-  }
+    clearGeofence();
+    setDrawing(false);
+  };
 
   const startRoute = () => {
-    setDrawing(false)
-    setRouteDrawing(true)
-  }
+    setDrawing(false);
+    setRouteDrawing(true);
+  };
 
   const completeRoute = () => {
-    if (draftWaypoints.length > 0) setRouteDrawing(false)
-  }
+    if (draftWaypoints.length > 0) setRouteDrawing(false);
+  };
 
   const addManualVertex = () => {
-    const lat = Number(manualLat)
-    const lng = Number(manualLng)
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-    if (!validateGovernmentPlacement(lat, lng, 'geofence vertex', governmentZonesEnabled)) return
-    const newPt = { lat, lng }
+    const lat = Number(manualLat);
+    const lng = Number(manualLng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (
+      !validateGovernmentPlacement(
+        lat,
+        lng,
+        "geofence vertex",
+        governmentZonesEnabled,
+      )
+    )
+      return;
+    const newPt = { lat, lng };
     if (geofence.length > 0) {
-      const crossedZone = edgeCrossesRestrictedZone(geofence[geofence.length - 1], newPt, governmentZonesEnabled)
+      const crossedZone = edgeCrossesRestrictedZone(
+        geofence[geofence.length - 1],
+        newPt,
+        governmentZonesEnabled,
+      );
       if (crossedZone) {
-        notify.danger('Geofence edge crosses restricted airspace', `Edge crosses ${crossedZone}. Adjust coordinates.`)
-        return
+        notify.danger(
+          "Geofence edge crosses restricted airspace",
+          `Edge crosses ${crossedZone}. Adjust coordinates.`,
+        );
+        return;
       }
     }
-    setGeofence([...geofence, newPt])
-    setManualLat('')
-    setManualLng('')
-  }
+    setGeofence([...geofence, newPt]);
+    setManualLat("");
+    setManualLng("");
+  };
 
   const removeVertex = (idx: number) => {
-    setGeofence(geofence.filter((_, i) => i !== idx))
-  }
+    setGeofence(geofence.filter((_, i) => i !== idx));
+  };
 
   const clearMission = () => {
-    clearDraft()
-    setDrawing(false)
-    setRouteDrawing(true)
-    setActivePanel(null)
-  }
+    clearDraft();
+    setDrawing(false);
+    setRouteDrawing(true);
+    setActivePanel(null);
+  };
 
   const togglePanel = (panel: NonNullable<typeof activePanel>) => {
-    setActivePanel(current => current === panel ? null : panel)
-  }
+    setActivePanel((current) => (current === panel ? null : panel));
+  };
 
   const toggleOtherMissions = () => {
-    setShowAllMissions(current => {
-      const next = !current
-      setActivePanel(next ? 'missions' : null)
-      return next
-    })
-  }
+    setShowAllMissions((current) => {
+      const next = !current;
+      setActivePanel(next ? "missions" : null);
+      return next;
+    });
+  };
 
   const planningState = drawing
     ? `Drawing geofence (${geofence.length}/3 minimum vertices)`
     : routeDrawing
       ? `Plotting route (${draftWaypoints.length} waypoints)`
-      : 'Route plotting complete'
-  const panelTitle = activePanel === 'coordinates'
-    ? 'Coordinates and geofence'
-    : activePanel === 'collisions'
-      ? 'Route collision points'
-      : activePanel === 'missions'
-        ? 'Other drone missions'
-        : 'Airspace information'
+      : "Route plotting complete";
+  const panelTitle =
+    activePanel === "coordinates"
+      ? "Coordinates and geofence"
+      : activePanel === "collisions"
+        ? "Route collision points"
+        : activePanel === "missions"
+          ? "Other drone missions"
+          : "Airspace information";
 
   return (
     <div className="da-plan-canvas">
       <div className="da-plan-map-content">
         <div className="da-plan-map-stage">
-      <MapContainer
-        center={[17.385, 78.4867]}
-        zoom={13}
-        minZoom={3}
-        maxZoom={18}
-        scrollWheelZoom
-        doubleClickZoom
-        touchZoom
-        boxZoom
-        keyboard
-        zoomAnimation
-        style={{ height: '100%', width: '100%' }}
-        zoomControl={false}>
+          <MapContainer
+            center={[17.385, 78.4867]}
+            zoom={13}
+            minZoom={3}
+            maxZoom={18}
+            scrollWheelZoom
+            doubleClickZoom
+            touchZoom
+            boxZoom
+            keyboard
+            zoomAnimation
+            style={{ height: "100%", width: "100%" }}
+            zoomControl={false}
+          >
+            <MapResizeHandler />
 
-        <MapResizeHandler />
+            <ZoomControl
+              position="bottomright"
+              zoomInTitle="Zoom in"
+              zoomOutTitle="Zoom out"
+            />
 
-        <ZoomControl
-          position="bottomright"
-          zoomInTitle="Zoom in"
-          zoomOutTitle="Zoom out"
-        />
+            {/* Geofence drawn BEFORE regulatory zones so restrictions render on top */}
+            {geofencePositions.length > 1 && (
+              <Polygon
+                positions={geofencePositions}
+                pathOptions={{
+                  color: "#0f766e",
+                  weight: 3,
+                  fillColor: "#14b8a6",
+                  fillOpacity: 0.1,
+                  dashArray: drawing ? "8 6" : undefined,
+                }}
+              />
+            )}
 
-        {/* Geofence drawn BEFORE regulatory zones so restrictions render on top */}
-        {geofencePositions.length > 1 && (
-          <Polygon
-            positions={geofencePositions}
-            pathOptions={{
-              color: '#0f766e',
-              weight: 3,
-              fillColor: '#14b8a6',
-              fillOpacity: 0.10,
-              dashArray: drawing ? '8 6' : undefined,
-            }} />
-        )}
-
-        {positionsForLine(geofencePositions, drawing).length > 1 && drawing && (
-          <Polyline positions={positionsForLine(geofencePositions, drawing)}
-            pathOptions={{ color: '#0f766e', weight: 2, dashArray: '4 4', opacity: 0.9 }} />
-        )}
-
-        <LayersControl position="topright">
-          <LayersControl.BaseLayer checked name="OpenStreetMap">
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="OpenTopoMap">
-            <TileLayer url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png" attribution="© OpenTopoMap" />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Carto Light">
-            <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" attribution="© CARTO" />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Esri Satellite">
-            <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution="© Esri" />
-          </LayersControl.BaseLayer>
-
-          <LayersControl.Overlay checked name="Drone zone guidance">
-            <LayerGroup>
-              {zoneLayers.map(layer => (
-                <Polygon
-                  key={layer.zone}
-                  positions={layer.positions}
-                  pathOptions={{ color: layer.color, fillColor: layer.fillColor, fillOpacity: layer.fillOpacity, weight: 1.4 }}
+            {positionsForLine(geofencePositions, drawing).length > 1 &&
+              drawing && (
+                <Polyline
+                  positions={positionsForLine(geofencePositions, drawing)}
+                  pathOptions={{
+                    color: "#0f766e",
+                    weight: 2,
+                    dashArray: "4 4",
+                    opacity: 0.9,
+                  }}
                 />
-              ))}
-            </LayerGroup>
-          </LayersControl.Overlay>
-          <LayersControl.Overlay checked name="Government airspace zones">
-            <LayerGroup>
-              {regulatoryZoneLayers.map(layer => (
-                <Polygon
-                  key={layer.id}
-                  positions={layer.positions}
-                  pathOptions={{ color: layer.color, fillColor: layer.fillColor, fillOpacity: layer.fillOpacity, weight: 1.2 }}>
-                  <Popup>
-                    <div style={{ padding: 6, minWidth: 180 }}>
-                      <div style={{ fontWeight: 700 }}>{layer.name}</div>
-                      <div style={{ fontSize: 11, color: '#475569' }}>{layer.restriction}</div>
-                      <div style={{ fontSize: 11, color: '#92400e', marginTop: 4 }}>
-                        Limit: {layer.maxAltitudeM} m / {layer.maxSpeedMs} m/s
-                      </div>
-                    </div>
-                  </Popup>
-                </Polygon>
-              ))}
-            </LayerGroup>
-          </LayersControl.Overlay>
-        </LayersControl>
+              )}
 
-        {showAllMissions && (
-          <LayerGroup>
-            {otherMissions.map(m => {
-              const color = colorForDrone(m.drone_instance_id)
-              const route = (m.waypoints ?? [])
-                .slice()
-                .sort((a, b) => a.sequence - b.sequence)
-                .map(w => [w.latitude, w.longitude] as [number, number])
-              const fence = geofenceRingToLatLng(m.geofence)
-              return (
-                <LayerGroup key={m.id}>
-                  {route.length > 1 && (
-                    <Polyline positions={route} pathOptions={{ color, weight: 2.5, opacity: 0.75, dashArray: '2 6' }}>
+            <LayersControl position="topright">
+              <LayersControl.BaseLayer checked name="OpenStreetMap">
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution="© OpenStreetMap"
+                />
+              </LayersControl.BaseLayer>
+              <LayersControl.BaseLayer name="OpenTopoMap">
+                <TileLayer
+                  url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+                  attribution="© OpenTopoMap"
+                />
+              </LayersControl.BaseLayer>
+              <LayersControl.BaseLayer name="Carto Light">
+                <TileLayer
+                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                  attribution="© CARTO"
+                />
+              </LayersControl.BaseLayer>
+              <LayersControl.BaseLayer name="Esri Satellite">
+                <TileLayer
+                  url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                  attribution="© Esri"
+                />
+              </LayersControl.BaseLayer>
+
+              <LayersControl.Overlay checked name="Drone zone guidance">
+                <LayerGroup>
+                  {zoneLayers.map((layer) => (
+                    <Polygon
+                      key={layer.zone}
+                      positions={layer.positions}
+                      pathOptions={{
+                        color: layer.color,
+                        fillColor: layer.fillColor,
+                        fillOpacity: layer.fillOpacity,
+                        weight: 1.4,
+                      }}
+                    />
+                  ))}
+                </LayerGroup>
+              </LayersControl.Overlay>
+              <LayersControl.Overlay checked name="Government airspace zones">
+                <LayerGroup>
+                  {regulatoryZoneLayers.map((layer) => (
+                    <Polygon
+                      key={layer.id}
+                      positions={layer.positions}
+                      pathOptions={{
+                        color: layer.color,
+                        fillColor: layer.fillColor,
+                        fillOpacity: layer.fillOpacity,
+                        weight: 1.2,
+                      }}
+                    >
                       <Popup>
-                        <div style={{ padding: 4, minWidth: 160 }}>
-                          <div style={{ fontWeight: 700 }}>{m.name}</div>
-                          <div style={{ fontSize: 11, color: '#475569' }}>{droneName(m.drone_instance_id)} · {m.status}</div>
-                        </div>
-                      </Popup>
-                    </Polyline>
-                  )}
-                  {fence.length > 1 && (
-                    <Polygon positions={fence} pathOptions={{ color, weight: 1.5, fillColor: color, fillOpacity: 0.06, dashArray: '2 6' }}>
-                      <Popup>
-                        <div style={{ padding: 4, minWidth: 160 }}>
-                          <div style={{ fontWeight: 700 }}>{m.name} — geofence</div>
-                          <div style={{ fontSize: 11, color: '#475569' }}>{droneName(m.drone_instance_id)}</div>
+                        <div style={{ padding: 6, minWidth: 180 }}>
+                          <div style={{ fontWeight: 700 }}>{layer.name}</div>
+                          <div style={{ fontSize: 11, color: "#475569" }}>
+                            {layer.restriction}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: "#92400e",
+                              marginTop: 4,
+                            }}
+                          >
+                            Limit: {layer.maxAltitudeM} m / {layer.maxSpeedMs}{" "}
+                            m/s
+                          </div>
                         </div>
                       </Popup>
                     </Polygon>
-                  )}
+                  ))}
                 </LayerGroup>
-              )
+              </LayersControl.Overlay>
+            </LayersControl>
+
+            {showAllMissions && (
+              <LayerGroup>
+                {otherMissions.map((m) => {
+                  const color = colorForDrone(m.drone_instance_id);
+                  const route = (m.waypoints ?? [])
+                    .slice()
+                    .sort((a, b) => a.sequence - b.sequence)
+                    .map((w) => [w.latitude, w.longitude] as [number, number]);
+                  const fence = geofenceRingToLatLng(m.geofence);
+                  return (
+                    <LayerGroup key={m.id}>
+                      {route.length > 1 && (
+                        <Polyline
+                          positions={route}
+                          pathOptions={{
+                            color,
+                            weight: 2.5,
+                            opacity: 0.75,
+                            dashArray: "2 6",
+                          }}
+                        >
+                          <Popup>
+                            <div style={{ padding: 4, minWidth: 160 }}>
+                              <div style={{ fontWeight: 700 }}>{m.name}</div>
+                              <div style={{ fontSize: 11, color: "#475569" }}>
+                                {droneName(m.drone_instance_id)} · {m.status}
+                              </div>
+                            </div>
+                          </Popup>
+                        </Polyline>
+                      )}
+                      {fence.length > 1 && (
+                        <Polygon
+                          positions={fence}
+                          pathOptions={{
+                            color,
+                            weight: 1.5,
+                            fillColor: color,
+                            fillOpacity: 0.06,
+                            dashArray: "2 6",
+                          }}
+                        >
+                          <Popup>
+                            <div style={{ padding: 4, minWidth: 160 }}>
+                              <div style={{ fontWeight: 700 }}>
+                                {m.name} — geofence
+                              </div>
+                              <div style={{ fontSize: 11, color: "#475569" }}>
+                                {droneName(m.drone_instance_id)}
+                              </div>
+                            </div>
+                          </Popup>
+                        </Polygon>
+                      )}
+                    </LayerGroup>
+                  );
+                })}
+              </LayerGroup>
+            )}
+
+            {geofence.map((point, idx) => (
+              <Marker
+                key={`vertex-${idx}`}
+                position={[point.lat, point.lng]}
+                icon={vertexIcon(idx)}
+                draggable
+                eventHandlers={{
+                  dragend: (event: LeafletEvent) => {
+                    const marker = event.target as L.Marker;
+                    const next = marker.getLatLng();
+                    const newPt = { lat: next.lat, lng: next.lng };
+                    const n = geofence.length;
+
+                    // 1. Vertex itself inside a restricted zone
+                    if (
+                      !validateGovernmentPlacement(
+                        newPt.lat,
+                        newPt.lng,
+                        "geofence vertex",
+                        governmentZonesEnabled,
+                      )
+                    ) {
+                      marker.setLatLng([point.lat, point.lng]);
+                      return;
+                    }
+
+                    // 2. Check both adjacent edges (prev→new and new→next)
+                    const prevPt = geofence[(idx - 1 + n) % n];
+                    const nextPt = geofence[(idx + 1) % n];
+                    const crossPrev =
+                      n > 1
+                        ? edgeCrossesRestrictedZone(
+                            prevPt,
+                            newPt,
+                            governmentZonesEnabled,
+                          )
+                        : null;
+                    const crossNext =
+                      n > 1
+                        ? edgeCrossesRestrictedZone(
+                            newPt,
+                            nextPt,
+                            governmentZonesEnabled,
+                          )
+                        : null;
+                    const crossed = crossPrev ?? crossNext;
+                    if (crossed) {
+                      notify.danger(
+                        "Geofence edge crosses restricted airspace",
+                        `Dragging vertex ${idx + 1} here causes an edge to cross ${crossed}. Move it away from restricted zones.`,
+                      );
+                      marker.setLatLng([point.lat, point.lng]);
+                      return;
+                    }
+
+                    // 3. Check if updated polygon encloses a zone centre
+                    const updated = geofence.map((p, i) =>
+                      i === idx ? newPt : p,
+                    );
+                    const enclosed = geofenceEnclosesRestrictedZone(
+                      updated,
+                      governmentZonesEnabled,
+                    );
+                    if (enclosed) {
+                      notify.danger(
+                        "Geofence encloses restricted airspace",
+                        `This position causes the geofence to enclose ${enclosed}. Move the vertex away.`,
+                      );
+                      marker.setLatLng([point.lat, point.lng]);
+                      return;
+                    }
+
+                    updateGeofencePoint(idx, newPt);
+                  },
+                }}
+              >
+                <Popup>Geofence vertex {idx + 1}</Popup>
+              </Marker>
+            ))}
+
+            {routePositions.length > 1 && (
+              <Polyline
+                positions={routePositions}
+                pathOptions={{
+                  color: "#2563eb",
+                  weight: 3,
+                  dashArray: "6 4",
+                  opacity: 0.85,
+                }}
+              />
+            )}
+
+            {routeCollisions.map((collision, idx) => (
+              <Marker
+                key={`route-collision-${collision.mission.id}-${collision.id}`}
+                position={[collision.lat, collision.lng]}
+                icon={collisionIcon(idx + 1)}
+              >
+                <Popup>
+                  <div style={{ padding: 8, minWidth: 210 }}>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        color: "#9a3412",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Collision point {idx + 1}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#0f172a" }}>
+                      {formatCollisionCoord(collision)}
+                    </div>
+                    <div
+                      style={{ fontSize: 11, color: "#475569", marginTop: 4 }}
+                    >
+                      Current path leg {collision.routeALegIndex + 1} near{" "}
+                      {droneName(collision.mission.drone_instance_id)} /{" "}
+                      {collision.mission.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#475569" }}>
+                      Other path leg {collision.routeBLegIndex + 1} - separation{" "}
+                      {collision.distanceM.toFixed(1)} m
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+
+            {draftWaypoints.map((wp) => {
+              const outside = !isPointInsidePolygon(
+                { lat: wp.latitude, lng: wp.longitude },
+                geofence,
+              );
+              const hasHomeWaypoint = draftWaypoints.some(
+                (point) => point.is_home,
+              );
+              const isCurrentHome = !!wp.is_home;
+
+              return (
+                <Marker
+                  key={wp.sequence}
+                  position={[wp.latitude, wp.longitude]}
+                  icon={wpIcon(wp.sequence, isCurrentHome, outside)}
+                >
+                  <Popup>
+                    <div style={{ padding: 8, minWidth: 170 }}>
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          marginBottom: 4,
+                          color: outside ? "#dc2626" : "#0f172a",
+                        }}
+                      >
+                        {outside
+                          ? "Outside Geofence"
+                          : isCurrentHome
+                            ? "Home / Takeoff"
+                            : `Waypoint ${wp.sequence}`}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#475569" }}>
+                        {wp.latitude.toFixed(5)}, {wp.longitude.toFixed(5)}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#475569" }}>
+                        Alt: {wp.altitude_m} m {wp.altitude_ref}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setHomeWaypoint(wp.sequence)}
+                        disabled={hasHomeWaypoint && !isCurrentHome}
+                        style={{
+                          marginTop: 8,
+                          width: "100%",
+                          padding: "5px 0",
+                          background: isCurrentHome ? "#e2e8f0" : "#dbeafe",
+                          color: isCurrentHome ? "#334155" : "#1d4ed8",
+                          border: `1px solid ${isCurrentHome ? "#cbd5e1" : "#93c5fd"}`,
+                          borderRadius: 4,
+                          fontSize: 11,
+                          cursor:
+                            hasHomeWaypoint && !isCurrentHome
+                              ? "not-allowed"
+                              : "pointer",
+                          opacity: hasHomeWaypoint && !isCurrentHome ? 0.6 : 1,
+                        }}
+                      >
+                        {isCurrentHome
+                          ? "Home point selected"
+                          : "Set as home point"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => clearHomeWaypoint(wp.sequence)}
+                        disabled={!isCurrentHome}
+                        style={{
+                          marginTop: 6,
+                          width: "100%",
+                          padding: "5px 0",
+                          background: isCurrentHome ? "#fee2e2" : "#f8fafc",
+                          color: isCurrentHome ? "#b91c1c" : "#94a3b8",
+                          border: `1px solid ${isCurrentHome ? "#fecaca" : "#e2e8f0"}`,
+                          borderRadius: 4,
+                          fontSize: 11,
+                          cursor: isCurrentHome ? "pointer" : "not-allowed",
+                          opacity: isCurrentHome ? 1 : 0.65,
+                        }}
+                      >
+                        Remove as home
+                      </button>
+                      <button
+                        onClick={() => removeWaypoint(wp.sequence)}
+                        style={{
+                          marginTop: 6,
+                          width: "100%",
+                          padding: "5px 0",
+                          background: "#fee2e2",
+                          color: "#b91c1c",
+                          border: "1px solid #fecaca",
+                          borderRadius: 4,
+                          fontSize: 11,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Remove waypoint
+                      </button>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
             })}
-          </LayerGroup>
-        )}
 
-        {geofence.map((point, idx) => (
-          <Marker
-            key={`vertex-${idx}`}
-            position={[point.lat, point.lng]}
-            icon={vertexIcon(idx)}
-            draggable
-            eventHandlers={{
-              dragend: (event: LeafletEvent) => {
-                const marker = event.target as L.Marker
-                const next = marker.getLatLng()
-                const newPt = { lat: next.lat, lng: next.lng }
-                const n = geofence.length
+            {hasLivePosition && liveFrame && (
+              <Marker
+                position={[liveFrame.lat, liveFrame.lon]}
+                icon={liveDroneIcon(
+                  liveFrame.heading ?? 0,
+                  droneName(liveDroneId),
+                )}
+                zIndexOffset={1000}
+              >
+                <Tooltip direction="top" offset={[0, -16]}>
+                  {droneName(liveDroneId)} · {liveFrame.flight_mode} ·{" "}
+                  {Math.round(liveFrame.alt_agl ?? 0)} m AGL
+                </Tooltip>
+              </Marker>
+            )}
 
-                // 1. Vertex itself inside a restricted zone
-                if (!validateGovernmentPlacement(newPt.lat, newPt.lng, 'geofence vertex', governmentZonesEnabled)) {
-                  marker.setLatLng([point.lat, point.lng])
-                  return
-                }
+            <MapClickHandler
+              drawing={drawing}
+              routeDrawing={routeDrawing}
+              governmentZonesEnabled={governmentZonesEnabled}
+            />
+            <GovernmentZonesToggleHandler
+              onChange={setGovernmentZonesEnabled}
+            />
+          </MapContainer>
 
-                // 2. Check both adjacent edges (prev→new and new→next)
-                const prevPt = geofence[(idx - 1 + n) % n]
-                const nextPt = geofence[(idx + 1) % n]
-                const crossPrev = n > 1 ? edgeCrossesRestrictedZone(prevPt, newPt, governmentZonesEnabled) : null
-                const crossNext = n > 1 ? edgeCrossesRestrictedZone(newPt, nextPt, governmentZonesEnabled) : null
-                const crossed = crossPrev ?? crossNext
-                if (crossed) {
-                  notify.danger(
-                    'Geofence edge crosses restricted airspace',
-                    `Dragging vertex ${idx + 1} here causes an edge to cross ${crossed}. Move it away from restricted zones.`,
-                  )
-                  marker.setLatLng([point.lat, point.lng])
-                  return
-                }
-
-                // 3. Check if updated polygon encloses a zone centre
-                const updated = geofence.map((p, i) => i === idx ? newPt : p)
-                const enclosed = geofenceEnclosesRestrictedZone(updated, governmentZonesEnabled)
-                if (enclosed) {
-                  notify.danger(
-                    'Geofence encloses restricted airspace',
-                    `This position causes the geofence to enclose ${enclosed}. Move the vertex away.`,
-                  )
-                  marker.setLatLng([point.lat, point.lng])
-                  return
-                }
-
-                updateGeofencePoint(idx, newPt)
-              },
-            }}>
-            <Popup>Geofence vertex {idx + 1}</Popup>
-          </Marker>
-        ))}
-
-        {routePositions.length > 1 && (
-          <Polyline positions={routePositions}
-            pathOptions={{ color: '#2563eb', weight: 3, dashArray: '6 4', opacity: 0.85 }} />
-        )}
-
-        {routeCollisions.map((collision, idx) => (
-          <Marker
-            key={`route-collision-${collision.mission.id}-${collision.id}`}
-            position={[collision.lat, collision.lng]}
-            icon={collisionIcon(idx + 1)}>
-            <Popup>
-              <div style={{ padding: 8, minWidth: 210 }}>
-                <div style={{ fontWeight: 800, color: '#9a3412', marginBottom: 4 }}>
-                  Collision point {idx + 1}
-                </div>
-                <div style={{ fontSize: 11, color: '#0f172a' }}>
-                  {formatCollisionCoord(collision)}
-                </div>
-                <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>
-                  Current path leg {collision.routeALegIndex + 1} near {droneName(collision.mission.drone_instance_id)} / {collision.mission.name}
-                </div>
-                <div style={{ fontSize: 11, color: '#475569' }}>
-                  Other path leg {collision.routeBLegIndex + 1} - separation {collision.distanceM.toFixed(1)} m
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-
-        {draftWaypoints.map(wp => {
-          const outside = !isPointInsidePolygon({ lat: wp.latitude, lng: wp.longitude }, geofence)
-          return (
-            <Marker
-              key={wp.sequence}
-              position={[wp.latitude, wp.longitude]}
-              icon={wpIcon(wp.sequence, !!wp.is_home, outside)}>
-              <Popup>
-                <div style={{ padding: 8, minWidth: 170 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 4, color: outside ? '#dc2626' : '#0f172a' }}>
-                    {outside ? 'Outside Geofence' : wp.is_home ? 'Home / Takeoff' : `Waypoint ${wp.sequence}`}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#475569' }}>
-                    {wp.latitude.toFixed(5)}, {wp.longitude.toFixed(5)}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#475569' }}>
-                    Alt: {wp.altitude_m} m {wp.altitude_ref}
-                  </div>
-                  <button
-                    onClick={() => removeWaypoint(wp.sequence)}
-                    style={{
-                      marginTop: 8, width: '100%', padding: '5px 0',
-                      background: '#fee2e2', color: '#b91c1c',
-                      border: '1px solid #fecaca', borderRadius: 4,
-                      fontSize: 11, cursor: 'pointer',
-                    }}>
-                    Remove waypoint
-                  </button>
-                </div>
-              </Popup>
-            </Marker>
-          )
-        })}
-
-        {hasLivePosition && liveFrame && (
-          <Marker
-            position={[liveFrame.lat, liveFrame.lon]}
-            icon={liveDroneIcon(liveFrame.heading ?? 0, droneName(liveDroneId))}
-            zIndexOffset={1000}>
-            <Tooltip direction="top" offset={[0, -16]}>
-              {droneName(liveDroneId)} · {liveFrame.flight_mode} · {Math.round(liveFrame.alt_agl ?? 0)} m AGL
-            </Tooltip>
-          </Marker>
-        )}
-
-        <MapClickHandler drawing={drawing} routeDrawing={routeDrawing} governmentZonesEnabled={governmentZonesEnabled} />
-        <GovernmentZonesToggleHandler onChange={setGovernmentZonesEnabled} />
-      </MapContainer>
-
-          <div className="da-map-toolbar" role="toolbar" aria-label="Planning tools">
+          <div
+            className="da-map-toolbar"
+            role="toolbar"
+            aria-label="Planning tools"
+          >
             <button
               type="button"
-              className={routeDrawing ? 'da-map-tool is-active' : 'da-map-tool'}
+              className={routeDrawing ? "da-map-tool is-active" : "da-map-tool"}
               onClick={routeDrawing ? completeRoute : startRoute}
               disabled={routeDrawing && draftWaypoints.length === 0}
-              title={routeDrawing ? 'Complete route' : 'Plot route'}>
+              title={routeDrawing ? "Complete route" : "Plot route"}
+            >
               {routeDrawing ? <CheckCircle2 size={15} /> : <Route size={15} />}
-              <span>{routeDrawing ? 'Complete' : 'Plot Route'}</span>
+              <span>{routeDrawing ? "Complete" : "Plot Route"}</span>
             </button>
             <button
               type="button"
-              className={drawing ? 'da-map-tool is-active' : 'da-map-tool'}
+              className={drawing ? "da-map-tool is-active" : "da-map-tool"}
               onClick={drawing ? finishDrawing : startDrawing}
               disabled={drawing && geofence.length < 3}
-              title={drawing ? 'Finish geofence' : 'Draw geofence'}>
+              title={drawing ? "Finish geofence" : "Draw geofence"}
+            >
               {drawing ? <Shield size={15} /> : <Pencil size={15} />}
-              <span>{drawing ? 'Finish Fence' : 'Draw Fence'}</span>
+              <span>{drawing ? "Finish Fence" : "Draw Fence"}</span>
             </button>
             <span className="da-map-toolbar-divider" />
             <button
               type="button"
-              className={activePanel === 'coordinates' ? 'da-map-tool is-active' : 'da-map-tool'}
-              onClick={() => togglePanel('coordinates')}
+              className={
+                activePanel === "coordinates"
+                  ? "da-map-tool is-active"
+                  : "da-map-tool"
+              }
+              onClick={() => togglePanel("coordinates")}
               title="Coordinates and geofence vertices"
-              aria-pressed={activePanel === 'coordinates'}>
-              <MapPin size={15} /><span>Coordinates</span>
+              aria-pressed={activePanel === "coordinates"}
+            >
+              <MapPin size={15} />
+              <span>Coordinates</span>
             </button>
             <button
               type="button"
-              className={showAllMissions ? 'da-map-tool is-active' : 'da-map-tool'}
+              className={
+                showAllMissions ? "da-map-tool is-active" : "da-map-tool"
+              }
               onClick={toggleOtherMissions}
-              title={showAllMissions ? 'Hide other drone missions' : 'Show other drone missions'}
-              aria-pressed={showAllMissions}>
-              <Eye size={15} /><span>Missions</span>
+              title={
+                showAllMissions
+                  ? "Hide other drone missions"
+                  : "Show other drone missions"
+              }
+              aria-pressed={showAllMissions}
+            >
+              <Eye size={15} />
+              <span>Missions</span>
             </button>
             {routeCollisions.length > 0 && (
               <button
                 type="button"
                 className="da-map-tool is-warning"
-                onClick={() => togglePanel('collisions')}
+                onClick={() => togglePanel("collisions")}
                 title="View route collision points"
-                aria-pressed={activePanel === 'collisions'}>
-                <AlertTriangle size={15} /><span>{routeCollisions.length} Conflicts</span>
+                aria-pressed={activePanel === "collisions"}
+              >
+                <AlertTriangle size={15} />
+                <span>{routeCollisions.length} Conflicts</span>
               </button>
             )}
             <button
               type="button"
-              className={activePanel === 'airspace' ? 'da-map-tool is-active' : 'da-map-tool'}
-              onClick={() => togglePanel('airspace')}
+              className={
+                activePanel === "airspace"
+                  ? "da-map-tool is-active"
+                  : "da-map-tool"
+              }
+              onClick={() => togglePanel("airspace")}
               title="Airspace information"
-              aria-pressed={activePanel === 'airspace'}>
-              <Info size={15} /><span>Airspace</span>
+              aria-pressed={activePanel === "airspace"}
+            >
+              <Info size={15} />
+              <span>Airspace</span>
             </button>
             {onFleetAssign && (
-              <button type="button" className="da-map-tool" onClick={onFleetAssign} title="Assign fleet">
-                <Cpu size={15} /><span>Fleet</span>
+              <button
+                type="button"
+                className="da-map-tool"
+                onClick={onFleetAssign}
+                title="Assign fleet"
+              >
+                <Cpu size={15} />
+                <span>Fleet</span>
               </button>
             )}
             {(draftWaypoints.length > 0 || geofence.length > 0) && (
-              <button type="button" className="da-map-tool is-danger" onClick={clearMission} title="Clear mission">
-                <Trash2 size={15} /><span>Clear</span>
+              <button
+                type="button"
+                className="da-map-tool is-danger"
+                onClick={clearMission}
+                title="Clear mission"
+              >
+                <Trash2 size={15} />
+                <span>Clear</span>
               </button>
             )}
           </div>
@@ -858,24 +1269,40 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
           <aside className="da-map-detail-panel" aria-label={panelTitle}>
             <header>
               <strong>{panelTitle}</strong>
-              <button type="button" onClick={() => setActivePanel(null)} title="Close details">
+              <button
+                type="button"
+                onClick={() => setActivePanel(null)}
+                title="Close details"
+              >
                 <X size={16} />
               </button>
             </header>
 
             <div className="da-map-detail-scroll">
-              {activePanel === 'coordinates' && (
+              {activePanel === "coordinates" && (
                 <div className="da-map-detail-section">
                   <div className="da-coordinate-entry">
                     <label>
                       <span>Latitude</span>
-                      <input value={manualLat} onChange={event => setManualLat(event.target.value)} placeholder="17.385000" />
+                      <input
+                        value={manualLat}
+                        onChange={(event) => setManualLat(event.target.value)}
+                        placeholder="17.385000"
+                      />
                     </label>
                     <label>
                       <span>Longitude</span>
-                      <input value={manualLng} onChange={event => setManualLng(event.target.value)} placeholder="78.486700" />
+                      <input
+                        value={manualLng}
+                        onChange={(event) => setManualLng(event.target.value)}
+                        placeholder="78.486700"
+                      />
                     </label>
-                    <button type="button" className="da-btn da-btn-primary justify-center" onClick={addManualVertex}>
+                    <button
+                      type="button"
+                      className="da-btn da-btn-primary justify-center"
+                      onClick={addManualVertex}
+                    >
                       <PlusCircle size={14} /> Add vertex
                     </button>
                   </div>
@@ -885,78 +1312,136 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
                     <b>{geofence.length}</b>
                   </div>
                   {geofence.length === 0 ? (
-                    <div className="da-map-detail-empty">No geofence vertices</div>
+                    <div className="da-map-detail-empty">
+                      No geofence vertices
+                    </div>
                   ) : (
                     geofence.map((point, index) => (
-                      <div className="da-map-coordinate-row" key={index + '-' + point.lat + '-' + point.lng}>
+                      <div
+                        className="da-map-coordinate-row"
+                        key={index + "-" + point.lat + "-" + point.lng}
+                      >
                         <span>{index + 1}</span>
                         <div>
                           <strong>Lon {point.lng.toFixed(6)}</strong>
                           <small>Lat {point.lat.toFixed(6)}</small>
                         </div>
-                        <button type="button" onClick={() => removeVertex(index)} title={'Remove vertex ' + (index + 1)}>
+                        <button
+                          type="button"
+                          onClick={() => removeVertex(index)}
+                          title={"Remove vertex " + (index + 1)}
+                        >
                           <Trash2 size={13} />
                         </button>
                       </div>
                     ))
                   )}
                   {geofence.length > 0 && (
-                    <button type="button" className="da-btn da-btn-ghost justify-center" onClick={deleteZone}>
+                    <button
+                      type="button"
+                      className="da-btn da-btn-ghost justify-center"
+                      onClick={deleteZone}
+                    >
                       <Trash2 size={13} /> Clear geofence
                     </button>
                   )}
                 </div>
               )}
 
-              {activePanel === 'collisions' && (
+              {activePanel === "collisions" && (
                 <div className="da-map-detail-section">
                   <div className="da-collision-summary">
                     <AlertTriangle size={17} />
-                    <span>{routeCollisions.length} collision point{routeCollisions.length === 1 ? '' : 's'} detected</span>
+                    <span>
+                      {routeCollisions.length} collision point
+                      {routeCollisions.length === 1 ? "" : "s"} detected
+                    </span>
                   </div>
                   {routeCollisions.map((collision, index) => (
-                    <div className="da-collision-row" key={'collision-list-' + collision.mission.id + '-' + collision.id}>
+                    <div
+                      className="da-collision-row"
+                      key={
+                        "collision-list-" +
+                        collision.mission.id +
+                        "-" +
+                        collision.id
+                      }
+                    >
                       <span>{index + 1}</span>
                       <div>
                         <strong>{formatCollisionCoord(collision)}</strong>
-                        <small>{droneName(collision.mission.drone_instance_id)} / {collision.mission.name}</small>
-                        <small>Legs {collision.routeALegIndex + 1} and {collision.routeBLegIndex + 1} / {collision.distanceM.toFixed(1)} m separation</small>
+                        <small>
+                          {droneName(collision.mission.drone_instance_id)} /{" "}
+                          {collision.mission.name}
+                        </small>
+                        <small>
+                          Legs {collision.routeALegIndex + 1} and{" "}
+                          {collision.routeBLegIndex + 1} /{" "}
+                          {collision.distanceM.toFixed(1)} m separation
+                        </small>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
 
-              {activePanel === 'missions' && (
+              {activePanel === "missions" && (
                 <div className="da-map-detail-section">
                   {otherMissions.length === 0 ? (
-                    <div className="da-map-detail-empty">No other missions with routes or geofences</div>
+                    <div className="da-map-detail-empty">
+                      No other missions with routes or geofences
+                    </div>
                   ) : (
-                    otherMissions.map(mission => (
+                    otherMissions.map((mission) => (
                       <div className="da-other-mission-row" key={mission.id}>
-                        <span style={{ background: colorForDrone(mission.drone_instance_id) }} />
+                        <span
+                          style={{
+                            background: colorForDrone(
+                              mission.drone_instance_id,
+                            ),
+                          }}
+                        />
                         <div>
                           <strong>{mission.name}</strong>
-                          <small>{droneName(mission.drone_instance_id)} / {mission.status}</small>
+                          <small>
+                            {droneName(mission.drone_instance_id)} /{" "}
+                            {mission.status}
+                          </small>
                         </div>
                       </div>
                     ))
                   )}
-                  <button type="button" className="da-btn da-btn-ghost justify-center" onClick={toggleOtherMissions}>
+                  <button
+                    type="button"
+                    className="da-btn da-btn-ghost justify-center"
+                    onClick={toggleOtherMissions}
+                  >
                     <Eye size={13} /> Hide mission paths
                   </button>
                 </div>
               )}
 
-              {activePanel === 'airspace' && (
+              {activePanel === "airspace" && (
                 <div className="da-map-detail-section">
                   <div className="da-airspace-note">
                     <strong>Government airspace zones</strong>
-                    <span>Fixed restricted and controlled airspace remains anchored to its real-world coordinates.</span>
+                    <span>
+                      Fixed restricted and controlled airspace remains anchored
+                      to its real-world coordinates.
+                    </span>
                   </div>
-                  <div className="da-airspace-key"><i className="red" /><span>Restricted airspace</span></div>
-                  <div className="da-airspace-key"><i className="orange" /><span>Controlled airspace</span></div>
-                  <div className="da-airspace-key"><i className="teal" /><span>Mission geofence</span></div>
+                  <div className="da-airspace-key">
+                    <i className="red" />
+                    <span>Restricted airspace</span>
+                  </div>
+                  <div className="da-airspace-key">
+                    <i className="orange" />
+                    <span>Controlled airspace</span>
+                  </div>
+                  <div className="da-airspace-key">
+                    <i className="teal" />
+                    <span>Mission geofence</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -965,24 +1450,32 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
       </div>
 
       <div className="da-plan-statusbar" role="status">
-        <span className="da-live-regulatory-badge" title="DGCA zone boundaries are a static offline snapshot, not a live feed">
-          DGCA zones: offline snapshot (checked {regulatoryZoneLoadState.checkedOn})
+        <span
+          className="da-live-regulatory-badge"
+          title="DGCA zone boundaries are a static offline snapshot, not a live feed"
+        >
+          DGCA zones: offline snapshot (checked{" "}
+          {regulatoryZoneLoadState.checkedOn})
         </span>
-        <strong className={drawing ? 'is-teal' : routeDrawing ? 'is-blue' : ''}>{planningState}</strong>
+        <strong className={drawing ? "is-teal" : routeDrawing ? "is-blue" : ""}>
+          {planningState}
+        </strong>
         <span>{draftWaypoints.length} waypoints</span>
         <span>{geofence.length} fence vertices</span>
-        {outsideCount > 0 && <span className="is-danger">{outsideCount} outside fence</span>}
+        {outsideCount > 0 && (
+          <span className="is-danger">{outsideCount} outside fence</span>
+        )}
         {routeCollisions.length > 0 && (
-          <button type="button" onClick={() => setActivePanel('collisions')}>
+          <button type="button" onClick={() => setActivePanel("collisions")}>
             <AlertTriangle size={12} /> {routeCollisions.length} route conflicts
           </button>
         )}
       </div>
     </div>
-  )
+  );
 }
 
 function positionsForLine(positions: [number, number][], drawing: boolean) {
-  if (!drawing || positions.length < 3) return positions
-  return [...positions, positions[0]]
+  if (!drawing || positions.length < 3) return positions;
+  return [...positions, positions[0]];
 }

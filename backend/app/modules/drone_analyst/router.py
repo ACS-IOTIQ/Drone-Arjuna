@@ -1,5 +1,5 @@
 from typing import Annotated, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db
@@ -18,7 +18,7 @@ AnalystDep = Annotated[User, Depends(require_min_role(Role.MISSION_COMMANDER))]
 @router.get("/status")
 async def analyst_status(db: DbDep, _: ViewerDep):
     """Module health and capability summary."""
-    return AnalystService(db).get_status()
+    return await AnalystService(db).get_status()
 
 
 # ── Analysis jobs ─────────────────────────────────────────────────
@@ -40,7 +40,7 @@ async def create_job(
       model_id    — (optional) model from registry
       params      — job-specific parameters dict
     """
-    return AnalystService(db).create_job(
+    return await AnalystService(db).create_job(
         job_type     = body.get("job_type", "telemetry_report"),
         mission_id   = body.get("mission_id"),
         drone_id     = body.get("drone_id"),
@@ -60,20 +60,66 @@ async def list_jobs(
     limit:      int           = Query(50, ge=1, le=200),
 ):
     """List analysis jobs with optional filters."""
-    jobs = AnalystService(db).list_jobs(mission_id, job_type, status, limit)
+    jobs = await AnalystService(db).list_jobs(mission_id, job_type, status, limit)
     return {"jobs": jobs, "total": len(jobs)}
 
 
 @router.get("/jobs/{job_id}")
 async def get_job(job_id: str, db: DbDep, _: ViewerDep):
     """Retrieve a single analysis job by ID."""
-    return AnalystService(db).get_job(job_id)
+    return await AnalystService(db).get_job(job_id)
+
+
+@router.post("/jobs/{job_id}/artifacts", status_code=201)
+async def upload_artifact(
+    job_id: str,
+    db: DbDep,
+    user: AnalystDep,
+    file: UploadFile = File(...),
+):
+    """
+    Attach a file to an analysis job — source imagery, a recorded video, or
+    a generated PDF report. Stored in MinIO; only image/*, video/*, and
+    application/pdf content types are accepted.
+    """
+    content = await file.read()
+    return await AnalystService(db).upload_artifact(
+        job_id=job_id,
+        filename=file.filename or "upload.bin",
+        content=content,
+        content_type=file.content_type or "application/octet-stream",
+        uploaded_by=user.id,
+    )
+
+
+@router.get("/jobs/{job_id}/artifacts")
+async def list_artifacts(
+    job_id: str,
+    db: DbDep,
+    _: ViewerDep,
+    kind: Optional[str] = Query(None, description="Filter: image | video | report_pdf"),
+):
+    """List files attached to a job (images, videos, PDF reports)."""
+    artifacts = await AnalystService(db).list_artifacts(job_id, kind)
+    return {"artifacts": artifacts, "total": len(artifacts)}
+
+
+@router.get("/jobs/{job_id}/artifacts/{artifact_id}")
+async def get_artifact_url(job_id: str, artifact_id: str, db: DbDep, _: ViewerDep):
+    """Return a time-limited download URL for a job artifact."""
+    return await AnalystService(db).get_artifact_url(job_id, artifact_id)
+
+
+@router.delete("/jobs/{job_id}/artifacts/{artifact_id}", status_code=204)
+async def delete_artifact(job_id: str, artifact_id: str, db: DbDep, _: AnalystDep):
+    """Delete a job artifact from MinIO and its record."""
+    await AnalystService(db).delete_artifact(job_id, artifact_id)
 
 
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_job(job_id: str, db: DbDep, _: AnalystDep):
     """Cancel a pending or running analysis job."""
-    return AnalystService(db).cancel_job(job_id)
+    return await AnalystService(db).cancel_job(job_id)
 
 
 # ── Detection results ─────────────────────────────────────────────

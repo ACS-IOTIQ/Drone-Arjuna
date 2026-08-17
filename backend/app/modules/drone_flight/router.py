@@ -11,7 +11,7 @@ from app.schemas.mission import (
     MissionCreate, MissionOut, MissionSummary,
     MissionStatusUpdate, MissionUpdate, WaypointOut, LiveWaypointSync,
 )
-from app.modules.drone_control import mavlink_manager
+from app.modules.drone_control.mavlink_manager import mavlink_manager
 from app.modules.drone_flight.geo_service import compute_mission_summary
 from app.modules.drone_flight.mission_planner import MissionPlanner, deconflict_missions
 from app.modules.drone_flight.airspace_service import validate_mission_airspace
@@ -30,14 +30,25 @@ ViewerDep = Annotated[User, Depends(require_min_role(Role.VIEWER))]
 async def list_missions(db: DbDep, _: ViewerDep):
     result = await db.execute(select(Mission).order_by(Mission.created_at.desc()))
     missions = result.scalars().all()
-    # Attach waypoints
+    if not missions:
+        return []
+
+    mission_ids = [m.id for m in missions]
+    wps_result = await db.execute(
+        select(Waypoint)
+        .where(Waypoint.mission_id.in_(mission_ids))
+        .order_by(Waypoint.sequence)
+    )
+    waypoints_by_mission: dict[int, list[Waypoint]] = {}
+    for wp in wps_result.scalars().all():
+        waypoints_by_mission.setdefault(wp.mission_id, []).append(wp)
+
     out = []
     for m in missions:
-        wps = await db.execute(
-            select(Waypoint).where(Waypoint.mission_id == m.id).order_by(Waypoint.sequence)
-        )
         m_dict = MissionOut.model_validate(m).model_dump()
-        m_dict["waypoints"] = [WaypointOut.model_validate(w) for w in wps.scalars().all()]
+        m_dict["waypoints"] = [
+            WaypointOut.model_validate(w) for w in waypoints_by_mission.get(m.id, [])
+        ]
         out.append(m_dict)
     return out
 

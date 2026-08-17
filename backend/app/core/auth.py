@@ -2,11 +2,10 @@
 Full auth.py — adds /register and /users endpoints
 to the existing login + /me routes.
 """
-import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -175,6 +174,7 @@ async def reset_user_password(
     user_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[User, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
 ):
     if current.role != "admin":
         raise HTTPException(status_code=403, detail="Admin role required")
@@ -195,13 +195,12 @@ async def reset_user_password(
     db.add(user)
     await db.commit()
 
-    asyncio.create_task(
-        send_password_reset_email(
-            to_email=user.email,
-            full_name=user.full_name or user.username,
-            username=user.username,
-            temp_password=temp_pwd,
-        )
+    background_tasks.add_task(
+        send_password_reset_email,
+        to_email=user.email,
+        full_name=user.full_name or user.username,
+        username=user.username,
+        temp_password=temp_pwd,
     )
     return {"message": f"Password reset email queued for {user.email}"}
 
@@ -210,6 +209,7 @@ async def reset_user_password(
 async def forgot_password(
     body: ForgotPasswordRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
+    background_tasks: BackgroundTasks,
 ):
     """Public endpoint — request a password-reset email for the given address."""
     generic_response = {"message": "If that email is registered, a reset link has been sent."}
@@ -226,12 +226,11 @@ async def forgot_password(
     await db.commit()
 
     reset_url = f"http://localhost:3000/reset-password?token={token}"
-    asyncio.create_task(
-        send_forgot_password_email(
-            to_email=user.email,
-            full_name=user.full_name or user.username,
-            reset_url=reset_url,
-        )
+    background_tasks.add_task(
+        send_forgot_password_email,
+        to_email=user.email,
+        full_name=user.full_name or user.username,
+        reset_url=reset_url,
     )
     return generic_response
 
@@ -314,6 +313,7 @@ async def accept_access_request(
     body: AcceptBody,
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[User, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
 ):
     """Admin only — create user account and mark request approved."""
     if current.role != "admin":
@@ -359,14 +359,13 @@ async def accept_access_request(
     await AuditLogger(db).user_created(current.id, user.id, role)
 
     # Fire approval email — failure is logged but never raises
-    asyncio.create_task(
-        send_approval_email(
-            to_email=req.email,
-            full_name=req.full_name,
-            username=req.username,
-            temp_password=temp_pwd,
-            role=role,
-        )
+    background_tasks.add_task(
+        send_approval_email,
+        to_email=req.email,
+        full_name=req.full_name,
+        username=req.username,
+        temp_password=temp_pwd,
+        role=role,
     )
 
     return req
@@ -377,6 +376,7 @@ async def resend_approval_email(
     req_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[User, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
 ):
     """Admin only — re-send the approval email for an approved request."""
     if current.role != "admin":
@@ -390,14 +390,13 @@ async def resend_approval_email(
     if not req.temp_password:
         raise HTTPException(status_code=409, detail="No temporary password on record for this request")
 
-    asyncio.create_task(
-        send_approval_email(
-            to_email=req.email,
-            full_name=req.full_name,
-            username=req.username,
-            temp_password=req.temp_password,
-            role=req.requested_role,
-        )
+    background_tasks.add_task(
+        send_approval_email,
+        to_email=req.email,
+        full_name=req.full_name,
+        username=req.username,
+        temp_password=req.temp_password,
+        role=req.requested_role,
     )
     return {"message": f"Approval email queued for {req.email}"}
 

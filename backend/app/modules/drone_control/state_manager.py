@@ -5,6 +5,7 @@ Thread-safe via asyncio locks.
 """
 import asyncio
 import json
+import time
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
@@ -62,8 +63,12 @@ class StateManager:
             self._states[drone_id].update(data)
             self._states[drone_id]["last_updated"] = datetime.now(timezone.utc).isoformat()
 
-        proximity_updates = self._proximity_monitor.evaluate(self.get_all())
         changed_ids = {drone_id}
+        # Proximity/collision alerts are safety-critical, so every position
+        # update is evaluated against the fleet immediately rather than
+        # throttled — a missed detection window is worse than the extra
+        # O(n^2) scan cost at realistic fleet sizes.
+        proximity_updates = self._proximity_monitor.evaluate(self.get_all())
         for affected_id, patch in proximity_updates.items():
             if await self._apply_patch(affected_id, patch):
                 changed_ids.add(affected_id)

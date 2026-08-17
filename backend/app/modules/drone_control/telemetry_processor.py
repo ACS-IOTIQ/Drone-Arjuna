@@ -5,6 +5,7 @@
 Parses MAVLink messages into clean Python dicts
 and updates the StateManager. Pure I/O — no blocking calls.
 """
+import asyncio
 import structlog
 from app.modules.drone_control.state_manager import StateManager
 from app.utils.mavlink_utils import (
@@ -69,7 +70,12 @@ class TelemetryProcessor(metaclass=_TelemetryProcessorCompat):
                 # simulated flights, so real/SITL arm state never reached an
                 # external GCS. Use the message's own source system id, not a
                 # hardcoded GCS id, so Mission Planner sees the real vehicle.
-                mavlink_broadcaster.send(drone_id, msg.get_srcSystem(), state.get(drone_id))
+                src_system = getattr(msg, "get_srcSystem", lambda: None)()
+                if src_system is not None:
+                    loop = asyncio.get_running_loop()
+                    loop.run_in_executor(
+                        None, mavlink_broadcaster.send, drone_id, src_system, state.get(drone_id),
+                    )
                 if msg_type == "GLOBAL_POSITION_INT":
                     await self._check_geofence(drone_id, update, state)
 

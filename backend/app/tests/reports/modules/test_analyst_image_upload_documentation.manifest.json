@@ -1,0 +1,16 @@
+{
+  "fingerprint": "6c71de4c54f383f36bef58ee4c8922e3d5c50b3f24b4f2f53b7d5664820103a2",
+  "nodeids": [
+    "app/tests/test_analyst_image_upload.py::test_get_image_url_after_upload",
+    "app/tests/test_analyst_image_upload.py::test_get_image_url_no_image_attached_404",
+    "app/tests/test_analyst_image_upload.py::test_get_image_url_nonexistent_job_404",
+    "app/tests/test_analyst_image_upload.py::test_get_image_url_unauthenticated_401",
+    "app/tests/test_analyst_image_upload.py::test_upload_image_nonexistent_job_404",
+    "app/tests/test_analyst_image_upload.py::test_upload_image_persists_object_key",
+    "app/tests/test_analyst_image_upload.py::test_upload_image_rejected_when_job_not_queued",
+    "app/tests/test_analyst_image_upload.py::test_upload_image_round_trip_via_get_job",
+    "app/tests/test_analyst_image_upload.py::test_upload_image_sanitizes_path_separators_in_filename",
+    "app/tests/test_analyst_image_upload.py::test_upload_image_unauthenticated_401",
+    "app/tests/test_analyst_image_upload.py::test_upload_image_viewer_403"
+  ]
+}

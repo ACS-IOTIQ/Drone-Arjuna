@@ -6,6 +6,12 @@ GET  /api/analyst/jobs
 GET  /api/analyst/jobs/{job_id}
 POST /api/analyst/jobs/{job_id}/cancel
 
+Jobs are persisted in PostgreSQL (AnalysisJob) and enqueued onto RabbitMQ
+for the job-queue consumer to process. In tests RabbitMQ is never connected
+(app.core.events._exchange stays None), so publish() no-ops and jobs stay
+in the 'queued' state — the consumer's queued->running->done/failed
+transitions are covered separately in test_analyst_job_consumer.py.
+
 Covers:
   - Create job → verify all fields stored and retrievable via GET
   - Default job_type (telemetry_report)
@@ -15,9 +21,8 @@ Covers:
   - Get unknown job → 404
   - List jobs → returns created job
   - List jobs filtered by job_type
-  - Cancel pending job → status becomes 'cancelled', completed_at set
+  - Cancel queued job → status becomes 'cancelled', completed_at set
   - Cancel already-cancelled job → 409
-  - Cancel complete job → 409
   - RBAC: VIEWER can GET/list but cannot POST/cancel (need MISSION_COMMANDER)
   - RBAC: unauthenticated → 401
 """
@@ -61,8 +66,8 @@ async def test_create_job_201_all_fields(
     body = resp.json()
 
     assert "id"           in body
-    assert body["type"]         == "telemetry_report"
-    assert body["status"]       == "pending"
+    assert body["job_type"]     == "telemetry_report"
+    assert body["status"]       == "queued"
     assert body["mission_id"]   is None
     assert body["drone_id"]     is None
     assert body["model_id"]     is None
@@ -73,7 +78,6 @@ async def test_create_job_201_all_fields(
     assert body["result"]       is None
     assert body["error"]        is None
     assert "created_at" in body
-    assert "note"       in body
 
 
 async def test_create_job_with_mission_and_drone(
@@ -90,7 +94,7 @@ async def test_create_job_with_mission_and_drone(
     body = resp.json()
     assert body["mission_id"] == 42
     assert body["drone_id"]   == 7
-    assert body["type"]       == "object_detection"
+    assert body["job_type"]   == "object_detection"
     assert body["params"]     == {"confidence": 0.75}
 
 
@@ -105,7 +109,7 @@ async def test_create_job_default_job_type(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 201, resp.text
-    assert resp.json()["type"] == "telemetry_report"
+    assert resp.json()["job_type"] == "telemetry_report"
 
 
 async def test_create_job_invalid_type_400(
@@ -152,6 +156,28 @@ async def test_create_job_unauthenticated_401(client: AsyncClient):
     assert resp.status_code == 401
 
 
+async def test_create_job_publishes_to_queue(
+    client: AsyncClient, mission_commander_user, make_token
+):
+    """Creating a job must publish {'job_id': ...} to the analyst job routing key."""
+    from unittest.mock import AsyncMock, patch
+
+    token = make_token(mission_commander_user.id, mission_commander_user.role)
+    with patch(
+        "app.modules.drone_analyst.service.publish", new_callable=AsyncMock
+    ) as mock_publish:
+        resp = await client.post(
+            "/api/analyst/jobs",
+            json=_VALID_JOB,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert resp.status_code == 201, resp.text
+    job_id = resp.json()["id"]
+    mock_publish.assert_called_once_with(
+        "drone_analyst.job_submitted", {"job_id": job_id}
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════
 # GET /api/analyst/jobs/{job_id} — Round-trip persistence
 # ══════════════════════════════════════════════════════════════════════
@@ -182,12 +208,12 @@ async def test_get_job_round_trip(
     body = get.json()
 
     assert body["id"]           == job_id
-    assert body["type"]         == "object_detection"
+    assert body["job_type"]     == "object_detection"
     assert body["mission_id"]   == 42
     assert body["drone_id"]     == 7
     assert body["params"]       == {"confidence": 0.75}
     assert body["submitted_by"] == mission_commander_user.id
-    assert body["status"]       == "pending"
+    assert body["status"]       == "queued"
 
 
 async def test_get_job_not_found_404(
@@ -262,7 +288,35 @@ async def test_list_jobs_filter_by_job_type(
     )
     assert resp.status_code == 200
     jobs = resp.json()["jobs"]
-    assert all(j["type"] == "change_detection" for j in jobs)
+    assert all(j["job_type"] == "change_detection" for j in jobs)
+
+
+async def test_list_jobs_filter_by_status(
+    client: AsyncClient, mission_commander_user, viewer_user, make_token
+):
+    """status filter returns only jobs in that state."""
+    mc_token = make_token(mission_commander_user.id, mission_commander_user.role)
+
+    create = await client.post(
+        "/api/analyst/jobs",
+        json=_VALID_JOB,
+        headers={"Authorization": f"Bearer {mc_token}"},
+    )
+    job_id = create.json()["id"]
+    await client.post(
+        f"/api/analyst/jobs/{job_id}/cancel",
+        headers={"Authorization": f"Bearer {mc_token}"},
+    )
+
+    v_token = make_token(viewer_user.id, viewer_user.role)
+    resp    = await client.get(
+        "/api/analyst/jobs?status=cancelled",
+        headers={"Authorization": f"Bearer {v_token}"},
+    )
+    assert resp.status_code == 200
+    jobs = resp.json()["jobs"]
+    assert any(j["id"] == job_id for j in jobs)
+    assert all(j["status"] == "cancelled" for j in jobs)
 
 
 async def test_list_jobs_unauthenticated_401(client: AsyncClient):
@@ -278,8 +332,8 @@ async def test_cancel_job_status_persisted(
     client: AsyncClient, mission_commander_user, viewer_user, make_token
 ):
     """
-    Cancel a pending job → status becomes 'cancelled' and completed_at is set.
-    Re-fetch via GET to confirm the state persisted in the store.
+    Cancel a queued job → status becomes 'cancelled' and completed_at is set.
+    Re-fetch via GET to confirm the state persisted in the DB.
     """
     mc_token = make_token(mission_commander_user.id, mission_commander_user.role)
 

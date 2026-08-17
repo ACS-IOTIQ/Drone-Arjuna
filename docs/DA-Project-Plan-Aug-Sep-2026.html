@@ -1,0 +1,674 @@
+<title>DroneArjuna — Project Plan Aug–Sep 2026</title>
+<style>
+  :root {
+    --ink: #161c26;
+    --ink-soft: #3c4453;
+    --muted: #5b6472;
+    --page: #eef1f6;
+    --card: #ffffff;
+    --line: #d7dce6;
+    --line-soft: #e6e9f0;
+    --accent: #1f3a5f;
+    --accent-soft: #e8edf5;
+    --brass: #96701c;
+    --brass-soft: #f6ecd6;
+    --red: #a32f2f;
+    --red-soft: #f6e3e3;
+    --band: #0b1220;
+    --band-ink: #dfe6f2;
+    --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px -12px rgba(15, 23, 42, 0.18);
+  }
+
+  :root[data-theme="dark"] {
+    --ink: #e7ebf2;
+    --ink-soft: #c2cadb;
+    --muted: #93a0b8;
+    --page: #0d1320;
+    --card: #131b2b;
+    --line: #26324a;
+    --line-soft: #1c2536;
+    --accent: #7fa3d6;
+    --accent-soft: #182338;
+    --brass: #d9ab52;
+    --brass-soft: #2a2313;
+    --red: #e28080;
+    --red-soft: #2c1616;
+    --band: #060a12;
+    --band-ink: #dfe6f2;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #e7ebf2;
+      --ink-soft: #c2cadb;
+      --muted: #93a0b8;
+      --page: #0d1320;
+      --card: #131b2b;
+      --line: #26324a;
+      --line-soft: #1c2536;
+      --accent: #7fa3d6;
+      --accent-soft: #182338;
+      --brass: #d9ab52;
+      --brass-soft: #2a2313;
+      --red: #e28080;
+      --red-soft: #2c1616;
+      --band: #060a12;
+      --band-ink: #dfe6f2;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+  }
+  body {
+    font-family: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .doc {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 0 0 64px;
+  }
+
+  .band {
+    background: var(--band);
+    color: var(--band-ink);
+    text-align: center;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 7px 0;
+  }
+
+  .cover {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-top: none;
+    box-shadow: var(--shadow);
+    padding: 56px 56px 40px;
+    margin-bottom: 28px;
+  }
+
+  .cover-eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+
+  h1.title {
+    font-family: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+    font-weight: 600;
+    font-size: 40px;
+    line-height: 1.12;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    text-wrap: balance;
+    color: var(--ink);
+  }
+
+  .subtitle {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink-soft);
+    margin: 0 0 28px;
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 32px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 13.5px;
+  }
+  .meta-grid dt {
+    color: var(--muted);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .meta-grid dd {
+    margin: 2px 0 0;
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    padding: 40px 56px;
+    margin-bottom: 24px;
+  }
+
+  .sec-label {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 6px;
+  }
+
+  h2 {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-weight: 600;
+    font-size: 25px;
+    margin: 0 0 18px;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-weight: 600;
+    font-size: 19px;
+    margin: 30px 0 12px;
+    color: var(--ink);
+  }
+  h3:first-of-type { margin-top: 4px; }
+
+  p { color: var(--ink-soft); margin: 0 0 14px; max-width: 62ch; }
+  p.wide { max-width: none; }
+
+  .callout {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    font-size: 13.8px;
+    color: var(--ink-soft);
+    margin: 0 0 20px;
+    border-radius: 2px;
+  }
+  .callout strong { color: var(--ink); }
+
+  .table-wrap { overflow-x: auto; margin: 0 0 8px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.6px;
+  }
+  caption {
+    text-align: left;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-bottom: 8px;
+  }
+  thead th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    color: var(--card);
+    background: var(--accent);
+    padding: 9px 12px;
+    white-space: nowrap;
+  }
+  thead th:first-child { border-radius: 3px 0 0 0; }
+  thead th:last-child { border-radius: 0 3px 0 0; }
+  tbody td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--ink-soft);
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--line-soft); }
+  td.num, th.num { text-align: right; font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  td.date, th.date { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); font-weight: 500; }
+  td.gap-ref { font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--accent); font-weight: 600; white-space: nowrap; }
+  tbody td:first-child { font-weight: 500; color: var(--ink); }
+
+  .pill {
+    display: inline-block;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 100px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .pill-backend { background: var(--accent-soft); color: var(--accent); }
+  .pill-frontend { background: var(--brass-soft); color: var(--brass); }
+  .pill-shared { background: var(--red-soft); color: var(--red); }
+
+  .track {
+    margin-top: 26px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .track:first-of-type { margin-top: 14px; border-top: none; padding-top: 0; }
+  .track-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+  }
+  .track-head .name {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--ink);
+  }
+  .track-head .role {
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .track-head .cap {
+    margin-left: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 2px 9px;
+    border-radius: 100px;
+  }
+
+  .week-band {
+    display: grid;
+    grid-template-columns: 108px 1fr 64px;
+    gap: 14px;
+    align-items: baseline;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .week-band:last-child { border-bottom: none; }
+  .week-band .wdate {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--ink);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .week-band .wtask { color: var(--ink-soft); font-size: 13.8px; }
+  .week-band .wref {
+    text-align: right;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .rationale {
+    margin-top: 10px;
+    font-size: 12.8px;
+    font-style: italic;
+    color: var(--muted);
+    border-left: 2px solid var(--line);
+    padding-left: 12px;
+  }
+
+  .milestone-list { list-style: none; margin: 0; padding: 0; }
+  .milestone-list li {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: 16px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .milestone-list li:last-child { border-bottom: none; }
+  .milestone-list .mdate {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--brass);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .milestone-list .mtext { color: var(--ink-soft); font-size: 13.8px; padding-top: 1px; }
+
+  .risk-list { list-style: none; margin: 0; padding: 0; }
+  .risk-list li {
+    padding: 12px 0 12px 26px;
+    border-bottom: 1px solid var(--line-soft);
+    position: relative;
+    font-size: 13.8px;
+    color: var(--ink-soft);
+  }
+  .risk-list li:last-child { border-bottom: none; }
+  .risk-list li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 15px;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--brass);
+  }
+  .risk-list li strong { color: var(--ink); }
+
+  .totals {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 22px 0 6px;
+  }
+  .totals .stat {
+    background: var(--accent-soft);
+    border-radius: 4px;
+    padding: 16px 18px;
+  }
+  .totals .stat .n {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    display: block;
+  }
+  .totals .stat .l {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  footer.doc-footer {
+    text-align: center;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    padding: 20px 0 0;
+  }
+
+  @media (max-width: 620px) {
+    .cover, section { padding: 30px 22px; }
+    h1.title { font-size: 30px; }
+    .meta-grid { grid-template-columns: 1fr; }
+    .totals { grid-template-columns: 1fr; }
+    .week-band { grid-template-columns: 84px 1fr; }
+    .week-band .wref { grid-column: 2; text-align: left; padding-top: 2px; }
+  }
+
+  @media print {
+    body { background: #fff; }
+    .band { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    section, .cover { box-shadow: none; border-color: #ccc; break-inside: avoid-page; }
+    thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+
+<div class="band">Restricted / Confidential — ACS Technologies Limited</div>
+
+<div class="doc">
+
+  <div class="cover">
+    <p class="cover-eyebrow">DroneArjuna (DA) — Project Plan</p>
+    <h1 class="title">Closing the Phase 3–6 Gaps</h1>
+    <p class="subtitle">Ten weeks, two staffing windows, one fleet-management build.</p>
+    <dl class="meta-grid">
+      <div><dt>Plan Period</dt><dd>10 August 2026 – 30 September 2026</dd></div>
+      <div><dt>Baseline</dt><dd>DA-Implementation-Status.pdf, 5 Aug 2026</dd></div>
+      <div><dt>Team</dt><dd>Chandra Sekhar (Backend Lead) · Vaishnavi (Backend) · Indra (Frontend)</dd></div>
+      <div><dt>Classification</dt><dd>Restricted / Confidential</dd></div>
+    </dl>
+  </div>
+
+  <section>
+    <p class="sec-label">01 — Purpose &amp; Staffing Windows</p>
+    <h2>Two windows, one constraint</h2>
+    <p class="wide">This plan sequences every gap identified in the As-Built Implementation Status Report
+    (Phases 3–6) across two staffing windows, built around a single constraint: Vaishnavi's
+    availability drops to a quarter of normal for the first three weeks.</p>
+    <div class="callout">
+      <strong>Window A — 10–31 Aug.</strong> Vaishnavi at 25% capacity. Chandra Sekhar carries the
+      backend load; Indra runs frontend independently. &nbsp;·&nbsp;
+      <strong>Window B — 1–30 Sep.</strong> Vaishnavi returns to full capacity — backend work
+      splits in parallel between her and Chandra Sekhar, while Indra continues frontend.
+    </div>
+    <p class="wide">Effort below is costed in <strong>person-days (PD)</strong> — one PD is one person
+    at 100% capacity for one day. Because Vaishnavi works at 25% through Window A, her elapsed
+    calendar time to deliver a task runs roughly four times its PD estimate.</p>
+  </section>
+
+  <section>
+    <p class="sec-label">02 — Gap Register</p>
+    <h2>Fourteen gaps, costed</h2>
+    <p class="wide">Every item from the status report's gap summary, assigned a track and an effort
+    estimate. Dependencies determine the sequencing in Section 4.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:34px">Ref</th><th>Gap</th><th>Track</th><th class="num">PD</th><th>Depends on</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="gap-ref">G1</td><td>3D visualisation scaffold (Cesium/terrain, 3D drone tracking)</td><td><span class="pill pill-frontend">Frontend</span></td><td class="num">10</td><td>none</td></tr>
+          <tr><td class="gap-ref">G2</td><td>Telemetry replay player (3D + timeline scrub)</td><td><span class="pill pill-frontend">Frontend</span></td><td class="num">5</td><td>G1</td></tr>
+          <tr><td class="gap-ref">G3</td><td>Drone Inventory — full knowledge-base workflow (linked records, cross-refs, browse UI)</td><td><span class="pill pill-shared">Both</span></td><td class="num">8</td><td>none</td></tr>
+          <tr><td class="gap-ref">G4</td><td>Drone Analyst — background worker infrastructure (job queue consumer)</td><td><span class="pill pill-backend">Backend</span></td><td class="num">6</td><td>none</td></tr>
+          <tr><td class="gap-ref">G5</td><td>Drone Analyst — object-detection inference (YOLOv8 integration)</td><td><span class="pill pill-backend">Backend</span></td><td class="num">8</td><td>G4</td></tr>
+          <tr><td class="gap-ref">G6</td><td>Drone Analyst — video-frame extraction pipeline</td><td><span class="pill pill-backend">Backend</span></td><td class="num">5</td><td>G4</td></tr>
+          <tr><td class="gap-ref">G7</td><td>Drone Analyst — change-detection module</td><td><span class="pill pill-backend">Backend</span></td><td class="num">6</td><td>G5, G6</td></tr>
+          <tr><td class="gap-ref">G8</td><td>Object storage wired into code (MinIO upload: imagery/video/detections)</td><td><span class="pill pill-backend">Backend</span></td><td class="num">4</td><td>none</td></tr>
+          <tr><td class="gap-ref">G9</td><td>Drone Analyst frontend workspace (job launch, results viewer, dashboard)</td><td><span class="pill pill-frontend">Frontend</span></td><td class="num">8</td><td>G4, G5</td></tr>
+          <tr><td class="gap-ref">G10</td><td>Automated test coverage — raise to ≥80%, verified</td><td><span class="pill pill-shared">Both</span></td><td class="num">6</td><td>ongoing</td></tr>
+          <tr><td class="gap-ref">G11</td><td>CI pipeline (lint, type-check, test, build on PR)</td><td><span class="pill pill-shared">Both</span></td><td class="num">4</td><td>none</td></tr>
+          <tr><td class="gap-ref">G12</td><td>Accessibility pass (WCAG across all 5 workspaces)</td><td><span class="pill pill-frontend">Frontend</span></td><td class="num">5</td><td>none</td></tr>
+          <tr><td class="gap-ref">G13</td><td>Load testing (telemetry pipeline + API under multi-drone load)</td><td><span class="pill pill-backend">Backend</span></td><td class="num">4</td><td>G4–G8 stable</td></tr>
+          <tr><td class="gap-ref">G14</td><td>Frontend automated test suite (currently zero frontend tests)</td><td><span class="pill pill-frontend">Frontend</span></td><td class="num">6</td><td>none</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="totals">
+      <div class="stat"><span class="n">33</span><span class="l">Backend PD</span></div>
+      <div class="stat"><span class="n">39</span><span class="l">Frontend PD</span></div>
+      <div class="stat"><span class="n">5</span><span class="l">Shared overlap PD</span></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">03 — Capacity Model</p>
+    <h2>What each window can actually absorb</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Person</th><th class="num">Window A (16 wd)</th><th class="num">Window B (22 wd)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Chandra Sekhar</td><td class="num">16 PD (100%)</td><td class="num">22 PD (100%)</td></tr>
+          <tr><td>Vaishnavi</td><td class="num">4 PD (25%)</td><td class="num">22 PD (100%)</td></tr>
+          <tr><td>Indra</td><td class="num">16 PD (100%)</td><td class="num">22 PD (100%)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="wide" style="margin-top:16px">Backend capacity: <strong>20 PD</strong> in Window A,
+    rising to <strong>44 PD</strong> in Window B. Frontend capacity is Indra alone throughout:
+    <strong>16 PD</strong>, then <strong>22 PD</strong>.</p>
+  </section>
+
+  <section>
+    <p class="sec-label">04 — Sequencing Logic</p>
+    <h2>Why the order is the order</h2>
+    <h3>Window A backend — 19 PD against 20 PD capacity</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:34px">Ref</th><th>Priority item</th><th class="num">PD</th></tr></thead>
+        <tbody>
+          <tr><td class="gap-ref">G4</td><td>Analyst background worker infrastructure</td><td class="num">6</td></tr>
+          <tr><td class="gap-ref">G8</td><td>Object storage wiring</td><td class="num">4</td></tr>
+          <tr><td class="gap-ref">G3</td><td>Inventory knowledge-base data/link model (backend half)</td><td class="num">5</td></tr>
+          <tr><td class="gap-ref">G10</td><td>Coverage tooling + first gap-fill pass (start)</td><td class="num">4</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Window A frontend — 16 PD against 16 PD capacity</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:34px">Ref</th><th>Priority item</th><th class="num">PD</th></tr></thead>
+        <tbody>
+          <tr><td class="gap-ref">G1</td><td>3D visualisation scaffold</td><td class="num">10</td></tr>
+          <tr><td class="gap-ref">G14</td><td>Frontend test suite scaffolding + first pass (start)</td><td class="num">6</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Window B backend — ~25–29 PD against 44 PD capacity</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:34px">Ref</th><th>Priority item</th><th class="num">PD</th></tr></thead>
+        <tbody>
+          <tr><td class="gap-ref">G5</td><td>Object-detection inference (YOLOv8)</td><td class="num">8</td></tr>
+          <tr><td class="gap-ref">G6</td><td>Video-frame extraction pipeline</td><td class="num">5</td></tr>
+          <tr><td class="gap-ref">G7</td><td>Change-detection module</td><td class="num">6</td></tr>
+          <tr><td class="gap-ref">G10</td><td>Coverage to ≥80%, verified (finish)</td><td class="num">—</td></tr>
+          <tr><td class="gap-ref">G13</td><td>Load testing</td><td class="num">4</td></tr>
+          <tr><td class="gap-ref">G11</td><td>CI pipeline — backend jobs</td><td class="num">2</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Window B frontend — ~23 PD against 22 PD capacity</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:34px">Ref</th><th>Priority item</th><th class="num">PD</th></tr></thead>
+        <tbody>
+          <tr><td class="gap-ref">G2</td><td>Telemetry replay player</td><td class="num">5</td></tr>
+          <tr><td class="gap-ref">G9</td><td>Drone Analyst frontend workspace</td><td class="num">8</td></tr>
+          <tr><td class="gap-ref">G12</td><td>Accessibility pass</td><td class="num">5</td></tr>
+          <tr><td class="gap-ref">G14</td><td>Frontend test suite (finish)</td><td class="num">—</td></tr>
+          <tr><td class="gap-ref">G3</td><td>Inventory knowledge-base browse UI (frontend half)</td><td class="num">3</td></tr>
+          <tr><td class="gap-ref">G11</td><td>CI pipeline — frontend jobs</td><td class="num">2</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">05 — Individual Tasks · Window A</p>
+    <h2>10 August – 1 September</h2>
+
+    <div class="track">
+      <div class="track-head">
+        <span class="name">Chandra Sekhar</span>
+        <span class="role">Backend Lead</span>
+        <span class="cap">100% · 16 PD</span>
+      </div>
+      <div class="week-band"><div class="wdate">Aug 10–13</div><div class="wtask">Design + implement Analyst job-queue consumer — RabbitMQ worker process, job state transitions queued → running → done/failed.</div><div class="wref">G4</div></div>
+      <div class="week-band"><div class="wdate">Aug 14–17</div><div class="wtask">Wire MinIO object storage into the Analyst job pipeline — upload source imagery, store object keys against job records.</div><div class="wref">G8</div></div>
+      <div class="week-band"><div class="wdate">Aug 18–21</div><div class="wtask">Inventory knowledge-base data model — link table between drones/threats/payloads, cross-reference queries, backend endpoints.</div><div class="wref">G3</div></div>
+      <div class="week-band"><div class="wdate">Aug 24–28</div><div class="wtask">Backend coverage tooling (pytest-cov + reporting) — baseline report, begin closing gaps in weakest modules.</div><div class="wref">G10</div></div>
+      <div class="week-band"><div class="wdate">Aug 31</div><div class="wtask">Integrate Vaishnavi's G4 test/doc output; buffer &amp; catch-up day.</div><div class="wref">—</div></div>
+    </div>
+
+    <div class="track">
+      <div class="track-head">
+        <span class="name">Vaishnavi</span>
+        <span class="role">Backend</span>
+        <span class="cap">25% · 4 PD</span>
+      </div>
+      <div class="week-band"><div class="wdate">Aug 10–14</div><div class="wtask">Job-registry schema review; unit tests for job state-transition logic, paired with Chandra Sekhar's G4 consumer. <span style="color:var(--muted)">(1.5 PD)</span></div><div class="wref">G4</div></div>
+      <div class="week-band"><div class="wdate">Aug 17–21</div><div class="wtask">Integration tests for the MinIO upload path — mock bucket and real bucket cases. <span style="color:var(--muted)">(1.5 PD)</span></div><div class="wref">G8</div></div>
+      <div class="week-band"><div class="wdate">Aug 24–31</div><div class="wtask">Document Analyst-worker and object-storage design decisions as a DA-DDD-001 addendum. <span style="color:var(--muted)">(1.0 PD)</span></div><div class="wref">G4/G8</div></div>
+      <p class="rationale">Fractional time is assigned to test-writing and documentation on Chandra Sekhar's in-progress work rather than an independent task — this avoids context-switch overhead a standalone task would carry at 25% availability, and keeps her productive without becoming a blocking dependency for anyone.</p>
+    </div>
+
+    <div class="track">
+      <div class="track-head">
+        <span class="name">Indra</span>
+        <span class="role">Frontend</span>
+        <span class="cap">100% · 16 PD</span>
+      </div>
+      <div class="week-band"><div class="wdate">Aug 10–14</div><div class="wtask">Evaluate and scaffold Cesium integration into the Fly workspace — terrain tile loading, camera controls.</div><div class="wref">G1</div></div>
+      <div class="week-band"><div class="wdate">Aug 17–21</div><div class="wtask">3D live drone tracking — render live telemetry positions as 3D entities on the globe, synced with existing 2D map state.</div><div class="wref">G1</div></div>
+      <div class="week-band"><div class="wdate">Aug 24–26</div><div class="wtask">3D visualisation polish — altitude-exaggeration toggle, drone model/icon, mission waypoint overlay in 3D.</div><div class="wref">G1</div></div>
+      <div class="week-band"><div class="wdate">Aug 27–31</div><div class="wtask">Frontend test suite scaffolding (Vitest + React Testing Library); first tests for Fleet workspace and shared components.</div><div class="wref">G14</div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">06 — Individual Tasks · Window B</p>
+    <h2>1 September – 30 September</h2>
+
+    <div class="track">
+      <div class="track-head">
+        <span class="name">Chandra Sekhar</span>
+        <span class="role">Backend Lead</span>
+        <span class="cap">100% · 22 PD</span>
+      </div>
+      <div class="week-band"><div class="wdate">Sep 1–4</div><div class="wtask">YOLOv8 model integration — load pretrained weights, inference endpoint wired to the job worker.</div><div class="wref">G5</div></div>
+      <div class="week-band"><div class="wdate">Sep 7–9</div><div class="wtask">Inference results → detection-result table persistence; finalise confidence/bounding-box schema.</div><div class="wref">G5</div></div>
+      <div class="week-band"><div class="wdate">Sep 10–14</div><div class="wtask">Video-frame extraction pipeline — ffmpeg-based frame sampling from uploaded video, feeding the inference queue.</div><div class="wref">G6</div></div>
+      <div class="week-band"><div class="wdate">Sep 15–17</div><div class="wtask">CI pipeline, backend jobs — lint, type-check (mypy/ruff), pytest run, Docker build in GitHub Actions.</div><div class="wref">G11</div></div>
+      <div class="week-band"><div class="wdate">Sep 18–21</div><div class="wtask">Load testing — simulate 10+ drone telemetry load, profile and fix the bottlenecks found.</div><div class="wref">G13</div></div>
+      <div class="week-band"><div class="wdate">Sep 22–25</div><div class="wtask">Change-detection module — pairwise frame/image comparison logic, threshold tuning.</div><div class="wref">G7</div></div>
+      <div class="week-band"><div class="wdate">Sep 28–30</div><div class="wtask">Final coverage gap-fill push to ≥80%; review Vaishnavi's parallel output, integration pass.</div><div class="wref">G10</div></div>
+    </div>
+
+    <div class="track">
+      <div class="track-head">
+        <span class="name">Vaishnavi</span>
+        <span class="role">Backend</span>
+        <span class="cap">100% · 22 PD</span>
+      </div>
+      <div class="week-band"><div class="wdate">Sep 1–4</div><div class="wtask">Inventory knowledge-base remainder — full-text cross-reference search across drones/threats/payloads, admin link-management endpoints.</div><div class="wref">G3</div></div>
+      <div class="week-band"><div class="wdate">Sep 7–10</div><div class="wtask">Change-detection supporting utilities — image diff scoring, before/after pair storage, run in parallel with Chandra Sekhar's core logic.</div><div class="wref">G7</div></div>
+      <div class="week-band"><div class="wdate">Sep 11–14</div><div class="wtask">Backend coverage gap-fill — target drone_analyst, drone_inventory, mavlink_broadcaster edge cases.</div><div class="wref">G10</div></div>
+      <div class="week-band"><div class="wdate">Sep 15–18</div><div class="wtask">Object-storage lifecycle — retention/cleanup policy for old job artifacts, presigned URLs for frontend result viewing.</div><div class="wref">G8</div></div>
+      <div class="week-band"><div class="wdate">Sep 21–24</div><div class="wtask">Load-test harness and fixtures for simulated multi-drone load, supporting Chandra Sekhar's profiling run.</div><div class="wref">G13</div></div>
+      <div class="week-band"><div class="wdate">Sep 25–30</div><div class="wtask">Analyst API polish — pagination on job/results list endpoints; final integration testing with Indra's Analyst UI.</div><div class="wref">G10</div></div>
+      <p class="rationale">Runs in parallel with Chandra Sekhar throughout — Window B is the first point at which backend has two full-time engineers, so the two tracks are deliberately independent except where explicitly noted as paired (G7, G13).</p>
+    </div>
+
+    <div class="track">
+      <div class="track-head">
+        <span class="name">Indra</span>
+        <span class="role">Frontend</span>
+        <span class="cap">100% · 22 PD</span>
+      </div>
+      <div class="week-band"><div class="wdate">Sep 1–4</div><div class="wtask">Telemetry replay player — timeline scrub UI, playback controls, synced with the 3D view from G1.</div><div class="wref">G2</div></div>
+      <div class="week-band"><div class="wdate">Sep 7–10</div><div class="wtask">Analyst workspace — job launch UI: upload/select source, launch job, status polling.</div><div class="wref">G9</div></div>
+      <div class="week-band"><div class="wdate">Sep 11–14</div><div class="wtask">Analyst workspace — results viewer: detection overlays, model registry browser, telemetry stats dashboard.</div><div class="wref">G9</div></div>
+      <div class="week-band"><div class="wdate">Sep 15–17</div><div class="wtask">CI pipeline, frontend jobs — lint, type-check, Vitest run, build in GitHub Actions.</div><div class="wref">G11</div></div>
+      <div class="week-band"><div class="wdate">Sep 18–22</div><div class="wtask">Accessibility pass across all 5 workspaces — keyboard nav, ARIA labels, contrast, screen-reader pass.</div><div class="wref">G12</div></div>
+      <div class="week-band"><div class="wdate">Sep 23–25</div><div class="wtask">Inventory knowledge-base browse UI, consuming Vaishnavi's Sep 1–4 backend work.</div><div class="wref">G3</div></div>
+      <div class="week-band"><div class="wdate">Sep 28–30</div><div class="wtask">Frontend test suite — finish coverage on Fly/Plan/Monitor workspaces.</div><div class="wref">G14</div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">07 — Milestones</p>
+    <h2>Checkpoints across the ten weeks</h2>
+    <ul class="milestone-list">
+      <li><span class="mdate">21 Aug</span><span class="mtext">Analyst job worker + object storage live end-to-end (backend).</span></li>
+      <li><span class="mdate">31 Aug</span><span class="mtext">3D visualisation scaffold usable in the Fly workspace; Window A close-out review.</span></li>
+      <li><span class="mdate">04 Sep</span><span class="mtext">YOLOv8 inference producing real detection results on test imagery.</span></li>
+      <li><span class="mdate">14 Sep</span><span class="mtext">Change-detection and video pipeline functional; Analyst workspace UI usable end-to-end.</span></li>
+      <li><span class="mdate">21 Sep</span><span class="mtext">CI pipeline green on both backend and frontend; load-test report delivered.</span></li>
+      <li><span class="mdate">30 Sep</span><span class="mtext">≥80% verified coverage, accessibility pass complete, all Phase 3–5 gaps closed or explicitly deferred.</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-label">08 — Risks &amp; Notes</p>
+    <h2>What could move this plan</h2>
+    <ul class="risk-list">
+      <li><strong>YOLOv8 integration (G5) is the highest-uncertainty item.</strong> Model performance on drone-specific imagery is unproven — if accuracy is poor, budget an extra 3–5 PD in late September for retraining, drawn from the G13 load-testing buffer if needed.</li>
+      <li><strong>Vaishnavi's Window A tasks are deliberately paired with Chandra Sekhar's,</strong> not independent — 25% availability spread over three weeks makes standalone ownership of anything with an external dependency high-risk for slippage.</li>
+      <li><strong>3D visualisation (G1) has no backend dependency</strong> and is scheduled first in Window A so Indra is never blocked waiting on backend work.</li>
+      <li><strong>The CI pipeline (G11) is intentionally mid-plan, not first</strong> — sequencing it once G1 and G4 exist gives it real code paths to lint, test, and build against, rather than standing it up against an incomplete tree.</li>
+    </ul>
+  </section>
+
+  <footer class="doc-footer">DroneArjuna DA — Restricted / Confidential — ACS Technologies Limited — 2026</footer>
+</div>

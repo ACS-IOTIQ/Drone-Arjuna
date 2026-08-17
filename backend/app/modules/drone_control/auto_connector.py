@@ -233,11 +233,14 @@ async def run_auto_connector(session_factory) -> None:
 
             prev_bridge_connected = curr_connected
             prev_bridge_port      = curr_port
-
         except asyncio.CancelledError:
             log.info("autoconnect.stopped")
             return
         except Exception as exc:
             log.error("autoconnect.cycle_error", error=str(exc))
 
-        await asyncio.sleep(BRIDGE_POLL_INTERVAL)
+        try:
+            await asyncio.sleep(BRIDGE_POLL_INTERVAL)
+        except asyncio.CancelledError:
+            log.info("autoconnect.stopped")
+            return

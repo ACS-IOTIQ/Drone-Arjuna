@@ -19,18 +19,41 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
-# ── 1. Stop Docker Compose ───────────────────────────────────────────────────
+# ── 1. Back up the databases before touching anything ───────────────────────
+# Always runs, so a plain "down" as well as a "-Volumes" teardown both leave
+# a fresh dump behind — a wiped volume is then always recoverable.
+
+$backupScript = Join-Path $ScriptDir "scripts\backup-db.ps1"
+if (Test-Path $backupScript) {
+    Write-Host "[launcher] Backing up databases before shutdown..." -ForegroundColor Cyan
+    try {
+        & $backupScript
+    } catch {
+        Write-Warning "[launcher] Backup failed: $_"
+        if ($Volumes) {
+            $confirm = Read-Host "Backup failed and -Volumes will destroy all DB data. Continue anyway? (y/N)"
+            if ($confirm -ne "y") {
+                Write-Host "[launcher] Aborted — no data was destroyed." -ForegroundColor Yellow
+                exit 1
+            }
+        }
+    }
+} else {
+    Write-Warning "[launcher] scripts\backup-db.ps1 not found — skipping pre-shutdown backup."
+}
+
+# ── 2. Stop Docker Compose ───────────────────────────────────────────────────
 
 $composeArgs = @("compose", "down")
 if ($Volumes) {
-    Write-Warning "Destroying volumes — all database data will be lost."
+    Write-Warning "Destroying volumes — all database data will be lost (a backup was just taken above)."
     $composeArgs += "-v"
 }
 
 Write-Host "[launcher] Stopping Docker Compose stack..." -ForegroundColor Cyan
 & docker @composeArgs
 
-# ── 2. Kill com_bridge.py ─────────────────────────────────────────────────────
+# ── 3. Kill com_bridge.py ─────────────────────────────────────────────────────
 
 $bridge = Get-WmiObject Win32_Process -Filter "Name='python.exe' OR Name='python3.exe'" |
           Where-Object { $_.CommandLine -like "*com_bridge.py*" }

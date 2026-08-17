@@ -1,8 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import AppShell from '@/components/layout/AppShell'
 import LoginScreen from '@/components/layout/LoginScreen'
 import PasswordSetupScreen from '@/components/layout/PasswordSetupScreen'
+import ResetPasswordScreen from '@/components/layout/ResetPasswordScreen'
+
+function readResetTokenFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get('token')
+}
 
 export default function App() {
   const {
@@ -16,6 +21,7 @@ export default function App() {
     pendingMobile,
     completePasswordSetup,
   } = useAuthStore()
+  const [resetToken, setResetToken] = useState<string | null>(readResetTokenFromUrl)
 
   useEffect(() => {
     if (token) hydrate()
@@ -26,6 +32,12 @@ export default function App() {
     return () => window.removeEventListener('da_auth_expired', logout)
   }, [logout])
 
+  const clearResetToken = () => {
+    setResetToken(null)
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+
+  if (resetToken) return <ResetPasswordScreen token={resetToken} onDone={clearResetToken} />
   if (!token) return <LoginScreen />
   if (setupPending && pendingUsername && pendingTempPassword) {
     return (

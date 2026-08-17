@@ -7,3 +7,7 @@ from app.models.mission  import Mission, Waypoint         # noqa: F401
 from app.models.vessel   import NavalVessel               # noqa: F401
 from app.models.payload  import PayloadType               # noqa: F401
 from app.models.threat   import ThreatSystem              # noqa: F401
+from app.models.analysis import AnalysisJob, JobArtifact    # noqa: F401
+from app.models.inventory_link import (                    # noqa: F401
+    DronePayloadLink, DroneThreatLink, PayloadThreatLink,
+)

@@ -44,6 +44,10 @@ class GeofenceStore:
                 return False
             if not poly.is_valid:
                 poly = poly.buffer(0)
+            if poly.is_empty or poly.area == 0:
+                log.warning("Geofence rejected — degenerate polygon (zero area)",
+                            drone_id=drone_id)
+                return False
             self._fences[drone_id] = poly
             self._geojson[drone_id] = geojson
             log.info("Geofence set", drone_id=drone_id, geom_type=poly.geom_type)

@@ -104,7 +104,22 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# ── 5. Summary ────────────────────────────────────────────────────────────────
+# ── 5. Baseline backup ───────────────────────────────────────────────────────
+# Snapshots whatever's in the DB right now the stack has just come up. Covers
+# the case where the session later ends uncleanly (crash, force-close) and
+# stop.ps1's pre-shutdown backup never gets to run.
+
+$backupScript = Join-Path $ScriptDir "scripts\backup-db.ps1"
+if (Test-Path $backupScript) {
+    Write-Host "[launcher] Taking baseline database backup..." -ForegroundColor Cyan
+    try {
+        & $backupScript
+    } catch {
+        Write-Warning "[launcher] Baseline backup failed: $_"
+    }
+}
+
+# ── 6. Summary ────────────────────────────────────────────────────────────────
 
 Write-Host ""
 Write-Host "┌─────────────────────────────────────────────────────────────┐" -ForegroundColor Green

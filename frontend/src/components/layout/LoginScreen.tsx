@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import {
-  ArrowRight, CheckCircle2, Eye, EyeOff, Lock, Mail, Phone,
+  ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, Lock, Mail, MailCheck, Phone,
   Radio, ShieldCheck, User, UserPlus,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { REQUEST_ROLES, requestMailto, requestSms, type AccessRequest } from '@/store/accessRequestStore'
 import { api } from '@/api/client'
+import { forgotPassword } from '@/api/auth'
 import { notify } from '@/store/notificationStore'
 
-type Mode = 'signin' | 'request'
+type Mode = 'signin' | 'request' | 'forgot'
 
 const EMPTY_REQUEST = {
   username: '',
@@ -30,6 +31,10 @@ export default function LoginScreen() {
   const [request, setRequest] = useState(EMPTY_REQUEST)
   const [submitted, setSubmitted] = useState<AccessRequest | null>(null)
   const [requestError, setRequestError] = useState('')
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotError, setForgotError] = useState('')
+  const [forgotSubmitted, setForgotSubmitted] = useState(false)
+  const [forgotLoading, setForgotLoading] = useState(false)
 
   const submitLogin = (event?: React.FormEvent) => {
     event?.preventDefault()
@@ -72,9 +77,30 @@ export default function LoginScreen() {
     }
   }
 
+  const submitForgotPassword = async (event?: React.FormEvent) => {
+    event?.preventDefault()
+    setForgotError('')
+    if (!forgotEmail.trim()) {
+      setForgotError('Enter the email address on your account.')
+      return
+    }
+    setForgotLoading(true)
+    try {
+      await forgotPassword(forgotEmail.trim())
+      setForgotSubmitted(true)
+    } catch (forgotFailure: any) {
+      setForgotError(forgotFailure.response?.data?.detail ?? 'Failed to send reset email. Please try again.')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
   const switchMode = (nextMode: Mode) => {
     setMode(nextMode)
     setRequestError('')
+    setForgotError('')
+    setForgotSubmitted(false)
+    setForgotEmail('')
   }
 
   const requestField = (
@@ -129,31 +155,37 @@ export default function LoginScreen() {
           <div className="mb-5">
             <span className="da-login-mobile-brand">DroneArjuna</span>
             <h2 className="da-login-card-title text-2xl font-bold leading-tight">
-              {mode === 'signin' ? 'Welcome back' : 'Request access'}
+              {mode === 'signin' ? 'Welcome back' : mode === 'request' ? 'Request access' : 'Reset your password'}
             </h2>
             <p className="da-login-card-subtitle mt-1 text-sm">
-              {mode === 'signin' ? 'Sign in to continue to the operations console.' : 'Send your details to an administrator for review.'}
+              {mode === 'signin'
+                ? 'Sign in to continue to the operations console.'
+                : mode === 'request'
+                  ? 'Send your details to an administrator for review.'
+                  : 'Enter your account email and we will send you a link to choose a new password.'}
             </p>
           </div>
 
-          <div className="da-login-tabs" role="tablist" aria-label="Authentication options">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'signin'}
-              onClick={() => switchMode('signin')}
-              className={mode === 'signin' ? 'is-active' : ''}>
-              Sign in
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'request'}
-              onClick={() => switchMode('request')}
-              className={mode === 'request' ? 'is-active' : ''}>
-              Request access
-            </button>
-          </div>
+          {mode !== 'forgot' && (
+            <div className="da-login-tabs" role="tablist" aria-label="Authentication options">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'signin'}
+                onClick={() => switchMode('signin')}
+                className={mode === 'signin' ? 'is-active' : ''}>
+                Sign in
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'request'}
+                onClick={() => switchMode('request')}
+                className={mode === 'request' ? 'is-active' : ''}>
+                Request access
+              </button>
+            </div>
+          )}
 
           {mode === 'signin' ? (
             <form onSubmit={submitLogin} className="flex flex-col gap-4">
@@ -195,6 +227,13 @@ export default function LoginScreen() {
                 </span>
               </label>
 
+              <button
+                type="button"
+                onClick={() => switchMode('forgot')}
+                className="da-link self-end text-xs font-semibold">
+                Forgot password?
+              </button>
+
               {error && <p className="da-form-error" role="alert">{error}</p>}
 
               <button
@@ -203,6 +242,60 @@ export default function LoginScreen() {
                 className="da-btn da-btn-primary h-11 justify-center text-sm font-semibold">
                 {isLoading ? 'Signing in...' : <>Sign in <ArrowRight size={15} /></>}
               </button>
+            </form>
+          ) : mode === 'forgot' ? (
+            <form onSubmit={submitForgotPassword} className="flex flex-col gap-4">
+              {forgotSubmitted ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                  <div className="mb-2 flex items-center gap-2 font-semibold">
+                    <MailCheck size={17} /> Check your email
+                  </div>
+                  <p>
+                    If <span className="font-semibold">{forgotEmail.trim()}</span> is registered, we've sent a link
+                    to reset your password. It expires in 30 minutes.
+                  </p>
+                  <button
+                    type="button"
+                    className="da-btn da-btn-ghost mt-3 text-xs"
+                    onClick={() => switchMode('signin')}>
+                    <ArrowLeft size={13} /> Back to sign in
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <label className="da-field">
+                    <span className="da-field-label">Email</span>
+                    <span className="da-input-shell">
+                      <span className="da-input-icon"><Mail size={16} /></span>
+                      <input
+                        type="email"
+                        className="da-input da-input-embedded"
+                        value={forgotEmail}
+                        onChange={event => setForgotEmail(event.target.value)}
+                        autoComplete="email"
+                        autoFocus
+                        required
+                      />
+                    </span>
+                  </label>
+
+                  {forgotError && <p className="da-form-error" role="alert">{forgotError}</p>}
+
+                  <button
+                    type="submit"
+                    disabled={forgotLoading || !forgotEmail.trim()}
+                    className="da-btn da-btn-primary h-11 justify-center text-sm font-semibold">
+                    {forgotLoading ? 'Sending...' : <>Send reset link <ArrowRight size={15} /></>}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => switchMode('signin')}
+                    className="da-btn da-btn-ghost h-11 justify-center text-sm font-semibold">
+                    <ArrowLeft size={15} /> Back to sign in
+                  </button>
+                </>
+              )}
             </form>
           ) : (
             <form onSubmit={submitRequest} className="flex flex-col gap-3">

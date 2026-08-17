@@ -1,0 +1,15 @@
+{
+  "fingerprint": "a6989073c0f2f85cdcd5ba991ce94dc7ceb72287c72f2dec579b644f7bd20d18",
+  "nodeids": [
+    "app/tests/test_analyst_job_consumer.py::test_consumer_end_to_end_via_captured_handler",
+    "app/tests/test_analyst_job_consumer.py::test_handler_ignores_missing_job_id",
+    "app/tests/test_analyst_job_consumer.py::test_handler_ignores_unknown_job_id",
+    "app/tests/test_analyst_job_consumer.py::test_handler_result_reflects_job_type_and_model",
+    "app/tests/test_analyst_job_consumer.py::test_handler_sets_running_before_done",
+    "app/tests/test_analyst_job_consumer.py::test_handler_skips_cancelled_job",
+    "app/tests/test_analyst_job_consumer.py::test_handler_skips_job_not_in_queued_state",
+    "app/tests/test_analyst_job_consumer.py::test_handler_transitions_queued_to_done",
+    "app/tests/test_analyst_job_consumer.py::test_handler_transitions_to_failed_on_exception",
+    "app/tests/test_analyst_job_consumer.py::test_start_job_consumer_subscribes_with_correct_routing"
+  ]
+}

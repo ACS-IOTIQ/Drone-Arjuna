@@ -1,0 +1,970 @@
+<title>Inventory Service — SRS v1.0</title>
+<style>
+  :root {
+    --ink: #171b24;
+    --ink-soft: #40465a;
+    --muted: #656e82;
+    --page: #eceff5;
+    --card: #ffffff;
+    --line: #d9dde8;
+    --line-soft: #e8ebf2;
+    --accent: #1e4d6b;
+    --accent-soft: #e7eef3;
+    --amber: #96631a;
+    --amber-soft: #f6ecd9;
+    --green: #2e6b4f;
+    --green-soft: #e5f1ec;
+    --red: #a13333;
+    --red-soft: #f5e4e4;
+    --band: #0c1420;
+    --band-ink: #dbe4f0;
+    --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px -12px rgba(15, 23, 42, 0.18);
+  }
+
+  :root[data-theme="dark"] {
+    --ink: #e6eaf1;
+    --ink-soft: #c0c8da;
+    --muted: #8f9ab0;
+    --page: #0c121e;
+    --card: #121a29;
+    --line: #263045;
+    --line-soft: #1b2334;
+    --accent: #7bafd4;
+    --accent-soft: #17263380;
+    --amber: #d7ac5c;
+    --amber-soft: #2a2313;
+    --green: #7fc4a6;
+    --green-soft: #12261e;
+    --red: #e08a8a;
+    --red-soft: #2a1717;
+    --band: #060a12;
+    --band-ink: #dbe4f0;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #e6eaf1;
+      --ink-soft: #c0c8da;
+      --muted: #8f9ab0;
+      --page: #0c121e;
+      --card: #121a29;
+      --line: #263045;
+      --line-soft: #1b2334;
+      --accent: #7bafd4;
+      --accent-soft: #17263380;
+      --amber: #d7ac5c;
+      --amber-soft: #2a2313;
+      --green: #7fc4a6;
+      --green-soft: #12261e;
+      --red: #e08a8a;
+      --red-soft: #2a1717;
+      --band: #060a12;
+      --band-ink: #dbe4f0;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--page); color: var(--ink); }
+  body {
+    font-family: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.58;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .doc { max-width: 900px; margin: 0 auto; padding: 0 0 64px; }
+
+  .band {
+    background: var(--band);
+    color: var(--band-ink);
+    text-align: center;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 7px 0;
+  }
+
+  .cover {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-top: none;
+    box-shadow: var(--shadow);
+    padding: 56px 56px 36px;
+    margin-bottom: 28px;
+  }
+
+  .cover-eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+
+  h1.title {
+    font-family: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+    font-weight: 600;
+    font-size: 38px;
+    line-height: 1.14;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+
+  .subtitle {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-style: italic;
+    font-size: 17.5px;
+    color: var(--ink-soft);
+    margin: 0 0 26px;
+  }
+
+  table.doc-info {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.4px;
+    margin-top: 22px;
+    border-top: 1px solid var(--line-soft);
+  }
+  table.doc-info td {
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  table.doc-info td.label {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.8px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    width: 34%;
+    white-space: nowrap;
+  }
+  table.doc-info td.val { color: var(--ink); font-weight: 500; }
+
+  .rev-history {
+    margin-top: 18px;
+  }
+  .rev-history table { width: 100%; border-collapse: collapse; font-size: 12.8px; }
+  .rev-history caption {
+    text-align: left;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.8px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-bottom: 6px;
+  }
+  .rev-history th {
+    text-align: left;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 7px 10px;
+  }
+  .rev-history td { padding: 7px 10px; border-bottom: 1px solid var(--line-soft); color: var(--ink-soft); }
+
+  section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    padding: 38px 56px;
+    margin-bottom: 22px;
+  }
+
+  .sec-num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
+
+  h2 {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-weight: 800;
+    font-size: 33px;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-weight: 700;
+    font-size: 22px;
+    margin: 30px 0 12px;
+    color: var(--ink);
+  }
+  h3:first-of-type { margin-top: 2px; }
+
+  h4.sub {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 22px 0 9px;
+  }
+  h4.sub:first-of-type { margin-top: 4px; }
+
+  p { color: var(--ink-soft); margin: 0 0 12px; max-width: 68ch; }
+  p.wide { max-width: none; }
+
+  ul.plain, ol.plain { margin: 0 0 14px; padding-left: 22px; color: var(--ink-soft); }
+  ul.plain li, ol.plain li { margin-bottom: 5px; }
+
+  .callout {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding: 13px 16px;
+    font-size: 13.4px;
+    color: var(--ink-soft);
+    margin: 0 0 18px;
+    border-radius: 2px;
+  }
+  .callout strong { color: var(--ink); }
+
+  .table-wrap { overflow-x: auto; margin: 0 0 8px; }
+  table.data {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.2px;
+  }
+  table.data thead th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 11.6px;
+    letter-spacing: 0.03em;
+    color: var(--card);
+    background: var(--accent);
+    padding: 8px 11px;
+    white-space: nowrap;
+  }
+  table.data thead th:first-child { border-radius: 3px 0 0 0; }
+  table.data thead th:last-child { border-radius: 0 3px 0 0; }
+  table.data tbody td {
+    padding: 8px 11px;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--ink-soft);
+    vertical-align: top;
+  }
+  table.data tbody tr:last-child td { border-bottom: none; }
+  table.data tbody tr:hover td { background: var(--line-soft); }
+  table.data td.mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.4px; color: var(--accent); font-weight: 600; white-space: nowrap; }
+  table.data tbody td:first-child { font-weight: 500; color: var(--ink); }
+
+  .pill {
+    display: inline-block;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.4px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 100px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .pill-high { background: var(--red-soft); color: var(--red); }
+  .pill-medium { background: var(--amber-soft); color: var(--amber); }
+  .pill-low { background: var(--green-soft); color: var(--green); }
+
+  .req-card {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    margin: 0 0 16px;
+    overflow: hidden;
+  }
+  .req-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--accent-soft);
+    flex-wrap: wrap;
+  }
+  .req-head .req-id {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .req-head .req-title {
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 14.5px;
+  }
+  .req-head .req-pri { margin-left: auto; }
+  .req-body { padding: 14px 16px 4px; }
+  .req-row {
+    display: grid;
+    grid-template-columns: 116px 1fr;
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 13.3px;
+  }
+  .req-row:last-child { border-bottom: none; }
+  .req-row .rk {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.6px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-top: 1px;
+  }
+  .req-row .rv { color: var(--ink-soft); }
+  .req-row .rv.error { color: var(--red); }
+  .req-row .rv code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    background: var(--line-soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  .nfr-grid { display: grid; gap: 12px; }
+  .nfr-card {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    padding: 12px 16px;
+  }
+  .nfr-card .nfr-id {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .nfr-card .nfr-name { font-weight: 600; color: var(--ink); margin-left: 6px; }
+  .nfr-card p { margin: 5px 0 0; font-size: 13.3px; }
+
+  .role-grid { display: grid; grid-template-columns: 1fr 2.2fr; gap: 0; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .role-row { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; }
+  .role-grid .rname, .role-grid .rdesc {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 13.3px;
+  }
+  .role-grid .rname { font-weight: 600; color: var(--ink); background: var(--accent-soft); }
+  .role-grid .rdesc { color: var(--ink-soft); }
+  .role-grid > div:nth-last-child(-n+2) { border-bottom: none; }
+
+  .code-path {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.3px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 1px 6px;
+    border-radius: 3px;
+    word-break: break-all;
+  }
+
+  .br-list { list-style: none; margin: 0; padding: 0; }
+  .br-list li {
+    display: grid;
+    grid-template-columns: 74px 1fr;
+    gap: 14px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 13.4px;
+  }
+  .br-list li:last-child { border-bottom: none; }
+  .br-list .brid {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--amber);
+  }
+  .br-list .brtext { color: var(--ink-soft); }
+
+  footer.doc-footer {
+    text-align: center;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    padding: 20px 0 0;
+  }
+
+  @media (max-width: 620px) {
+    .cover, section { padding: 30px 22px; }
+    h1.title { font-size: 28px; }
+    .req-row { grid-template-columns: 1fr; }
+    .role-grid { grid-template-columns: 1fr; }
+  }
+
+  @media print {
+    body { background: #fff; }
+    .band { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    section, .cover { box-shadow: none; border-color: #ccc; break-inside: avoid-page; }
+    table.data thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .req-head { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+
+<div class="band">Inventory Service — Software Requirements Specification</div>
+
+<div class="doc">
+
+  <div class="cover">
+    <p class="cover-eyebrow">Software Requirements Specification</p>
+    <h1 class="title">Inventory Service</h1>
+    <p class="subtitle">Product catalog, stock transactions, reservations, warehouses, reporting, and integrations.</p>
+
+    <table class="doc-info">
+      <tr><td class="label">Project Name</td><td class="val">Inventory (inventory-service)</td></tr>
+      <tr><td class="label">Document Title</td><td class="val">Software Requirements Specification (SRS)</td></tr>
+      <tr><td class="label">Version</td><td class="val">1.0</td></tr>
+      <tr><td class="label">Date</td><td class="val">07 August 2026</td></tr>
+      <tr><td class="label">Prepared By</td><td class="val">K. Sai Chaitanya</td></tr>
+      <tr><td class="label">Reviewed By</td><td class="val">TBD</td></tr>
+      <tr><td class="label">Approved By</td><td class="val">TBD</td></tr>
+    </table>
+
+    <div class="rev-history">
+      <table>
+        <caption>Revision History</caption>
+        <thead><tr><th>Version</th><th>Date</th><th>Author</th><th>Changes</th></tr></thead>
+        <tbody>
+          <tr><td>1.0</td><td>07-Aug-2026</td><td>K. Sai Chaitanya</td><td>Initial version</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <section>
+    <p class="sec-num">1 — Introduction</p>
+    <h2>Purpose, background, and objectives</h2>
+
+    <h3>1.1 Purpose</h3>
+    <p class="wide">This document describes the functional and non-functional requirements for the
+    Inventory backend service (<code class="code-path">inventory-service</code>) supporting product
+    catalog management, stock transactions, reservations, warehouses, reporting, and upstream
+    integrations.</p>
+
+    <h3>1.2 Project Background</h3>
+    <p class="wide">Repository: <code class="code-path">com.fawnix.inventory</code> (Spring Boot).
+    Key modules: <code class="code-path">products</code>, <code class="code-path">transactions</code>,
+    <code class="code-path">reservations</code>, <code class="code-path">warehouses</code>,
+    <code class="code-path">security</code>. Database migrations live under
+    <code class="code-path">src/main/resources/db/migration</code> (V1–V6).</p>
+
+    <h3>1.3 Business Problem</h3>
+    <p class="wide">Provide reliable, auditable stock visibility and reservation/fulfillment flows
+    for warehouse and upstream systems (ERP/POS), preventing oversell and enabling reconciliation.</p>
+
+    <h3>1.4 Objectives</h3>
+    <ul class="plain">
+      <li>Accurate stock tracking through full CRUD and transaction recording</li>
+      <li>Reservation and fulfillment flows that prevent double-commit</li>
+      <li>Secure, auditable REST APIs for integrations</li>
+      <li>Reasonable performance and operational reliability</li>
+    </ul>
+
+    <h3>1.5 Intended Audience</h3>
+    <p class="wide">Product owners, developers, QA, DevOps, and integrators.</p>
+
+    <h3>1.6 Definitions / Abbreviations</h3>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th style="width:140px">Term</th><th>Definition</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">SKU</td><td>Stock Keeping Unit</td></tr>
+          <tr><td class="mono">API</td><td>Application Programming Interface</td></tr>
+          <tr><td class="mono">JWT</td><td>JSON Web Token</td></tr>
+          <tr><td class="mono">ERP/POS</td><td>Enterprise Resource Planning / Point of Sale</td></tr>
+          <tr><td class="mono">FR-INV</td><td>Functional Requirement — Inventory module</td></tr>
+          <tr><td class="mono">NFR</td><td>Non-Functional Requirement</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-num">2 — Scope</p>
+    <h2>What's in, what's out, what's assumed</h2>
+
+    <h3>2.1 In Scope</h3>
+    <ul class="plain">
+      <li>Product / catalog management — <code class="code-path">src/main/java/.../products</code></li>
+      <li>Stock transactions: inbound, outbound, adjustments — <code class="code-path">transactions</code></li>
+      <li>Inventory reservations: validate, reserve, fulfill — <code class="code-path">reservations</code></li>
+      <li>Warehouse management — <code class="code-path">warehouses</code></li>
+      <li>REST APIs under <code class="code-path">/inventory</code> and <code class="code-path">/internal/inventory/reservations</code></li>
+      <li>JWT-based auth and internal-service filter — <code class="code-path">security</code></li>
+      <li>PostgreSQL database with migrations</li>
+    </ul>
+
+    <h3>2.2 Out of Scope</h3>
+    <ul class="plain">
+      <li>Offline-first mobile clients</li>
+      <li>Advanced forecasting or machine learning</li>
+      <li>Payment flows</li>
+      <li>Multi-region active-active replication (beyond standard DB replicas)</li>
+    </ul>
+
+    <h3>2.3 Assumptions</h3>
+    <ul class="plain">
+      <li>Consumers access the service over HTTPS</li>
+      <li>Internal reservation endpoints are called only by trusted internal systems</li>
+      <li>PostgreSQL is available and migrations are applied on deployment</li>
+    </ul>
+
+    <h3>2.4 Dependencies</h3>
+    <ul class="plain">
+      <li>Java / Spring Boot runtime</li>
+      <li>PostgreSQL database</li>
+      <li>SMTP (optional) for notifications</li>
+      <li>Upstream ERP/POS for integrations</li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-num">3 — Overall System Description</p>
+    <h2>Product, roles, environment, architecture</h2>
+
+    <h3>3.1 Product Overview</h3>
+    <p class="wide">A backend service exposing JSON REST endpoints to manage products, stock,
+    reservations, and warehouses. Implements audit logging via the
+    <code class="code-path">stock_transactions</code> table and enforces authentication via JWT
+    and <code class="code-path">InternalServiceAuthFilter</code>.</p>
+
+    <h3>3.2 User Roles</h3>
+    <p class="wide">Warehouse operator, Inventory manager, Admin, Auditor, Internal service (machine client).</p>
+
+    <h3>3.3 Operating Environment</h3>
+    <ul class="plain">
+      <li><strong>Server:</strong> Linux or Windows host</li>
+      <li><strong>Database:</strong> PostgreSQL</li>
+      <li><strong>Clients:</strong> web UI or other services via REST</li>
+    </ul>
+
+    <h3>3.4 System Architecture Overview</h3>
+    <ul class="plain">
+      <li>Spring Boot layered architecture: controllers → services → repositories (JPA) → database</li>
+      <li>Security filters: <code class="code-path">JwtAuthenticationFilter</code>, <code class="code-path">InternalServiceAuthFilter</code></li>
+      <li>Database migrations under <code class="code-path">resources/db/migration</code></li>
+    </ul>
+
+    <h3>3.5 External Systems</h3>
+    <ul class="plain">
+      <li>ERP/POS (via REST/webhooks)</li>
+      <li>Authentication provider (JWT issuer; may be an internal module)</li>
+      <li>Email/SMS gateway for alerts</li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-num">4 — Functional Requirements</p>
+    <h2>FR-INV-001 through FR-INV-010</h2>
+    <p class="wide">Each requirement below follows the same structure: actors, preconditions,
+    inputs, process, output, error behaviour, and priority.</p>
+
+    <div class="req-card">
+      <div class="req-head">
+        <span class="req-id">FR-INV-001</span>
+        <span class="req-title">User Login</span>
+        <span class="req-pri"><span class="pill pill-high">High</span></span>
+      </div>
+      <div class="req-body">
+        <div class="req-row"><div class="rk">Description</div><div class="rv">System shall allow registered users to authenticate via JWT.</div></div>
+        <div class="req-row"><div class="rk">Actors</div><div class="rv">Admin, Manager, Employee</div></div>
+        <div class="req-row"><div class="rk">Preconditions</div><div class="rv">User account exists and is active.</div></div>
+        <div class="req-row"><div class="rk">Inputs</div><div class="rv">Username/email, password</div></div>
+        <div class="req-row"><div class="rk">Process</div><div class="rv">Validate credentials, generate JWT</div></div>
+        <div class="req-row"><div class="rk">Output</div><div class="rv">JWT token and user details</div></div>
+        <div class="req-row"><div class="rk">Error</div><div class="rv error">Invalid credentials → <code>401 Unauthorized</code></div></div>
+      </div>
+    </div>
+
+    <div class="req-card">
+      <div class="req-head">
+        <span class="req-id">FR-INV-002</span>
+        <span class="req-title">User Management</span>
+        <span class="req-pri"><span class="pill pill-high">High</span></span>
+      </div>
+      <div class="req-body">
+        <div class="req-row"><div class="rk">Description</div><div class="rv">Admins manage users and roles.</div></div>
+        <div class="req-row"><div class="rk">Actors</div><div class="rv">Admin</div></div>
+        <div class="req-row"><div class="rk">Preconditions</div><div class="rv">Admin authenticated</div></div>
+        <div class="req-row"><div class="rk">Inputs</div><div class="rv">User details, role</div></div>
+        <div class="req-row"><div class="rk">Process</div><div class="rv">Create, update, or deactivate a user</div></div>
+        <div class="req-row"><div class="rk">Output</div><div class="rv">User resource</div></div>
+        <div class="req-row"><div class="rk">Error</div><div class="rv error">Duplicate email → <code>409 Conflict</code></div></div>
+      </div>
+    </div>
+
+    <div class="req-card">
+      <div class="req-head">
+        <span class="req-id">FR-INV-003</span>
+        <span class="req-title">Product Management <span style="color:var(--muted);font-weight:400">(FR-INV-PROD-001)</span></span>
+        <span class="req-pri"><span class="pill pill-high">High</span></span>
+      </div>
+      <div class="req-body">
+        <div class="req-row"><div class="rk">Description</div><div class="rv">CRUD product master records — id, sku, name, description, category, unit, price tiers, stockQty, reservedQty, status.</div></div>
+        <div class="req-row"><div class="rk">Actors</div><div class="rv">Admin, Manager</div></div>
+        <div class="req-row"><div class="rk">Preconditions</div><div class="rv">Authenticated with permitting role</div></div>
+        <div class="req-row"><div class="rk">Inputs</div><div class="rv">Product DTO — <code>ProductDtos.java</code></div></div>
+        <div class="req-row"><div class="rk">Process</div><div class="rv">Validate, persist; optional seed data via V4 migration</div></div>
+        <div class="req-row"><div class="rk">Output</div><div class="rv">Product resource</div></div>
+        <div class="req-row"><div class="rk">Error</div><div class="rv error">Invalid fields → <code>400 Bad Request</code></div></div>
+      </div>
+    </div>
+
+    <div class="req-card">
+      <div class="req-head">
+        <span class="req-id">FR-INV-004</span>
+        <span class="req-title">Stock Transactions <span style="color:var(--muted);font-weight:400">(FR-INV-TXN-001)</span></span>
+        <span class="req-pri"><span class="pill pill-high">High</span></span>
+      </div>
+      <div class="req-body">
+        <div class="req-row"><div class="rk">Description</div><div class="rv">Record inbound, outbound, and adjustment transactions.</div></div>
+        <div class="req-row"><div class="rk">Actors</div><div class="rv">Warehouse operator, Internal services</div></div>
+        <div class="req-row"><div class="rk">Preconditions</div><div class="rv">Product exists</div></div>
+        <div class="req-row"><div class="rk">Inputs</div><div class="rv">Transaction DTO (<code>TransactionDtos.java</code>): productId, txnType, qty, reference, txnDate</div></div>
+        <div class="req-row"><div class="rk">Process</div><div class="rv">Persist <code>StockTransactionEntity</code>; update <code>product.stockQty</code>; maintain transaction indexes (<code>idx_stock_txn_product</code>, <code>idx_stock_txn_date</code>)</div></div>
+        <div class="req-row"><div class="rk">Output</div><div class="rv">Transaction id and updated stock level</div></div>
+        <div class="req-row"><div class="rk">Error</div><div class="rv error">Insufficient stock for outbound → <code>400 Bad Request</code></div></div>
+      </div>
+    </div>
+
+    <div class="req-card">
+      <div class="req-head">
+        <span class="req-id">FR-INV-005</span>
+        <span class="req-title">Inventory Reservation <span style="color:var(--muted);font-weight:400">(FR-INV-RES-001)</span></span>
+        <span class="req-pri"><span class="pill pill-high">High</span></span>
+      </div>
+      <div class="req-body">
+        <div class="req-row"><div class="rk">Description</div><div class="rv">Reserve inventory for orders; support validate, reserve, and fulfill stages.</div></div>
+        <div class="req-row"><div class="rk">Actors</div><div class="rv">Internal services (order system), Warehouse</div></div>
+        <div class="req-row"><div class="rk">Preconditions</div><div class="rv">Product exists; stockQty accounts for reservedQty</div></div>
+        <div class="req-row"><div class="rk">Inputs</div><div class="rv">List of <code>{productId, quantity}</code></div></div>
+        <div class="req-row"><div class="rk">Process</div><div class="rv">Validate availability; reserve by incrementing reservedQty and creating reservation records; fulfill reduces reservedQty and stockQty and writes transactions</div></div>
+        <div class="req-row"><div class="rk">Output</div><div class="rv">Reservation response with per-line success/failure</div></div>
+        <div class="req-row"><div class="rk">Error</div><div class="rv error">Insufficient stock → clear message; no partial commit unless configured</div></div>
+      </div>
+    </div>
+
+    <div class="req-card">
+      <div class="req-head">
+        <span class="req-id">FR-INV-006</span>
+        <span class="req-title">Warehouse Management <span style="color:var(--muted);font-weight:400">(FR-INV-WH-001)</span></span>
+        <span class="req-pri"><span class="pill pill-medium">Medium</span></span>
+      </div>
+      <div class="req-body">
+        <div class="req-row"><div class="rk">Description</div><div class="rv">CRUD warehouses and query capabilities.</div></div>
+        <div class="req-row"><div class="rk">Actors</div><div class="rv">Admin, Manager</div></div>
+        <div class="req-row"><div class="rk">Preconditions</div><div class="rv">Authenticated</div></div>
+        <div class="req-row"><div class="rk">Inputs</div><div class="rv">Warehouse DTO — <code>WarehouseDtos.java</code></div></div>
+        <div class="req-row"><div class="rk">Output</div><div class="rv">Warehouse resource</div></div>
+      </div>
+    </div>
+
+    <div class="req-card">
+      <div class="req-head">
+        <span class="req-id">FR-INV-007</span>
+        <span class="req-title">Inventory Overview / Reporting <span style="color:var(--muted);font-weight:400">(FR-INV-RPT-001)</span></span>
+        <span class="req-pri"><span class="pill pill-medium">Medium</span></span>
+      </div>
+      <div class="req-body">
+        <div class="req-row"><div class="rk">Description</div><div class="rv">Provide inventory overview and movement history.</div></div>
+        <div class="req-row"><div class="rk">Actors</div><div class="rv">Manager, Auditor, Internal services</div></div>
+        <div class="req-row"><div class="rk">Inputs</div><div class="rv">Query parameters — sku, location, date range</div></div>
+        <div class="req-row"><div class="rk">Process</div><div class="rv">Aggregate via product and stock-transaction tables</div></div>
+        <div class="req-row"><div class="rk">Output</div><div class="rv"><code>InventoryOverviewDtos</code>; CSV/PDF export</div></div>
+      </div>
+    </div>
+
+    <div class="req-card">
+      <div class="req-head">
+        <span class="req-id">FR-INV-008</span>
+        <span class="req-title">Audit Logging &amp; Error Handling <span style="color:var(--muted);font-weight:400">(FR-INV-AUD-001)</span></span>
+        <span class="req-pri"><span class="pill pill-high">High</span></span>
+      </div>
+      <div class="req-body">
+        <div class="req-row"><div class="rk">Description</div><div class="rv">All stock changes and reservation actions shall be logged with user, timestamp, and reason.</div></div>
+        <div class="req-row"><div class="rk">Actors</div><div class="rv">System</div></div>
+        <div class="req-row"><div class="rk">Preconditions</div><div class="rv">Database available</div></div>
+        <div class="req-row"><div class="rk">Output</div><div class="rv">Entries in <code>stock_transactions</code> and application logs; exceptions returned as <code>ApiErrorResponse</code></div></div>
+      </div>
+    </div>
+
+    <div class="req-card">
+      <div class="req-head">
+        <span class="req-id">FR-INV-009</span>
+        <span class="req-title">API Rate Limiting &amp; API Keys <span style="color:var(--muted);font-weight:400">(FR-INV-API-001)</span></span>
+        <span class="req-pri"><span class="pill pill-low">Low (recommended)</span></span>
+      </div>
+      <div class="req-body">
+        <div class="req-row"><div class="rk">Description</div><div class="rv">External APIs require API keys; rate limiting is configurable.</div></div>
+        <div class="req-row"><div class="rk">Actors</div><div class="rv">External integrators</div></div>
+      </div>
+    </div>
+
+    <div class="req-card">
+      <div class="req-head">
+        <span class="req-id">FR-INV-010</span>
+        <span class="req-title">Barcode Scanning Support <span style="color:var(--muted);font-weight:400">(FR-INV-HW-001)</span></span>
+        <span class="req-pri"><span class="pill pill-low">Low</span></span>
+      </div>
+      <div class="req-body">
+        <div class="req-row"><div class="rk">Description</div><div class="rv">Input endpoints accept a barcode/SKU as identifier; the scanner acts as keyboard input.</div></div>
+        <div class="req-row"><div class="rk">Actors</div><div class="rv">Warehouse operator</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-num">5 — Non-Functional Requirements</p>
+    <h2>Performance, security, and operations</h2>
+    <div class="nfr-grid">
+      <div class="nfr-card"><span class="nfr-id">NFR-001</span><span class="nfr-name">Performance</span><p>Simple reads return in under 300 ms under normal load; typical API responses complete in under 2 s for aggregated reports.</p></div>
+      <div class="nfr-card"><span class="nfr-id">NFR-002</span><span class="nfr-name">Security</span><p>All APIs require authenticated access; internal endpoints require the internal auth filter; the service is protected against OWASP Top 10 risks.</p></div>
+      <div class="nfr-card"><span class="nfr-id">NFR-003</span><span class="nfr-name">Availability</span><p>Target 99.9% monthly uptime.</p></div>
+      <div class="nfr-card"><span class="nfr-id">NFR-004</span><span class="nfr-name">Scalability</span><p>Application layer is horizontally scalable; database read replicas support reporting load.</p></div>
+      <div class="nfr-card"><span class="nfr-id">NFR-005</span><span class="nfr-name">Reliability &amp; Consistency</span><p>ACID guarantees for stock transactions; database transactions and locking strategies enforce consistency.</p></div>
+      <div class="nfr-card"><span class="nfr-id">NFR-006</span><span class="nfr-name">Usability</span><p>Core operations — receive, ship, reserve — complete within three steps in the UI.</p></div>
+      <div class="nfr-card"><span class="nfr-id">NFR-007</span><span class="nfr-name">Audit &amp; Retention</span><p>Transaction logs are retained per regulatory policy; configurable, default three years.</p></div>
+      <div class="nfr-card"><span class="nfr-id">NFR-008</span><span class="nfr-name">Backup &amp; Recovery</span><p>Nightly database backups with point-in-time recovery.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-num">6 — User Roles &amp; Permissions</p>
+    <h2>Who can do what</h2>
+    <div class="role-grid">
+      <div class="role-row"><div class="rname">Admin</div><div class="rdesc">Full system access — manage users, products, warehouses, run migrations.</div></div>
+      <div class="role-row"><div class="rname">Manager</div><div class="rdesc">Product and report access; set reorder levels.</div></div>
+      <div class="role-row"><div class="rname">Operator</div><div class="rdesc">Create transactions (receive/ship), perform stock counts.</div></div>
+      <div class="role-row"><div class="rname">Auditor</div><div class="rdesc">Read-only access to all logs.</div></div>
+      <div class="role-row"><div class="rname">Internal service</div><div class="rdesc">Machine client authenticating via API key or the internal auth filter.</div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-num">7 — Data Requirements</p>
+    <h2>Entities, relationships, validation, retention</h2>
+
+    <h3>7.1 Main Entities</h3>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Entity</th><th>Key fields</th></tr></thead>
+        <tbody>
+          <tr><td>ProductEntity</td><td>id (UUID), sku, name, description, category, unit, priceTier1/2/3, stockQty (BigDecimal), reservedQty, status, created_at, updated_at</td></tr>
+          <tr><td>StockTransactionEntity</td><td>id, product_id, txn_type (TransactionType), qty, txn_date, reference, user_id, metadata</td></tr>
+          <tr><td>WarehouseEntity</td><td>id, name, address, metadata</td></tr>
+          <tr><td>Reservation</td><td>reservation_id, lines, status, created_at, fulfilled_at</td></tr>
+          <tr><td>User</td><td>id, username, email, role, status</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>7.2 Relationships</h3>
+    <ul class="plain">
+      <li>Product → 1..* StockTransaction</li>
+      <li>Warehouse holds stocks (future extension: a per-warehouse stock table)</li>
+      <li>Reservation references product lines</li>
+    </ul>
+
+    <h3>7.3 Validation Rules</h3>
+    <ul class="plain">
+      <li>SKU is unique and non-empty</li>
+      <li>Quantities must be ≥ 0</li>
+      <li>Price tiers must be non-negative</li>
+      <li>Required fields are validated in DTOs</li>
+    </ul>
+
+    <h3>7.4 Data Retention</h3>
+    <ul class="plain">
+      <li>Transaction logs: default 3 years, configurable</li>
+      <li>Soft deletes for products/warehouses are permitted; audit history is preserved</li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-num">8 — API / Integration Requirements</p>
+    <h2>Internal endpoints, third-party APIs, exports</h2>
+
+    <h3>8.1 Internal APIs (representative)</h3>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th style="width:110px">Method</th><th>Path</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">GET/POST</td><td><code class="code-path">/inventory/products</code></td></tr>
+          <tr><td class="mono">GET/POST</td><td><code class="code-path">/inventory/transactions</code></td></tr>
+          <tr><td class="mono">POST</td><td><code class="code-path">/internal/inventory/reservations/validate</code></td></tr>
+          <tr><td class="mono">POST</td><td><code class="code-path">/internal/inventory/reservations/reserve</code></td></tr>
+          <tr><td class="mono">POST</td><td><code class="code-path">/internal/inventory/reservations/fulfill</code></td></tr>
+          <tr><td class="mono">GET/POST</td><td><code class="code-path">/inventory/warehouses</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>8.2 Third-Party APIs</h3>
+    <ul class="plain">
+      <li>ERP/POS — push/pull product and sales/order data</li>
+      <li>Email/SMS gateway for alerts</li>
+    </ul>
+
+    <h3>8.3 Webhooks &amp; Exports</h3>
+    <ul class="plain">
+      <li>Webhook support for reservation/transaction events (recommended)</li>
+      <li>CSV export for reports</li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-num">9 — UI/UX Requirements</p>
+    <h2>Pages, responsiveness, forms</h2>
+    <ul class="plain">
+      <li><strong>Pages:</strong> Dashboard, Product List, Product Detail, Receive, Ship, Transfer, Reservation Validate/Reserve/Fulfill, Warehouses, Reports, Admin</li>
+      <li>Responsive for desktop and tablet; barcode scanning supported as keyboard input</li>
+      <li>Forms validate inline with clear error messages matching <code class="code-path">ApiErrorResponse</code></li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-num">10 — Security Requirements</p>
+    <h2>Authentication, authorization, encryption, audit</h2>
+    <ul class="plain">
+      <li><strong>Authentication:</strong> JWT tokens for users via <code class="code-path">JwtAuthenticationFilter</code></li>
+      <li><strong>Authorization:</strong> Role-based access control enforced in controllers/services</li>
+      <li><strong>Encryption:</strong> TLS in transit; at-rest encryption for sensitive fields as required</li>
+      <li><strong>Password policy:</strong> strong passwords required; optional SSO/OIDC/SAML</li>
+      <li><strong>Audit trail:</strong> immutable <code class="code-path">stock_transactions</code> logs</li>
+      <li><strong>Session/token management:</strong> defined token expiry and refresh policy</li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-num">11 — Reports &amp; Notifications</p>
+    <h2>What gets reported and who gets told</h2>
+    <ul class="plain">
+      <li><strong>Standard reports:</strong> stock level by SKU/location, movement history, reorder alerts</li>
+      <li><strong>Exports:</strong> CSV/PDF</li>
+      <li><strong>Notifications:</strong> low-stock alerts in the UI, with optional email</li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-num">12 — Business Rules</p>
+    <h2>Rules that govern stock movement</h2>
+    <ul class="br-list">
+      <li><span class="brid">BR-001</span><span class="brtext">A reservation must decrement available stock (<code style="font-family:'IBM Plex Mono',monospace;background:var(--line-soft);padding:1px 5px;border-radius:3px">stockQty − reservedQty</code>).</span></li>
+      <li><span class="brid">BR-002</span><span class="brtext">Fulfillment requires <code style="font-family:'IBM Plex Mono',monospace;background:var(--line-soft);padding:1px 5px;border-radius:3px">reservedQty ≥ fulfill quantity</code>.</span></li>
+      <li><span class="brid">BR-003</span><span class="brtext">Outbound transactions that would cause negative available stock must be rejected, unless an admin override is applied.</span></li>
+      <li><span class="brid">BR-004</span><span class="brtext">Purchase orders and receipts update <code style="font-family:'IBM Plex Mono',monospace;background:var(--line-soft);padding:1px 5px;border-radius:3px">stockQty</code> via the inbound transaction type.</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-num">13 — Error Handling</p>
+    <h2>Standard error responses</h2>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Condition</th><th style="width:170px">Response</th></tr></thead>
+        <tbody>
+          <tr><td>Validation errors</td><td class="mono"><span class="pill pill-medium">400 Bad Request</span></td></tr>
+          <tr><td>Authentication failures</td><td class="mono"><span class="pill pill-high">401 Unauthorized</span></td></tr>
+          <tr><td>Authorization failures</td><td class="mono"><span class="pill pill-high">403 Forbidden</span></td></tr>
+          <tr><td>Resource not found</td><td class="mono"><span class="pill pill-medium">404 Not Found</span></td></tr>
+          <tr><td>Duplicate records</td><td class="mono"><span class="pill pill-medium">409 Conflict</span></td></tr>
+          <tr><td>Database/network failures</td><td class="mono"><span class="pill pill-high">5xx (with retry guidance)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="wide" style="margin-top:14px">All error bodies conform to <code class="code-path">ApiErrorResponse</code>.</p>
+  </section>
+
+  <section>
+    <p class="sec-num">14 — Acceptance Criteria</p>
+    <h2>Definition of done</h2>
+    <ul class="plain">
+      <li>Product CRUD works end-to-end with database persistence and migrations applied.</li>
+      <li>Stock transactions update <code class="code-path">product.stockQty</code> and are logged in <code class="code-path">stock_transactions</code>.</li>
+      <li>The reservation flow (validate → reserve → fulfill) prevents overcommit, with an atomic commit per request.</li>
+      <li>Security filters block unauthorized access; internal endpoints accept only trusted clients.</li>
+      <li>Integration endpoints return documented responses and error codes.</li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-num">15 — Constraints &amp; Dependencies</p>
+    <h2>Fixed platform decisions</h2>
+    <ul class="plain">
+      <li><strong>Runtime:</strong> Java + Spring Boot</li>
+      <li><strong>Database:</strong> PostgreSQL (connection string in <code class="code-path">application.yml</code>)</li>
+      <li><strong>Migrations:</strong> Flyway scripts under <code class="code-path">resources/db/migration</code></li>
+      <li>Must follow the repository package structure — <code class="code-path">com.fawnix.inventory</code></li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-num">16 — Future Enhancements</p>
+    <h2>Deferred, not forgotten</h2>
+    <ul class="plain">
+      <li>Offline-capable mobile app for scanning and counts</li>
+      <li>Forecasting and reorder automation</li>
+      <li>Multi-warehouse per-product stock ledger</li>
+      <li>Webhook/event stream (Kafka) for high-throughput integrations</li>
+      <li>OpenAPI / Swagger documentation generation</li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="sec-num">Appendix A</p>
+    <h2>Key code locations</h2>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Component</th><th>Path</th></tr></thead>
+        <tbody>
+          <tr><td>ProductController</td><td><code class="code-path">src/main/java/com/fawnix/inventory/products/controller/ProductController.java</code></td></tr>
+          <tr><td>Product service / repository / entity</td><td><code class="code-path">src/main/java/com/fawnix/inventory/products/</code></td></tr>
+          <tr><td>Reservation controller / service</td><td><code class="code-path">src/main/java/com/fawnix/inventory/reservations/</code></td></tr>
+          <tr><td>StockTransaction controller / service / entity</td><td><code class="code-path">src/main/java/com/fawnix/inventory/transactions/</code></td></tr>
+          <tr><td>Warehouse modules</td><td><code class="code-path">src/main/java/com/fawnix/inventory/warehouses/</code></td></tr>
+          <tr><td>Security filters and JWT</td><td><code class="code-path">src/main/java/com/fawnix/inventory/security/</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-num">Appendix B</p>
+    <h2>Database migrations</h2>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th style="width:70px">Migration</th><th>Contents</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">V2</td><td><code class="code-path">V2__create_inventory_schema.sql</code> — stock table and stock_transactions</td></tr>
+          <tr><td class="mono">V3–V6</td><td>Price tiers, reserved quantity, warehouses, seed catalog</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-num">Appendix C</p>
+    <h2>Suggested next deliverables</h2>
+    <ol class="plain">
+      <li>Produce this SRS as a Markdown file and commit it to the repository</li>
+      <li>Generate OpenAPI (Swagger) documentation from controller DTOs</li>
+      <li>Create sequence diagrams for the reservation flow</li>
+      <li>Add an automated concurrency test for stock updates</li>
+    </ol>
+  </section>
+
+  <footer class="doc-footer">Inventory Service — Software Requirements Specification v1.0 — 07 Aug 2026</footer>
+</div>

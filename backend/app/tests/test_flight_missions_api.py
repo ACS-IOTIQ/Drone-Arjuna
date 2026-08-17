@@ -536,6 +536,10 @@ async def test_update_mission_geofence_200(
 ):
     """Update a planning-status mission's geofence and verify it persists."""
     hdrs = auth_headers(flight_controller_user, make_token)
+    # The first mission created for a given drone_instance_id (None here) is
+    # auto-approved; create a throwaway one first so this mission lands in
+    # "planning" status, which is required for PATCH to succeed.
+    await _make_mission(client, hdrs, name="Consume-Auto-Approve-Slot")
     m = await _make_mission(client, hdrs)
     try:
         geofence = {
@@ -560,6 +564,10 @@ async def test_update_mission_name_and_waypoints_200(
 ):
     """Update mission name and replace waypoints."""
     hdrs = auth_headers(flight_controller_user, make_token)
+    # The first mission created for a given drone_instance_id (None here) is
+    # auto-approved; create a throwaway one first so this mission lands in
+    # "planning" status, which is required for PATCH to succeed.
+    await _make_mission(client, hdrs, name="Consume-Auto-Approve-Slot")
     m = await _make_mission(client, hdrs)
     try:
         new_wp = {

@@ -288,6 +288,14 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
   const droneName = (id: number, callSign?: string) =>
     callSign ?? instances.find(i => i.id === id)?.call_sign ?? `Drone #${id}`
 
+  const simRoutesSignature = useMemo(() => (
+    Object.entries(frames)
+      .filter(([, f]) => f?.sim_phase && (f.lat !== 0 || f.lon !== 0))
+      .map(([id, f]) => `${id}:${f.mission_id ?? ''}`)
+      .sort()
+      .join('|')
+  ), [frames])
+
   const simDroneRoutes = useMemo(() => (
     Object.entries(frames)
       .map(([id, f]) => ({ id: Number(id), frame: f }))
@@ -305,7 +313,8 @@ export default function LiveMap({ droneId, onSelectDrone, onManualControlRequest
         return { droneId: id, callSign: f.call_sign, mission, route }
       })
       .filter(item => item.route.length > 1)
-  ), [frames, missions])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [simRoutesSignature, missions])
 
   const liveRouteCollisions = useMemo(() => {
     const collisions: Array<ReturnType<typeof findRouteCollisions>[number] & {

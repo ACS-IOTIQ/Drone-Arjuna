@@ -29,6 +29,10 @@ class Mission(Base):
     home_vessel_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     payload_weight_kg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # False when the operator disabled the Government airspace zones layer —
+    # the backend, not the frontend, is the source of truth for whether
+    # airspace-triggered auto-RTL/auto-hold/auto-goto is honored at runtime.
+    enforce_airspace: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class Waypoint(Base):

@@ -18,6 +18,7 @@ export interface Mission {
   waypoints: WaypointInput[];
   geofence?: object | null;
   created_at: string;
+  enforce_airspace?: boolean;
 }
 
 export interface LoadedMissionMeta {

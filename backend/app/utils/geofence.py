@@ -20,16 +20,22 @@ class GeofenceStore:
     def __init__(self):
         self._fences: dict[int, BaseGeometry] = {}
         self._geojson: dict[int, dict] = {}
+        self._enforce_airspace: dict[int, bool] = {}
 
-    def set_geofence(self, drone_id: int, geojson: dict | None) -> bool:
+    def set_geofence(self, drone_id: int, geojson: dict | None, enforce_airspace: bool = True) -> bool:
         """
         Register (or clear) a geofence for a drone.
         geojson must be a GeoJSON Polygon or MultiPolygon dict, or None to clear.
-        Returns True on success, False if the geometry was invalid.
+        enforce_airspace mirrors Mission.enforce_airspace — when False, the
+        operator disabled the Government airspace zones layer for this
+        mission, so breach-triggered auto-RTL must be skipped (the drone
+        keeps following its planned waypoints). Returns True on success,
+        False if the geometry was invalid.
         """
         if geojson is None:
             self._fences.pop(drone_id, None)
             self._geojson.pop(drone_id, None)
+            self._enforce_airspace.pop(drone_id, None)
             log.info("Geofence cleared", drone_id=drone_id)
             return True
         try:
@@ -50,6 +56,7 @@ class GeofenceStore:
                 return False
             self._fences[drone_id] = poly
             self._geojson[drone_id] = geojson
+            self._enforce_airspace[drone_id] = enforce_airspace
             log.info("Geofence set", drone_id=drone_id, geom_type=poly.geom_type)
             return True
         except Exception as exc:
@@ -59,6 +66,7 @@ class GeofenceStore:
     def clear(self, drone_id: int):
         self._fences.pop(drone_id, None)
         self._geojson.pop(drone_id, None)
+        self._enforce_airspace.pop(drone_id, None)
 
     def has_fence(self, drone_id: int) -> bool:
         return drone_id in self._fences
@@ -68,6 +76,10 @@ class GeofenceStore:
         if geojson is None:
             return None
         return json.loads(json.dumps(geojson))
+
+    def enforce_airspace(self, drone_id: int) -> bool:
+        """Whether breach-triggered auto-RTL is armed for this drone's fence. Defaults True."""
+        return self._enforce_airspace.get(drone_id, True)
 
     def is_inside(self, drone_id: int, lat: float, lon: float) -> bool | None:
         """

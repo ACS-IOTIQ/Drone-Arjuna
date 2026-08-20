@@ -125,6 +125,26 @@ class TelemetryGauge(TSBase):
     cpu_load_pct: Mapped[float] = mapped_column(Float, default=0.0)
 
 
+class BatterySnapshot(TSBase):
+    """
+    Periodic battery-percentage log, sampled every 2 minutes while a mission
+    (simulated or live) is running. Append-only hypertable — distinct from
+    `telemetry`/`telemetry_gauges` (latest-value-only) — so battery drain
+    can be reviewed over the course of a flight.
+    """
+    __tablename__ = "battery_snapshots"
+
+    drone_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        primary_key=True,
+    )
+
+    battery_pct: Mapped[int] = mapped_column(Integer, default=-1)
+    mission_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+
 class SystemMetric(TSBase):
     """
     GCS-side system health metrics hypertable.

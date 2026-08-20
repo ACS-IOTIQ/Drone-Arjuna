@@ -16,6 +16,7 @@ from typing import Optional
 from pymavlink import mavutil
 
 from app.utils.mavlink_utils import build_connection_string
+from app.utils.geofence import geofence_store
 from app.modules.drone_control.telemetry_processor import TelemetryProcessor
 from app.modules.drone_control.state_manager import StateManager, home_point_updater
 from app.modules.drone_control.health_monitor import HealthMonitor
@@ -426,6 +427,13 @@ class MAVLinkManager:
         async def _rtl_handler(payload: dict):
             drone_id = payload.get("drone_id")
             if drone_id is None:
+                return
+            # Skip when the operator disabled Government airspace enforcement
+            # for this mission (enforce_airspace=False) — the drone must keep
+            # following its planned waypoints instead of being pulled home.
+            if not geofence_store.enforce_airspace(drone_id):
+                log.info("Geofence RTL consumer — enforcement disabled, ignoring breach",
+                          drone_id=drone_id)
                 return
             log.warning("Geofence RTL consumer — dispatching auto-RTL", drone_id=drone_id)
             await self.send_command(drone_id, "rtl", {})

@@ -110,9 +110,14 @@ class TelemetryProcessor(metaclass=_TelemetryProcessorCompat):
                 "breach_lon":      position["lon"],
             })
             await emit_geofence_breach(drone_id, position["lat"], position["lon"])
-            dispatch_rtl = getattr(self, "_auto_rtl_dispatch", None)
-            if dispatch_rtl:
-                await dispatch_rtl(drone_id)
+            # Skip auto-RTL when the operator disabled Government airspace
+            # enforcement for this mission (mirrors the simulator's own
+            # enforce_airspace gate) — the drone must keep following its
+            # planned waypoints instead of being yanked home mid-flight.
+            if geofence_store.enforce_airspace(drone_id):
+                dispatch_rtl = getattr(self, "_auto_rtl_dispatch", None)
+                if dispatch_rtl:
+                    await dispatch_rtl(drone_id)
 
         elif not now_breaching and was_breaching:
             self._breaching[drone_id] = False

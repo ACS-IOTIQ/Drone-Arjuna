@@ -207,6 +207,97 @@ async def test_list_missions_unauthenticated_401(client: AsyncClient):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# 1b. enforce_airspace persistence
+# ═══════════════════════════════════════════════════════════════════════
+# The "Government airspace zones" checkbox in the Fly workspace maps to
+# this field. It must be persisted on create/update (not silently
+# dropped) so the simulator can consult it at runtime and decide whether
+# to honor auto-RTL/auto-hold/auto-goto commands triggered by zone entry.
+
+async def test_create_mission_persists_enforce_airspace_false(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    hdrs = auth_headers(flight_controller_user, make_token)
+    resp = await client.post(
+        "/api/flight/missions",
+        json={
+            "name": "Enforce-Airspace-False",
+            "mission_type": "ISR",
+            "waypoints": [_HOME_WP, _TARGET_WP],
+            "enforce_airspace": False,
+        },
+        headers=hdrs,
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["enforce_airspace"] is False
+    try:
+        get_resp = await client.get(f"/api/flight/missions/{data['id']}", headers=hdrs)
+        assert get_resp.json()["enforce_airspace"] is False
+    finally:
+        await client.delete(f"/api/flight/missions/{data['id']}", headers=hdrs)
+
+
+async def test_create_mission_default_enforce_airspace_true(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """When the field is omitted, enforcement must default to enabled."""
+    hdrs = auth_headers(flight_controller_user, make_token)
+    m = await _make_mission(client, hdrs, name="Enforce-Airspace-Default")
+    try:
+        assert m["enforce_airspace"] is True
+    finally:
+        await client.delete(f"/api/flight/missions/{m['id']}", headers=hdrs)
+
+
+async def test_update_mission_can_disable_enforce_airspace(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """PATCH is only allowed in 'planning' status, and a drone's first
+    mission auto-approves — so create a throwaway first mission for this
+    drone_instance_id to push the one under test into 'planning'."""
+    hdrs = auth_headers(flight_controller_user, make_token)
+    throwaway = await _make_mission(client, hdrs, name="Enforce-Airspace-Update-Throwaway")
+    m = await _make_mission(client, hdrs, name="Enforce-Airspace-Update")
+    try:
+        resp = await client.patch(
+            f"/api/flight/missions/{m['id']}",
+            json={"enforce_airspace": False},
+            headers=hdrs,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["enforce_airspace"] is False
+    finally:
+        await client.delete(f"/api/flight/missions/{m['id']}", headers=hdrs)
+        await client.delete(f"/api/flight/missions/{throwaway['id']}", headers=hdrs)
+
+
+async def test_update_mission_omitting_enforce_airspace_leaves_it_unchanged(
+    client: AsyncClient, flight_controller_user, make_token
+):
+    """A PATCH that doesn't mention enforce_airspace must not reset it to True."""
+    hdrs = auth_headers(flight_controller_user, make_token)
+    throwaway = await _make_mission(client, hdrs, name="Enforce-Airspace-Unchanged-Throwaway")
+    m = await _make_mission(client, hdrs, name="Enforce-Airspace-Unchanged")
+    try:
+        await client.patch(
+            f"/api/flight/missions/{m['id']}",
+            json={"enforce_airspace": False},
+            headers=hdrs,
+        )
+        resp = await client.patch(
+            f"/api/flight/missions/{m['id']}",
+            json={"notes": "unrelated edit"},
+            headers=hdrs,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["enforce_airspace"] is False
+    finally:
+        await client.delete(f"/api/flight/missions/{m['id']}", headers=hdrs)
+        await client.delete(f"/api/flight/missions/{throwaway['id']}", headers=hdrs)
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # 2. DELETE /api/flight/missions/{id}
 # ═══════════════════════════════════════════════════════════════════════
 

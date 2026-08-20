@@ -120,11 +120,12 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         connectionFetchFailures: 0,
       }))
     } catch {
+      // Transient network hiccups/timeouts (e.g. backend momentarily busy under
+      // simulation load) must not wipe a still-live simulation from the UI —
+      // only clear state once failures persist long enough to be a real outage.
       const failures = get().connectionFetchFailures + 1
-      if (failures < 3) {
-        set({ connectionFetchFailures: failures })
-        return
-      }
+      set({ connectionFetchFailures: failures })
+      if (failures < 10) return
 
       Object.entries(get().connections).forEach(([id, connection]) => {
         if (connection.connected && connection.transport === 'simulation') {

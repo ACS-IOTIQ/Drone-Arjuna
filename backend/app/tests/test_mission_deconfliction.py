@@ -241,36 +241,27 @@ async def test_approve_no_conflict_returns_200(
     assert code == 200
 
 
-async def test_approve_with_conflict_returns_409(
+async def test_approve_with_overlap_still_succeeds(
     client: AsyncClient, mission_commander_user, make_token
 ):
     """
-    Approving a mission whose convex hull overlaps an already-approved
-    mission must return 409 with a conflict list.
+    Mission approval is never blocked by another mission's overlapping
+    route — cross-mission scheduling is an operator judgment call, not
+    a system-enforced veto. Only real government-restricted airspace
+    (gated by Mission.enforce_airspace) can block approval-adjacent flows.
     """
     hdrs = auth_headers(mission_commander_user, make_token)
 
-    # Approve the first mission (BOX_A)
     mid_a = await _create_mission(client, hdrs, _API_WPS_A, "Alpha")
     assert await _set_status(client, hdrs, mid_a, "approved") == 200
 
-    # Attempt to approve overlapping mission — must be blocked
     mid_b = await _create_mission(client, hdrs, _API_WPS_OVERLAP_A, "Bravo")
     resp = await client.patch(
         f"/api/flight/missions/{mid_b}/status",
         json={"status": "approved"},
         headers=hdrs,
     )
-    assert resp.status_code == 409
-    body = resp.json()
-    assert "conflicts" in body["detail"]
-    assert len(body["detail"]["conflicts"]) >= 1
-    ids = {
-        (c["mission_a_id"], c["mission_b_id"])
-        for c in body["detail"]["conflicts"]
-    }
-    # The conflict must involve both missions
-    assert any(mid_a in pair and mid_b in pair for pair in ids)
+    assert resp.status_code == 200
 
 
 async def test_approve_separate_areas_no_conflict(
@@ -304,12 +295,12 @@ async def test_non_approved_transition_skips_deconfliction(
     assert await _set_status(client, hdrs, mid_b, "planning") == 200
 
 
-async def test_approve_conflict_with_executing_mission(
+async def test_approve_overlap_with_executing_mission_still_succeeds(
     client: AsyncClient, mission_commander_user, make_token
 ):
     """
-    An "executing" mission is also active — approval of an overlapping
-    mission must still return 409.
+    An "executing" mission overlapping the one being approved must not
+    block approval either — same rule as an "approved" overlap.
     """
     hdrs = auth_headers(mission_commander_user, make_token)
 
@@ -323,7 +314,7 @@ async def test_approve_conflict_with_executing_mission(
         json={"status": "approved"},
         headers=hdrs,
     )
-    assert resp.status_code == 409
+    assert resp.status_code == 200
 
 
 async def test_approve_mission_not_found_returns_404(

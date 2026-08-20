@@ -17,6 +17,7 @@ from app.models.mission import Mission, Waypoint
 from app.models.drone import DroneInstance
 from app.schemas.drone import ConnectRequest, CommandRequest, SimStartRequest, SimCommandRequest, AutoConnectRequest, GeofenceSetRequest
 from app.utils.geofence import geofence_store
+from app.utils.geo_utils import all_points_in_geofence
 from app.modules.drone_control.mavlink_manager import mavlink_manager
 from app.modules.drone_control.mission_simulator import mission_simulator
 from app.modules.drone_master.service import DroneInstanceService
@@ -511,6 +512,43 @@ async def get_telemetry_history(
     ]
 
 
+@router.get("/telemetry/{drone_id}/battery-log")
+async def get_battery_log(
+    drone_id: int,
+    _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
+    db: AsyncSession = Depends(get_ts_db),
+    start: datetime | None = None,
+    end: datetime | None = None,
+):
+    """
+    Battery % snapshots taken every 2 minutes while a mission (simulated or
+    live) is running — see BATTERY_LOG_INTERVAL_S in mission_simulator.py.
+
+    Reads `battery_snapshots`, an append-only table separate from the
+    single-row-per-drone `telemetry_gauges`. `start`/`end` default to the
+    last 24 hours if omitted.
+    """
+    end = end or datetime.now(timezone.utc)
+    start = start or (end - timedelta(hours=24))
+    result = await db.execute(
+        text("""
+            SELECT recorded_at, battery_pct, mission_id
+            FROM battery_snapshots
+            WHERE drone_id = :drone_id AND recorded_at BETWEEN :start AND :end
+            ORDER BY recorded_at ASC
+        """),
+        {"drone_id": drone_id, "start": start, "end": end},
+    )
+    return [
+        {
+            "timestamp": r["recorded_at"],
+            "battery_remaining_pct": r["battery_pct"],
+            "mission_id": r["mission_id"],
+        }
+        for r in result.mappings().all()
+    ]
+
+
 # ── Mission simulation ────────────────────────────────────────────
 
 @router.post("/simulate/start", status_code=status.HTTP_201_CREATED)
@@ -581,12 +619,29 @@ async def start_simulation(
         for w in wps
     ]
 
+    # A geofence may have been drawn/edited after these waypoints were saved —
+    # re-check now so we never arm a fence that will RTL the drone mid-mission
+    # for simply flying the waypoints it was given.
+    if mission.geofence:
+        all_inside, bad_idx = all_points_in_geofence(
+            [(w.latitude, w.longitude) for w in wps], mission.geofence
+        )
+        if not all_inside:
+            bad_seqs = [wps[i].sequence for i in bad_idx]
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Mission geofence does not enclose waypoint(s) {bad_seqs} — "
+                    "redraw the geofence or remove it before starting the simulation"
+                ),
+            )
+
     # Register virtual connection in mavlink_manager so the drone appears "connected"
     mavlink_manager.attach_simulation(drone_id, drone.call_sign)
 
     # Arm runtime geofence so breach detection fires during simulation
     if mission.geofence:
-        geofence_store.set_geofence(drone_id, mission.geofence)
+        geofence_store.set_geofence(drone_id, mission.geofence, enforce_airspace=mission.enforce_airspace)
 
     # Start the simulator (injects into the same StateManager, and MAVLink
     # UDP-broadcasts so external GCS software like Mission Planner sees it too)
@@ -600,6 +655,7 @@ async def start_simulation(
         state_mgr=mavlink_manager.state,
         mavlink_system_id=drone.mavlink_system_id,
         mission_id=req.mission_id,
+        enforce_airspace=mission.enforce_airspace,
     )
     await DroneInstanceService(db).mark_used(drone_id)
 

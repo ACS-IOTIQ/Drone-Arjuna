@@ -192,6 +192,38 @@ def test_takeoff_rejected_from_flying():
     assert flight.phase == SimPhase.FLYING
 
 
+def test_airspace_auto_command_ignored_when_enforcement_disabled():
+    """
+    An auto-RTL issued by the Fly workspace's regulatory-zone watcher
+    (tagged source="airspace_auto") must be a no-op when the mission
+    disabled Government airspace zone enforcement — the drone should
+    keep flying its planned waypoints instead of diverting.
+    """
+    flight = make_flight()
+    flight.enforce_airspace = False
+    flight.phase = SimPhase.FLYING
+    flight._handle_cmd("rtl", {"source": "airspace_auto"})
+    assert flight.phase == SimPhase.FLYING
+
+
+def test_airspace_auto_command_honored_when_enforcement_enabled():
+    flight = make_flight()
+    flight.enforce_airspace = True
+    flight.phase = SimPhase.FLYING
+    flight._handle_cmd("rtl", {"source": "airspace_auto"})
+    assert flight.phase == SimPhase.RTL
+
+
+def test_manual_rtl_command_honored_even_when_enforcement_disabled():
+    """A command with no airspace_auto source (an operator's manual RTL
+    click) is never blocked by the enforcement flag."""
+    flight = make_flight()
+    flight.enforce_airspace = False
+    flight.phase = SimPhase.FLYING
+    flight._handle_cmd("rtl", {})
+    assert flight.phase == SimPhase.RTL
+
+
 def test_set_mode_rtl_always_triggers_enter_rtl():
     flight = make_flight()
     flight.phase = SimPhase.FLYING
@@ -425,6 +457,33 @@ async def test_manager_stop_all_returns_empty_when_no_flights():
     assert stopped == []
 
 
+@pytest.mark.asyncio
+async def test_manager_start_threads_enforce_airspace_to_flight():
+    manager = SimulationManager()
+    state_mgr = MagicMock()
+    state_mgr.init_drone = MagicMock()
+
+    with patch("app.modules.drone_control.mavlink_broadcaster.mavlink_broadcaster"):
+        await manager.start(
+            drone_id=9,
+            call_sign="SIM-09",
+            waypoints=[{
+                "sequence": 1, "latitude": 12.98, "longitude": 77.60,
+                "altitude_m": 30.0, "speed_ms": 10.0, "action": "none",
+            }],
+            home_lat=12.9716,
+            home_lon=77.5946,
+            state_mgr=state_mgr,
+            mission_id=55,
+            enforce_airspace=False,
+        )
+        try:
+            flight = manager._flights[9]
+            assert flight.enforce_airspace is False
+        finally:
+            await manager.stop(9)
+
+
 def test_flight_get_status_defaults():
     flight = _SimulatedFlight()
     status = flight.get_status()
@@ -433,3 +492,149 @@ def test_flight_get_status_defaults():
     assert status["drone_id"] is None
     assert status["waypoint_count"] == 0
     assert status["progress"] == 0.0
+
+
+# ── Battery-based auto-RTL ───────────────────────────────────────────
+#
+# Flowchart under test:
+#   battery %, GPS position, distance-to-launch, consumption rate,
+#   groundspeed -> estimate battery required for RTL -> add safety
+#   reserve -> if current battery < required -> trigger RTL.
+
+def make_flying_flight(*, drone_id=7, battery_pct=100.0, consumption_rate_pct_s=0.05,
+                        groundspeed=10.0, home_lat=12.9716, home_lon=77.5946,
+                        lat=None, lon=None, phase=SimPhase.FLYING) -> _SimulatedFlight:
+    """A flight configured with enough data for _check_battery_rtl to run."""
+    flight = make_flight()
+    flight.drone_id = drone_id
+    flight._sm = MagicMock()
+    flight._sm.update = AsyncMock()
+    flight.phase = phase
+    flight.battery_pct = battery_pct
+    flight.consumption_rate_pct_s = consumption_rate_pct_s
+    flight.groundspeed = groundspeed
+    flight._home_lat = home_lat
+    flight._home_lon = home_lon
+    flight.lat = lat if lat is not None else home_lat
+    flight.lon = lon if lon is not None else home_lon
+    return flight
+
+
+@pytest.mark.asyncio
+async def test_battery_rtl_not_triggered_when_battery_sufficient():
+    # ~1112 m from home, 10 m/s -> ~111 s to home, 0.05 %/s -> ~5.6% required + 5% reserve.
+    flight = make_flying_flight(
+        battery_pct=80.0,
+        consumption_rate_pct_s=0.05,
+        groundspeed=10.0,
+        home_lat=12.9716, home_lon=77.5946,
+        lat=12.9816, lon=77.5946,
+    )
+    await flight._check_battery_rtl()
+    assert flight.phase == SimPhase.FLYING
+    flight._sm.update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_battery_rtl_triggered_when_battery_insufficient():
+    # Same trip cost (~5.6% + 5% reserve ~= 10.6%), but battery is nearly empty.
+    flight = make_flying_flight(
+        battery_pct=8.0,
+        consumption_rate_pct_s=0.05,
+        groundspeed=10.0,
+        home_lat=12.9716, home_lon=77.5946,
+        lat=12.9816, lon=77.5946,
+    )
+    await flight._check_battery_rtl()
+    assert flight.phase == SimPhase.RTL
+    assert flight._rtl_route == []  # _enter_rtl(shortest_path=True)
+    flight._sm.update.assert_awaited_once()
+    update_state = flight._sm.update.call_args.args[1]
+    assert update_state["battery_rtl_triggered"] is True
+    assert update_state["battery_rtl_required_pct"] > 8.0
+
+
+@pytest.mark.asyncio
+async def test_battery_rtl_triggered_exactly_at_reserve_boundary():
+    # required_pct chosen so battery_pct is just under required_pct + reserve.
+    flight = make_flying_flight(
+        battery_pct=10.0,
+        consumption_rate_pct_s=0.1,
+        groundspeed=10.0,
+        home_lat=0.0, home_lon=0.0,
+        lat=0.0, lon=0.0,
+    )
+    # dist_to_home = 0 -> required_pct = 0, but reserve alone (5.0) is below battery (10.0).
+    await flight._check_battery_rtl()
+    assert flight.phase == SimPhase.FLYING
+
+    # Now push consumption rate/distance up so required + reserve exceeds battery.
+    flight.lat = 0.05  # ~5.5 km away
+    await flight._check_battery_rtl()
+    assert flight.phase == SimPhase.RTL
+
+
+@pytest.mark.asyncio
+async def test_battery_rtl_skipped_when_no_consumption_data_yet():
+    flight = make_flying_flight(battery_pct=1.0, consumption_rate_pct_s=0.0, groundspeed=10.0,
+                                 lat=12.9816, lon=77.5946)
+    await flight._check_battery_rtl()
+    assert flight.phase == SimPhase.FLYING
+    flight._sm.update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_battery_rtl_skipped_when_groundspeed_zero():
+    flight = make_flying_flight(battery_pct=1.0, consumption_rate_pct_s=0.05, groundspeed=0.0,
+                                 lat=12.9816, lon=77.5946)
+    await flight._check_battery_rtl()
+    assert flight.phase == SimPhase.FLYING
+    flight._sm.update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_battery_rtl_skipped_when_no_drone_id_or_state_manager():
+    flight = make_flying_flight(battery_pct=0.1, consumption_rate_pct_s=0.5, groundspeed=10.0,
+                                 lat=12.9816, lon=77.5946)
+    flight.drone_id = None
+    await flight._check_battery_rtl()
+    assert flight.phase == SimPhase.FLYING
+
+    flight2 = make_flying_flight(battery_pct=0.1, consumption_rate_pct_s=0.5, groundspeed=10.0,
+                                  lat=12.9816, lon=77.5946)
+    flight2._sm = None
+    await flight2._check_battery_rtl()
+    assert flight2.phase == SimPhase.FLYING
+
+
+@pytest.mark.asyncio
+async def test_battery_rtl_ignored_in_rtl_landing_and_idle_phases():
+    for phase in (SimPhase.RTL, SimPhase.LANDING, SimPhase.LANDED, SimPhase.IDLE,
+                  SimPhase.ARMED, SimPhase.TAKEOFF):
+        flight = make_flying_flight(
+            battery_pct=0.1, consumption_rate_pct_s=0.5, groundspeed=10.0,
+            lat=12.9816, lon=77.5946, phase=phase,
+        )
+        await flight._check_battery_rtl()
+        assert flight.phase == phase
+        flight._sm.update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_battery_rtl_applies_in_flying_guided_and_paused_phases():
+    for phase in (SimPhase.FLYING, SimPhase.GUIDED, SimPhase.PAUSED):
+        flight = make_flying_flight(
+            battery_pct=0.1, consumption_rate_pct_s=0.5, groundspeed=10.0,
+            lat=12.9816, lon=77.5946, phase=phase,
+        )
+        await flight._check_battery_rtl()
+        assert flight.phase == SimPhase.RTL
+
+
+@pytest.mark.asyncio
+async def test_check_battery_rtl_invoked_from_push():
+    flight = make_flying_flight(battery_pct=0.1, consumption_rate_pct_s=0.5, groundspeed=10.0,
+                                 lat=12.9816, lon=77.5946)
+    with patch("app.modules.drone_control.mavlink_broadcaster.mavlink_broadcaster"):
+        await flight._push()
+    assert flight.phase == SimPhase.RTL

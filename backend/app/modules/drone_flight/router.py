@@ -13,7 +13,7 @@ from app.schemas.mission import (
 )
 from app.modules.drone_control.mavlink_manager import mavlink_manager
 from app.modules.drone_flight.geo_service import compute_mission_summary
-from app.modules.drone_flight.mission_planner import MissionPlanner, deconflict_missions
+from app.modules.drone_flight.mission_planner import MissionPlanner
 from app.modules.drone_flight.airspace_service import validate_mission_airspace
 from app.modules.drone_flight.fleet_router import (
     AssignmentProblem, FleetAssignRequest,
@@ -93,6 +93,7 @@ async def create_mission(body: MissionCreate, db: DbDep, user: PilotDep):
         geofence=body.geofence,
         payload_weight_kg=body.payload_weight_kg,
         status=initial_status,
+        enforce_airspace=body.enforce_airspace,
     )
     db.add(m)
     await db.flush()   # get m.id
@@ -148,9 +149,10 @@ async def update_mission(
     if m.status not in ("planning",):
         raise HTTPException(409, f"Cannot edit a mission with status '{m.status}'")
 
-    _enforce_airspace(body.waypoints, body.geofence, body.enforce_airspace)
+    effective_enforce = body.enforce_airspace if body.enforce_airspace is not None else m.enforce_airspace
+    _enforce_airspace(body.waypoints, body.geofence, effective_enforce)
 
-    update_data = body.model_dump(exclude_unset=True, exclude={"waypoints", "enforce_airspace"})
+    update_data = body.model_dump(exclude_unset=True, exclude={"waypoints"})
     for field, value in update_data.items():
         setattr(m, field, value)
 
@@ -180,49 +182,12 @@ async def update_mission_status(
     if not m:
         raise HTTPException(404, "Mission not found")
 
-    if body.status == "approved":
-        # Load waypoints for the mission being approved
-        wps_result = await db.execute(
-            select(Waypoint).where(Waypoint.mission_id == mid).order_by(Waypoint.sequence)
-        )
-        target_wps = wps_result.scalars().all()
-
-        # Load all currently active missions (approved or executing), excluding this one.
-        # Missions assigned to a different drone can't physically collide, so only
-        # missions sharing the same assigned drone are considered for deconfliction.
-        active_result = await db.execute(
-            select(Mission).where(
-                Mission.status.in_(["approved", "executing"]),
-                Mission.id != mid,
-                Mission.drone_instance_id == m.drone_instance_id,
-            )
-        )
-        active_missions = active_result.scalars().all()
-
-        # Load waypoints for each active mission
-        missions_with_waypoints: list[tuple[Mission, list[Waypoint]]] = [
-            (m, list(target_wps))
-        ]
-        for active in active_missions:
-            aw_result = await db.execute(
-                select(Waypoint)
-                .where(Waypoint.mission_id == active.id)
-                .order_by(Waypoint.sequence)
-            )
-            missions_with_waypoints.append((active, aw_result.scalars().all()))
-
-        conflicts = deconflict_missions(missions_with_waypoints)
-        if conflicts:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": (
-                        "Approval blocked — airspace conflict detected with "
-                        f"{len(conflicts)} active mission(s)"
-                    ),
-                    "conflicts": conflicts,
-                },
-            )
+    # Mission approval is never blocked by another mission's overlapping
+    # route. Cross-mission scheduling/deconfliction is an operator judgment
+    # call, not something the system should veto — the only hard airspace
+    # restriction enforced at approval time is real government-regulated
+    # airspace, and that is gated purely by Mission.enforce_airspace at
+    # create/update time (see _enforce_airspace() above).
 
     m.status = body.status
     return {"detail": "Status updated", "status": body.status}

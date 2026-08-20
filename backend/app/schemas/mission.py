@@ -117,6 +117,7 @@ class MissionOut(BaseModel):
     waypoints: list[WaypointOut] = []
     geofence: Optional[dict] = None
     payload_weight_kg: Optional[float] = None
+    enforce_airspace: bool = True
 
     model_config = {"from_attributes": True}
 
@@ -130,7 +131,7 @@ class MissionUpdate(BaseModel):
     geofence: Optional[dict] = None
     payload_weight_kg: Optional[float] = None
     waypoints: Optional[list[WaypointCreate]] = None  # if provided, replaces all waypoints
-    enforce_airspace: bool = True          # False when the operator disabled the Government airspace zones layer
+    enforce_airspace: Optional[bool] = None  # False when the operator disabled the Government airspace zones layer
 
 
 class MissionStatusUpdate(BaseModel):

@@ -36,6 +36,8 @@ export interface TelemetryFrame {
   battery_mah_used?: number
   battery_cells?: number
   battery_cell_min_v?: number
+  battery_consumption_rate_pct_s?: number
+  estimated_endurance_s?: number | null
 
   // GPS
   gps_fix_type: string
@@ -53,6 +55,8 @@ export interface TelemetryFrame {
   geofence_breach?: boolean
   breach_lat?: number
   breach_lon?: number
+  battery_rtl_triggered?: boolean
+  battery_rtl_required_pct?: number
   proximity_alert?: boolean
   manual_control_required?: boolean
   proximity_distance_m?: number | null
@@ -64,6 +68,7 @@ export interface TelemetryFrame {
   sim_progress?: number
   sim_waypoint_idx?: number
   sim_waypoint_count?: number
+  distance_to_destination_m?: number | null
 
   // ── Extended telemetry fields (optional — sent when backend has them) ──
 
@@ -226,6 +231,8 @@ function normalizeTelemetryFrame(raw: unknown, prev?: TelemetryFrame): Telemetry
     geofence_breach: data.geofence_breach ?? base.geofence_breach,
     breach_lat: numeric(data.breach_lat, base.breach_lat),
     breach_lon: numeric(data.breach_lon, base.breach_lon),
+    battery_rtl_triggered: typeof data.battery_rtl_triggered === 'boolean' ? data.battery_rtl_triggered : base.battery_rtl_triggered,
+    battery_rtl_required_pct: numeric(data.battery_rtl_required_pct, base.battery_rtl_required_pct),
     proximity_alert: typeof data.proximity_alert === 'boolean' ? data.proximity_alert : base.proximity_alert,
     manual_control_required: typeof data.manual_control_required === 'boolean' ? data.manual_control_required : base.manual_control_required,
     proximity_distance_m: numeric(data.proximity_distance_m, base.proximity_distance_m ?? undefined) ?? null,
@@ -245,9 +252,10 @@ function telemetryFramesEqual(a: TelemetryFrame, b: TelemetryFrame): boolean {
     'climb_rate_ms', 'throttle_pct', 'battery_voltage_v', 'battery_remaining_pct',
     'battery_current_a', 'gps_fix_type', 'gps_satellites', 'gps_hdop', 'flight_mode',
     'is_armed', 'rssi', 'cpu_load_pct', 'geofence_breach', 'breach_lat', 'breach_lon',
+    'battery_rtl_triggered', 'battery_rtl_required_pct',
     'proximity_alert', 'manual_control_required', 'proximity_distance_m',
     'proximity_intruder_drone_id', 'sim_phase', 'mission_id', 'sim_progress', 'sim_waypoint_idx',
-    'sim_waypoint_count', 'nav_wp_dist_m', 'nav_alt_err_m', 'nav_xtrack_err_m',
+    'sim_waypoint_count', 'distance_to_destination_m', 'nav_wp_dist_m', 'nav_alt_err_m', 'nav_xtrack_err_m',
     'current_wp_num', 'last_status_text', 'last_status_severity', 'home_lat', 'home_lon',
     'home_alt', 'terrain_alt_m', 'ekf_ok', 'ekf_vel_ratio', 'ekf_pos_h_ratio',
     'ekf_pos_v_ratio', 'ekf_compass_ratio', 'ekf_terrain_ratio', 'vibe_x', 'vibe_y',
@@ -261,7 +269,23 @@ function telemetryFramesEqual(a: TelemetryFrame, b: TelemetryFrame): boolean {
   return keys.every(key => a[key] === b[key])
 }
 
+// WS messages can arrive faster than the UI can usefully render (10 Hz x N drones).
+// Coalesce bursts into a single store update per animation frame per drone.
+const pendingRaw: Record<number, unknown> = {}
+const pendingFrameHandle: Record<number, number> = {}
+
 function mergeFrame(droneId: number, raw: unknown, set: (partial: Partial<TelemetryState> | ((state: TelemetryState) => Partial<TelemetryState>)) => void, get: () => TelemetryState) {
+  pendingRaw[droneId] = raw
+  if (pendingFrameHandle[droneId] != null) return
+  pendingFrameHandle[droneId] = requestAnimationFrame(() => {
+    delete pendingFrameHandle[droneId]
+    const latestRaw = pendingRaw[droneId]
+    delete pendingRaw[droneId]
+    applyFrame(droneId, latestRaw, set, get)
+  })
+}
+
+function applyFrame(droneId: number, raw: unknown, set: (partial: Partial<TelemetryState> | ((state: TelemetryState) => Partial<TelemetryState>)) => void, get: () => TelemetryState) {
   const frame = normalizeTelemetryFrame(raw, get().frames[droneId])
   if (!frame) return
 
@@ -270,6 +294,8 @@ function mergeFrame(droneId: number, raw: unknown, set: (partial: Partial<Teleme
 
   const wasBreach = Boolean(frame.geofence_breach)
   const wasPrevBreach = Boolean(prevFrame?.geofence_breach)
+  const batteryRtl = Boolean(frame.battery_rtl_triggered)
+  const hadBatteryRtl = Boolean(prevFrame?.battery_rtl_triggered)
   const hasProximityAlert = Boolean(frame.proximity_alert && frame.manual_control_required)
   const hadProximityAlert = Boolean(prevFrame?.proximity_alert && prevFrame?.manual_control_required)
 
@@ -283,6 +309,13 @@ function mergeFrame(droneId: number, raw: unknown, set: (partial: Partial<Teleme
     const message = `Drone ${droneId} has returned inside the configured boundary.`
     notify.warning(title, message, droneId)
     eventLog.drone(title, message, String(droneId), 'warning')
+  }
+
+  if (batteryRtl && !hadBatteryRtl) {
+    const title = 'Battery auto-RTL triggered'
+    const message = `Drone ${droneId} does not have enough battery to complete the remaining waypoints — returning to launch automatically.`
+    notify.danger(title, message, droneId)
+    eventLog.drone(title, message, String(droneId), 'error')
   }
 
   if (hasProximityAlert && !hadProximityAlert) {
@@ -343,7 +376,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     }
 
     const url = makeTelemetryUrl(droneId)
-    const rws = new RobustWebSocket(url, `telemetry-${droneId}`)
+    const rws = new RobustWebSocket(url, `telemetry-${droneId}`, () => makeTelemetryUrl(droneId))
 
     rws.onOpen(() => console.log('[Telemetry] RobustWebSocket OPEN drone', droneId))
     rws.onError((e) => console.error('[Telemetry] RobustWebSocket ERROR drone', droneId, e))

@@ -436,7 +436,10 @@ class MissionPlanner:
             raise HTTPException(503, "Assigned drone is not connected")
 
         # Arm runtime geofence so breach detection fires during execution
-        geofence_store.set_geofence(mission.drone_instance_id, mission.geofence or None)
+        geofence_store.set_geofence(
+            mission.drone_instance_id, mission.geofence or None,
+            enforce_airspace=mission.enforce_airspace,
+        )
 
         # For ship-based missions, overwrite the home waypoint with current vessel position
         vessel = await self._get_home_vessel(mission)
@@ -601,6 +604,13 @@ class MissionPlanner:
             raise TimeoutError("No MISSION_ACK from drone after upload")
         if ack.type != mavutil.mavlink.MAV_MISSION_ACCEPTED:
             raise RuntimeError(f"Mission rejected by drone: MAV_MISSION_TYPE {ack.type}")
+
+        # Without this, the autopilot keeps whatever "current" mission item it
+        # already had (often seq 0 / home from a prior mission), so switching
+        # to AUTO makes it loiter/circle near the launch point instead of
+        # flying out to the first real waypoint.
+        if count > 1:
+            mav.mav.mission_set_current_send(mav.target_system, mav.target_component, 1)
 
     # ── Survey grid generation ────────────────────────────────────
 

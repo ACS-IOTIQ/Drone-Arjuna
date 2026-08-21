@@ -1,54 +1,106 @@
-import { useEffect, useState } from 'react'
-import DroneTypeManager     from './DroneTypeManager'
-import DroneInstanceManager from './DroneInstanceManager'
-import PayloadManager       from './PayloadManager'
-import VesselManager        from './VesselManager'
-import UserManager          from './UserManager'
-import SystemLogViewer      from '@/components/common/SystemLogViewer'
-import { Database, Cpu, Users, Info, Anchor, Package, BookOpen } from 'lucide-react'
-import { api } from '@/api/client'
+import { useEffect, useState } from "react";
+import DroneTypeManager from "./DroneTypeManager";
+import DroneInstanceManager from "./DroneInstanceManager";
+import PayloadManager from "./PayloadManager";
+import VesselManager from "./VesselManager";
+import UserManager from "./UserManager";
+import SystemLogViewer from "@/components/common/SystemLogViewer";
+import {
+  Database,
+  Cpu,
+  Users,
+  Info,
+  Anchor,
+  Package,
+  BookOpen,
+} from "lucide-react";
+import { api } from "@/api/client";
 
-type Tab = 'types' | 'instances' | 'payloads' | 'vessels' | 'users' | 'logs' | 'about'
+type Tab =
+  | "types"
+  | "instances"
+  | "payloads"
+  | "vessels"
+  | "users"
+  | "logs"
+  | "about";
 
-const TABS: { id: Tab; label: string; icon: React.ReactNode; group?: string }[] = [
-  { id: 'types',     label: 'Drone Types',     icon: <Database size={15} />, group: 'MASTER DATA' },
-  { id: 'instances', label: 'Drones',          icon: <Cpu size={15} />,      group: 'MASTER DATA' },
-  { id: 'payloads',  label: 'Payloads',        icon: <Package size={15} />,  group: 'MASTER DATA' },
-  { id: 'vessels',   label: 'Naval Vessels',   icon: <Anchor size={15} />,   group: 'NAVAL OPS'   },
-  { id: 'users',     label: 'Users',           icon: <Users size={15} />,    group: 'SYSTEM'      },
-  { id: 'logs',      label: 'Event Logs',      icon: <BookOpen size={15} />, group: 'SYSTEM'      },
-  { id: 'about',     label: 'About',           icon: <Info size={15} />,     group: 'SYSTEM'      },
-]
+const TABS: {
+  id: Tab;
+  label: string;
+  icon: React.ReactNode;
+  group?: string;
+}[] = [
+  {
+    id: "types",
+    label: "Drone Types",
+    icon: <Database size={15} />,
+    group: "MASTER DATA",
+  },
+  {
+    id: "instances",
+    label: "Drones",
+    icon: <Cpu size={15} />,
+    group: "MASTER DATA",
+  },
+  {
+    id: "payloads",
+    label: "Payloads",
+    icon: <Package size={15} />,
+    group: "MASTER DATA",
+  },
+  {
+    id: "vessels",
+    label: "Naval Vessels",
+    icon: <Anchor size={15} />,
+    group: "NAVAL OPS",
+  },
+  { id: "users", label: "Users", icon: <Users size={15} />, group: "SYSTEM" },
+  {
+    id: "logs",
+    label: "Event Logs",
+    icon: <BookOpen size={15} />,
+    group: "SYSTEM",
+  },
+  { id: "about", label: "About", icon: <Info size={15} />, group: "SYSTEM" },
+];
 
 export default function SettingsWorkspace() {
-  const [tab, setTab] = useState<Tab>('types')
-  const [pendingRequests, setPendingRequests] = useState(0)
+  const [tab, setTab] = useState<Tab>("types");
+  const [pendingRequests, setPendingRequests] = useState(0);
 
   useEffect(() => {
-    api.get('/api/auth/access-requests')
+    api
+      .get("/api/auth/access-requests")
       .then(({ data }) => {
-        const count = Array.isArray(data) ? data.filter((r: any) => r.status === 'pending').length : 0
-        setPendingRequests(count)
+        const count = Array.isArray(data)
+          ? data.filter((r: any) => r.status === "pending").length
+          : 0;
+        setPendingRequests(count);
       })
-      .catch(() => setPendingRequests(0))
-  }, [tab])  // re-check whenever the user switches tabs
+      .catch(() => setPendingRequests(0));
+  }, [tab]); // re-check whenever the user switches tabs
 
-  const groups = [...new Set(TABS.map(t => t.group!))]
+  const groups = [...new Set(TABS.map((t) => t.group!))];
 
   return (
     <div className="da-settings-layout flex h-full overflow-x-auto overflow-y-hidden">
       {/* Left sub-nav */}
       <div className="da-settings-nav flex shrink-0 flex-col gap-1 px-2 py-4">
-        {groups.map(g => (
+        {groups.map((g) => (
           <div key={g} className="mb-2">
-            <p className="da-settings-group-label text-[10px] font-semibold px-2 mb-1 mt-2">{g}</p>
-            {TABS.filter(t => t.group === g).map(t => (
-              <button key={t.id}
+            <p className="da-settings-group-label text-[10px] font-semibold px-2 mb-1 mt-2">
+              {g}
+            </p>
+            {TABS.filter((t) => t.group === g).map((t) => (
+              <button
+                key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`da-settings-tab w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-left transition-all ${tab === t.id ? 'is-active' : ''}`}>
+                className={`da-settings-tab w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-left transition-all ${tab === t.id ? "is-active" : ""}`}
+              >
                 {t.icon}
                 {t.label}
-                {t.id === 'users' && pendingRequests > 0 && (
+                {t.id === "users" && pendingRequests > 0 && (
                   <span className="ml-auto rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
                     {pendingRequests}
                   </span>
@@ -59,18 +111,19 @@ export default function SettingsWorkspace() {
         ))}
       </div>
 
-      {/* Content */}
-      <div className="min-w-[480px] flex-1 overflow-auto p-6">
-        {tab === 'types'     && <DroneTypeManager />}
-        {tab === 'instances' && <DroneInstanceManager />}
-        {tab === 'payloads'  && <PayloadManager />}
-        {tab === 'vessels'   && <VesselManager />}
-        {tab === 'users'     && <UserManager />}
-        {tab === 'logs'      && <SystemLogViewer />}
-        {tab === 'about'     && <AboutPanel />}
+      {/* Content — the 480px floor lives on `.da-settings-content` so the
+          scroll container itself can still shrink and produce a scrollbar. */}
+      <div className="da-settings-content min-w-0 flex-1 overflow-auto p-6">
+        {tab === "types" && <DroneTypeManager />}
+        {tab === "instances" && <DroneInstanceManager />}
+        {tab === "payloads" && <PayloadManager />}
+        {tab === "vessels" && <VesselManager />}
+        {tab === "users" && <UserManager />}
+        {tab === "logs" && <SystemLogViewer />}
+        {tab === "about" && <AboutPanel />}
       </div>
     </div>
-  )
+  );
 }
 
 function AboutPanel() {
@@ -78,24 +131,32 @@ function AboutPanel() {
     <div className="max-w-lg flex flex-col gap-4">
       <div>
         <h2 className="text-lg font-semibold mb-1">DroneArjuna GCS</h2>
-        <p className="text-sm" style={{ color: '#6b7280' }}>
+        <p className="text-sm" style={{ color: "#6b7280" }}>
           Military Drone Ground Control System — Version 1.0.0
         </p>
       </div>
       <div className="da-card p-4 flex flex-col gap-2 text-sm">
         {[
-          ['Stack',    'FastAPI · React 18 · PostgreSQL · TimescaleDB · Redis · RabbitMQ'],
-          ['Protocol', 'MAVLink v1/v2 via pymavlink'],
-          ['Maps',     'OpenStreetMap + Leaflet.js'],
-          ['Auth',     'JWT · RBAC (4 roles)'],
-          ['Spec',     'DroneArjuna-Specs-V2.docx — Phase 1'],
+          [
+            "Stack",
+            "FastAPI · React 18 · PostgreSQL · TimescaleDB · Redis · RabbitMQ",
+          ],
+          ["Protocol", "MAVLink v1/v2 via pymavlink"],
+          ["Maps", "OpenStreetMap + Leaflet.js"],
+          ["Auth", "JWT · RBAC (4 roles)"],
+          ["Spec", "DroneArjuna-Specs-V2.docx — Phase 1"],
         ].map(([k, v]) => (
           <div key={k} className="flex gap-3">
-            <span className="shrink-0 font-medium" style={{ color: '#94a3b8', minWidth: 72 }}>{k}</span>
-            <span style={{ color: '#6b7280' }}>{v}</span>
+            <span
+              className="shrink-0 font-medium"
+              style={{ color: "#94a3b8", minWidth: 72 }}
+            >
+              {k}
+            </span>
+            <span style={{ color: "#6b7280" }}>{v}</span>
           </div>
         ))}
       </div>
     </div>
-  )
+  );
 }

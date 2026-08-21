@@ -294,10 +294,14 @@ export default function FleetWorkspace() {
   };
 
   return (
-    <div className="h-full flex flex-col p-5 overflow-auto">
-      {/* Header row */}
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
+    // The workspace is a fixed-height shell: a pinned header plus a single
+    // scroll region. Nothing inside the scroll region can be compressed, so
+    // the weather bar (and every other section) stays fully intact no matter
+    // how many drones are registered.
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      {/* Header row — pinned, never scrolls away, never shrinks */}
+      <div className="da-workspace-header flex shrink-0 flex-wrap items-start justify-between gap-3 px-5 pb-4 pt-5">
+        <div className="min-w-0">
           <h2 className="text-lg font-semibold">Fleet Overview</h2>
           <p className="text-xs mt-0.5" style={{ color: "#6b7280" }}>
             {instances.length} registered · {connectedCount} connected
@@ -354,301 +358,317 @@ export default function FleetWorkspace() {
         </div>
       </div>
 
-      {/* Local weather card */}
-      <div className="da-weather-panel mb-4 rounded-lg border px-3 py-2 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex min-w-[210px] items-center gap-2">
-            <Cloud size={14} className="text-sky-200" />
-            <div className="text-2xl font-semibold leading-none">
-              {weather ? `${weather.temperatureC.toFixed(0)}C` : "--"}
-            </div>
-            <div className="min-w-0">
-              <div className="truncate text-xs font-semibold text-slate-100">
-                {weather
-                  ? `${weather.icon} ${weather.label}`
-                  : "Checking local conditions"}
+      {/* Single scroll region for all fleet content */}
+      <div className="da-workspace-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 pb-5">
+        {/* Local weather card */}
+        <div className="da-weather-panel mb-4 shrink-0 rounded-lg border px-3 py-2 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex min-w-[210px] flex-1 items-center gap-2">
+              <Cloud size={14} className="text-sky-200 shrink-0" />
+              <div className="text-2xl font-semibold leading-none">
+                {weather ? `${weather.temperatureC.toFixed(0)}C` : "--"}
               </div>
-              <div className="flex items-center gap-1 truncate text-[10px] text-slate-300">
-                <MapPin size={10} />
-                {weatherLocation
-                  ? `${weatherLocation.lat.toFixed(2)}, ${weatherLocation.lon.toFixed(2)}`
-                  : weatherNote}
-              </div>
-            </div>
-          </div>
-          <div className="grid flex-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              {
-                label: "Rain",
-                value: weather ? `${weather.rainfallChance}%` : "--",
-                icon: <CloudRain size={12} />,
-              },
-              {
-                label: "Humidity",
-                value: weather ? `${weather.humidity}%` : "--",
-                icon: <Droplets size={12} />,
-              },
-              {
-                label: "Wind",
-                value: weather
-                  ? `${weather.windSpeedKph.toFixed(0)} kph`
-                  : "--",
-                icon: <Wind size={12} />,
-              },
-              {
-                label: "Feels",
-                value: weather
-                  ? `${(weather.temperatureC + 1.5).toFixed(0)}C`
-                  : "--",
-                icon: <Thermometer size={12} />,
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="da-weather-stat rounded border px-2 py-1"
-              >
-                <div className="flex items-center gap-1.5 text-[9px] uppercase text-slate-300">
-                  {item.icon} <span className="truncate">{item.label}</span>
+              <div className="min-w-0">
+                <div className="truncate text-xs font-semibold text-slate-100">
+                  {weather
+                    ? `${weather.icon} ${weather.label}`
+                    : "Checking local conditions"}
                 </div>
-                <div className="text-xs font-semibold text-white">
-                  {item.value}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Summary bar */}
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        {[
-          { label: "Registered", val: instances.length, color: "#3b82f6" },
-          { label: "Connected", val: connectedCount, color: "#22c55e" },
-          {
-            label: "Offline",
-            val: instances.length - connectedCount,
-            color: "#6b7280",
-          },
-          { label: "Vessels", val: vessels.length, color: "#06b6d4" },
-          { label: "Alerts", val: 0, color: "#f59e0b" },
-        ].map((s) => (
-          <div
-            key={s.label}
-            className="da-card da-stat-tile px-4 py-3 flex flex-col gap-1"
-            style={{ "--da-stat-color": s.color } as CSSProperties}
-          >
-            <span className="da-stat-value" style={{ color: s.color }}>
-              {s.val}
-            </span>
-            <span className="da-stat-label" style={{ color: "#6b7280" }}>
-              {s.label}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* Naval vessels strip */}
-      {vessels.length > 0 && (
-        <div className="mb-5">
-          <h3 className="da-section-label mb-3">Naval Vessels</h3>
-          <div className="flex gap-3 flex-wrap">
-            {vessels.map((v) => (
-              <div
-                key={v.id}
-                className="da-card px-4 py-2 flex items-center gap-3 min-w-[220px]"
-              >
-                <Anchor size={16} style={{ color: "#06b6d4", flexShrink: 0 }} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold truncate">
-                    {v.vessel_id}
-                  </div>
-                  <div
-                    className="text-xs truncate"
-                    style={{ color: "#6b7280" }}
-                  >
-                    {v.name}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-0.5">
-                  <span
-                    className="text-xs font-medium px-1.5 py-0.5 rounded"
-                    style={{
-                      background:
-                        v.deck_status === "clear"
-                          ? "#14532d"
-                          : v.deck_status === "occupied"
-                            ? "#7c2d12"
-                            : "#3b2d06",
-                      color:
-                        v.deck_status === "clear"
-                          ? "#86efac"
-                          : v.deck_status === "occupied"
-                            ? "#fca5a5"
-                            : "#fde68a",
-                    }}
-                  >
-                    {v.deck_status}
+                <div className="flex items-center gap-1 truncate text-[10px] text-slate-300">
+                  <MapPin size={10} className="shrink-0" />
+                  <span className="truncate">
+                    {weatherLocation
+                      ? `${weatherLocation.lat.toFixed(2)}, ${weatherLocation.lon.toFixed(2)}`
+                      : weatherNote}
                   </span>
-                  {v.latitude != null && (
-                    <span className="text-xs mono" style={{ color: "#6b7280" }}>
-                      {v.heading_deg != null
-                        ? `${v.heading_deg.toFixed(0)}° `
-                        : ""}
-                      {v.speed_kts != null
-                        ? `${v.speed_kts.toFixed(1)} kts`
-                        : ""}
-                    </span>
-                  )}
-                  {v.latitude == null && (
-                    <span className="text-xs" style={{ color: "#f59e0b" }}>
-                      no position
-                    </span>
-                  )}
                 </div>
               </div>
-            ))}
+            </div>
+            <div className="grid min-w-0 flex-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                {
+                  label: "Rain",
+                  value: weather ? `${weather.rainfallChance}%` : "--",
+                  icon: <CloudRain size={12} />,
+                },
+                {
+                  label: "Humidity",
+                  value: weather ? `${weather.humidity}%` : "--",
+                  icon: <Droplets size={12} />,
+                },
+                {
+                  label: "Wind",
+                  value: weather
+                    ? `${weather.windSpeedKph.toFixed(0)} kph`
+                    : "--",
+                  icon: <Wind size={12} />,
+                },
+                {
+                  label: "Feels",
+                  value: weather
+                    ? `${(weather.temperatureC + 1.5).toFixed(0)}C`
+                    : "--",
+                  icon: <Thermometer size={12} />,
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="da-weather-stat min-w-0 rounded border px-2 py-1"
+                >
+                  <div className="flex items-center gap-1.5 text-[9px] uppercase text-slate-300">
+                    {item.icon} <span className="truncate">{item.label}</span>
+                  </div>
+                  <div className="truncate text-xs font-semibold text-white">
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Payload assignment */}
-      <div className="mb-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="da-section-label">Payload Assignment</h3>
-          {payloadErr && (
-            <span className="text-[11px]" style={{ color: "#d97706" }}>
-              {payloadErr}
-            </span>
-          )}
-        </div>
-        <div className="da-card overflow-hidden">
-          {instances.length === 0 ? (
-            <p className="text-xs px-4 py-3" style={{ color: "#64748b" }}>
-              Register drones before assigning payloads.
-            </p>
-          ) : (
+        {/* Summary bar */}
+        <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          {[
+            { label: "Registered", val: instances.length, color: "#3b82f6" },
+            { label: "Connected", val: connectedCount, color: "#22c55e" },
+            {
+              label: "Offline",
+              val: instances.length - connectedCount,
+              color: "#6b7280",
+            },
+            { label: "Vessels", val: vessels.length, color: "#06b6d4" },
+            { label: "Alerts", val: 0, color: "#f59e0b" },
+          ].map((s) => (
             <div
-              className="grid"
-              style={{
-                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-              }}
+              key={s.label}
+              className="da-card da-stat-tile min-w-0 px-4 py-3 flex flex-col gap-1"
+              style={{ "--da-stat-color": s.color } as CSSProperties}
             >
-              {instances.map((d) => {
-                const assigned = payloadAssignments[d.id];
-                const payload = assigned ? payloadById[assigned] : null;
-                return (
-                  <div
-                    key={d.id}
-                    className="flex items-center gap-3 p-3"
-                    style={{
-                      borderRight: "1px solid var(--da-border)",
-                      borderBottom: "1px solid var(--da-border)",
-                    }}
-                  >
-                    <Package
-                      size={15}
-                      style={{
-                        color: payload ? "#0f766e" : "#64748b",
-                        flexShrink: 0,
-                      }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-semibold">{d.call_sign}</div>
-                      <select
-                        className="da-input mt-1"
-                        value={assigned ?? ""}
-                        onChange={(e) =>
-                          assignPayload(
-                            d.id,
-                            e.target.value ? Number(e.target.value) : null,
-                          )
-                        }
-                      >
-                        <option value="">No payload mounted</option>
-                        {payloads.map((p) => (
-                          <option key={p.id ?? p.name} value={p.id}>
-                            {p.name} - {p.category} ({p.weight_kg} kg)
-                          </option>
-                        ))}
-                      </select>
+              <span className="da-stat-value" style={{ color: s.color }}>
+                {s.val}
+              </span>
+              <span className="da-stat-label" style={{ color: "#6b7280" }}>
+                {s.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Naval vessels strip */}
+        {vessels.length > 0 && (
+          <div className="mb-5">
+            <h3 className="da-section-label mb-3">Naval Vessels</h3>
+            <div className="flex gap-3 flex-wrap">
+              {vessels.map((v) => (
+                <div
+                  key={v.id}
+                  className="da-card px-4 py-2 flex items-center gap-3 min-w-[220px]"
+                >
+                  <Anchor
+                    size={16}
+                    style={{ color: "#06b6d4", flexShrink: 0 }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold truncate">
+                      {v.vessel_id}
+                    </div>
+                    <div
+                      className="text-xs truncate"
+                      style={{ color: "#6b7280" }}
+                    >
+                      {v.name}
                     </div>
                   </div>
-                );
-              })}
+                  <div className="flex flex-col items-end gap-0.5">
+                    <span
+                      className="text-xs font-medium px-1.5 py-0.5 rounded"
+                      style={{
+                        background:
+                          v.deck_status === "clear"
+                            ? "#14532d"
+                            : v.deck_status === "occupied"
+                              ? "#7c2d12"
+                              : "#3b2d06",
+                        color:
+                          v.deck_status === "clear"
+                            ? "#86efac"
+                            : v.deck_status === "occupied"
+                              ? "#fca5a5"
+                              : "#fde68a",
+                      }}
+                    >
+                      {v.deck_status}
+                    </span>
+                    {v.latitude != null && (
+                      <span
+                        className="text-xs mono"
+                        style={{ color: "#6b7280" }}
+                      >
+                        {v.heading_deg != null
+                          ? `${v.heading_deg.toFixed(0)}° `
+                          : ""}
+                        {v.speed_kts != null
+                          ? `${v.speed_kts.toFixed(1)} kts`
+                          : ""}
+                      </span>
+                    )}
+                    {v.latitude == null && (
+                      <span className="text-xs" style={{ color: "#f59e0b" }}>
+                        no position
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
 
-      {/* Drone grid */}
-      {instances.length === 0 ? (
-        <div
-          className="flex-1 flex flex-col items-center justify-center gap-3"
-          style={{ color: "#374151" }}
-        >
-          <Plus size={40} style={{ opacity: 0.3 }} />
-          <p className="text-sm">
-            No drones registered. Add one in Settings → Master Data.
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-500">
-              Showing{" "}
-              {showAllDrones
-                ? instances.length
-                : Math.min(INITIAL_DRONE_LIMIT, instances.length)}{" "}
-              of {instances.length} drones
-            </p>
-            {instances.length > INITIAL_DRONE_LIMIT && (
-              <button
-                onClick={() => setShowAllDrones((v) => !v)}
-                className="da-btn da-btn-ghost text-xs"
-              >
-                {showAllDrones ? "Show less" : "Show all"}
-              </button>
+        {/* Payload assignment */}
+        <div className="mb-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 className="da-section-label">Payload Assignment</h3>
+            {payloadErr && (
+              <span className="text-[11px]" style={{ color: "#d97706" }}>
+                {payloadErr}
+              </span>
             )}
           </div>
-          <div
-            className="grid gap-4"
-            style={{
-              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            }}
-          >
-            {instances
-              .slice(0, showAllDrones ? instances.length : INITIAL_DRONE_LIMIT)
-              .map((d) => (
-                <DroneCard
-                  key={d.id}
-                  drone={d}
-                  connected={!!connections[d.id]?.connected}
-                  homeVessel={
-                    d.home_vessel_id != null
-                      ? vesselById[d.home_vessel_id]
-                      : undefined
-                  }
-                  connectionInfo={connections[d.id]}
-                  payloadName={
-                    payloadAssignments[d.id] &&
-                    payloadById[payloadAssignments[d.id]!]
-                      ? payloadById[payloadAssignments[d.id]!]!.name
-                      : undefined
-                  }
-                  stale={!connections[d.id]?.connected && isDroneStale(d)}
-                  onRemove={
-                    canRemoveStaleDrones
-                      ? () => {
-                          setRemoveError("");
-                          setRemoveCandidate(d);
-                        }
-                      : undefined
-                  }
-                />
-              ))}
+          <div className="da-card overflow-hidden">
+            {instances.length === 0 ? (
+              <p className="text-xs px-4 py-3" style={{ color: "#64748b" }}>
+                Register drones before assigning payloads.
+              </p>
+            ) : (
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                }}
+              >
+                {instances.map((d) => {
+                  const assigned = payloadAssignments[d.id];
+                  const payload = assigned ? payloadById[assigned] : null;
+                  return (
+                    <div
+                      key={d.id}
+                      className="flex min-w-0 items-center gap-3 p-3"
+                      style={{
+                        borderRight: "1px solid var(--da-border)",
+                        borderBottom: "1px solid var(--da-border)",
+                      }}
+                    >
+                      <Package
+                        size={15}
+                        style={{
+                          color: payload ? "#0f766e" : "#64748b",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="truncate text-xs font-semibold">
+                          {d.call_sign}
+                        </div>
+                        <select
+                          className="da-input mt-1 w-full"
+                          value={assigned ?? ""}
+                          onChange={(e) =>
+                            assignPayload(
+                              d.id,
+                              e.target.value ? Number(e.target.value) : null,
+                            )
+                          }
+                        >
+                          <option value="">No payload mounted</option>
+                          {payloads.map((p) => (
+                            <option key={p.id ?? p.name} value={p.id}>
+                              {p.name} - {p.category} ({p.weight_kg} kg)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        </>
-      )}
+        </div>
+
+        {/* Drone grid */}
+        {instances.length === 0 ? (
+          <div
+            className="flex min-h-[240px] flex-col items-center justify-center gap-3"
+            style={{ color: "#374151" }}
+          >
+            <Plus size={40} style={{ opacity: 0.3 }} />
+            <p className="text-sm">
+              No drones registered. Add one in Settings → Master Data.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">
+                Showing{" "}
+                {showAllDrones
+                  ? instances.length
+                  : Math.min(INITIAL_DRONE_LIMIT, instances.length)}{" "}
+                of {instances.length} drones
+              </p>
+              {instances.length > INITIAL_DRONE_LIMIT && (
+                <button
+                  onClick={() => setShowAllDrones((v) => !v)}
+                  className="da-btn da-btn-ghost text-xs"
+                >
+                  {showAllDrones ? "Show less" : "Show all"}
+                </button>
+              )}
+            </div>
+            <div
+              className="grid gap-4"
+              style={{
+                gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+              }}
+            >
+              {instances
+                .slice(
+                  0,
+                  showAllDrones ? instances.length : INITIAL_DRONE_LIMIT,
+                )
+                .map((d) => (
+                  <DroneCard
+                    key={d.id}
+                    drone={d}
+                    connected={!!connections[d.id]?.connected}
+                    homeVessel={
+                      d.home_vessel_id != null
+                        ? vesselById[d.home_vessel_id]
+                        : undefined
+                    }
+                    connectionInfo={connections[d.id]}
+                    payloadName={
+                      payloadAssignments[d.id] &&
+                      payloadById[payloadAssignments[d.id]!]
+                        ? payloadById[payloadAssignments[d.id]!]!.name
+                        : undefined
+                    }
+                    stale={!connections[d.id]?.connected && isDroneStale(d)}
+                    onRemove={
+                      canRemoveStaleDrones
+                        ? () => {
+                            setRemoveError("");
+                            setRemoveCandidate(d);
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
+            </div>
+          </>
+        )}
+      </div>
 
       {showConnect && <ConnectModal onClose={() => setShowConnect(false)} />}
       {removeCandidate && (

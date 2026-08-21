@@ -2110,7 +2110,14 @@ select.da-input {
 }
 
 .da-settings-layout {
-  min-width: 680px;
+  /* The min-width must live on the *content*, not on the scroll container
+     itself — otherwise this element grows past <main> (which clips) and the
+     horizontal scrollbar never appears, making columns unreachable. */
+  min-width: 0;
+}
+
+.da-settings-content {
+  min-width: 480px;
 }
 
 .da-settings-nav {
@@ -2152,11 +2159,19 @@ select.da-input {
   gap: 5px;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none;
+  /* A thin, visible scrollbar: with many simulated drones the operator must
+     be able to tell that the strip scrolls rather than silently truncates. */
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
 }
 
 .da-fly-drone-strip::-webkit-scrollbar {
-  display: none;
+  height: 5px;
+}
+
+.da-fly-drone-strip::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(100, 116, 139, 0.32);
 }
 
 .da-fly-no-drone {
@@ -5238,5 +5253,144 @@ select.da-input {
 
   .da-app-shell .da-cmd-btn:not(:disabled):hover {
     box-shadow: 0 8px 18px rgba(18, 32, 51, 0.1);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   LAYOUT INTEGRITY GUARDS
+   Structural rules that keep every panel readable as data volume grows
+   (many drones, vessels, payloads, missions, log entries, …).
+
+   Background: a flex/grid item whose `overflow` is NOT `visible` gets an
+   automatic minimum size of 0 instead of min-content. The flex algorithm is
+   therefore free to crush such an item to zero height/width when siblings
+   need room — which is exactly how the Fleet weather bar used to collapse
+   and clip once enough drone cards were rendered. These rules remove that
+   whole class of bug rather than patching a single screen.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 1 ── Fixed-size chrome must never be compressed by growing siblings. */
+.da-app-shell .da-workspace-header,
+.da-app-shell .da-weather-panel,
+.da-app-shell .da-scroll-strip,
+.da-app-shell .da-stat-tile,
+.da-app-shell .da-sim-progress {
+  flex-shrink: 0;
+}
+
+/* 2 ── The one scroll region per workspace. Content scrolls here, so pinned
+       headers above it stay put and can never be pushed off-screen. */
+.da-app-shell .da-workspace-scroll {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* 3 ── Pinned workspace headers keep a hairline once content scrolls under. */
+.da-app-shell .da-workspace-header {
+  position: relative;
+  z-index: 2;
+}
+
+.da-app-shell .da-workspace-header::after {
+  position: absolute;
+  right: 20px;
+  bottom: 0;
+  left: 20px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(38, 102, 232, 0.16),
+    rgba(15, 141, 131, 0.12),
+    transparent
+  );
+  content: "";
+  pointer-events: none;
+}
+
+/* 4 ── Horizontal chip / tab strips scroll instead of stretching the shell
+       or wrapping into an ever-taller block that eats the viewport. */
+.da-app-shell .da-scroll-strip {
+  min-width: 0;
+  max-width: 100%;
+  padding-bottom: 3px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.da-app-shell .da-scroll-strip::-webkit-scrollbar {
+  height: 5px;
+}
+
+.da-app-shell .da-scroll-strip::-webkit-scrollbar-thumb {
+  border: 0;
+  border-radius: 3px;
+  background: rgba(100, 116, 139, 0.32);
+}
+
+.da-app-shell .da-scroll-strip > * {
+  flex: 0 0 auto;
+}
+
+/* 5 ── Tables live inside clipping `.da-card`s. Without a scroll context the
+       right-hand columns are silently truncated once a row is wide enough,
+       so give any card that holds a table a horizontal scroll context. */
+.da-app-shell .da-card:has(table) {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.da-app-shell .da-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.da-app-shell .da-card table,
+.da-app-shell .da-table-scroll > table {
+  min-width: max-content;
+}
+
+/* 6 ── Flex/grid children default to min-width:auto, so a single long serial
+       number, coordinate or call sign can blow out the whole row. Opt the
+       common containers into shrinking so `truncate` actually works. */
+.da-app-shell .da-card > .grid,
+.da-app-shell .da-card > .flex,
+.da-app-shell .da-weather-panel .grid,
+.da-app-shell .da-weather-stat {
+  min-width: 0;
+}
+
+/* 7 ── Monospace telemetry values must wrap rather than force page-wide
+       horizontal overflow in narrow side panels. */
+.da-app-shell .da-fly-control-scroll .mono,
+.da-app-shell .da-map-detail-scroll .mono,
+.da-app-shell .da-live-map-detail-scroll .mono,
+.da-app-shell .da-mission-editor-scroll .mono {
+  overflow-wrap: anywhere;
+}
+
+/* 8 ── Modals must never exceed the viewport, no matter how much content or
+       how many validation messages they accumulate. */
+.da-app-shell .fixed.inset-0 > .da-card,
+.da-modal-panel.da-card {
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* 9 ── The weather bar stacks instead of squeezing its stats on narrow
+       viewports, keeping every reading legible. */
+@media (max-width: 720px) {
+  .da-app-shell .da-weather-panel > .flex {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .da-app-shell .da-weather-panel .grid {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

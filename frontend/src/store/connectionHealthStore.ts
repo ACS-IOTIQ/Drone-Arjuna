@@ -182,6 +182,7 @@ export async function measureLatency(endpoint: string): Promise<number> {
  */
 export class RobustWebSocket {
   private url: string
+  private urlFactory: (() => string) | null = null
   private ws: WebSocket | null = null
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
@@ -195,8 +196,9 @@ export class RobustWebSocket {
   private shouldReconnect = true
   private channelId: string
 
-  constructor(url: string, channelId: string) {
+  constructor(url: string, channelId: string, urlFactory?: () => string) {
     this.url = url
+    this.urlFactory = urlFactory ?? null
     this.channelId = channelId
     useConnectionHealthStore.getState().registerChannel(channelId, `Telemetry stream ${channelId.replace('telemetry-', '#')}`)
   }
@@ -205,6 +207,7 @@ export class RobustWebSocket {
     try {
       if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return
       this.shouldReconnect = true
+      if (this.urlFactory) this.url = this.urlFactory()
       useConnectionHealthStore.getState().updateChannelStatus(this.channelId, 'connecting')
       this.ws = new WebSocket(this.url)
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Activity, Gamepad2, Gauge, Plus, SlidersHorizontal, X } from 'lucide-react'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
@@ -29,24 +29,35 @@ export default function FlyWorkspace() {
   useEffect(() => {
     fetchInstances()
     fetchConnections()
-    const poll = setInterval(fetchConnections, 5000)
+    const poll = setInterval(() => {
+      if (!document.hidden) fetchConnections()
+    }, 5000)
     return () => clearInterval(poll)
   }, [])
 
-  const simulatingDrones = instances.filter(
-    drone => connections[drone.id]?.connected && connections[drone.id]?.transport === 'simulation',
+  const simulatingDrones = useMemo(
+    () => instances.filter(
+      drone => connections[drone.id]?.connected && connections[drone.id]?.transport === 'simulation',
+    ),
+    [instances, connections],
   )
-  const simulatingDroneIds = new Set(simulatingDrones.map(drone => drone.id))
+  const simulatingDroneIds = useMemo(
+    () => new Set(simulatingDrones.map(drone => drone.id)),
+    [simulatingDrones],
+  )
   const selectedSimulationExists = simulatingDrones.some(drone => drone.id === selectedDroneId)
   const activeDroneId = selectedSimulationExists ? selectedDroneId : simulatingDrones[0]?.id ?? null
-  const manualShiftAlert = simulatingDrones
-    .map(drone => ({ drone, frame: frames[drone.id] }))
-    .find(({ drone, frame }) => {
-      if (!frame?.manual_control_required || !frame?.proximity_alert) return false
-      if (frame.proximity_intruder_drone_id == null) return false
-      if (frame.proximity_intruder_drone_id === drone.id) return false
-      return simulatingDroneIds.has(frame.proximity_intruder_drone_id)
-    }) ?? null
+  const manualShiftAlert = useMemo(
+    () => simulatingDrones
+      .map(drone => ({ drone, frame: frames[drone.id] }))
+      .find(({ drone, frame }) => {
+        if (!frame?.manual_control_required || !frame?.proximity_alert) return false
+        if (frame.proximity_intruder_drone_id == null) return false
+        if (frame.proximity_intruder_drone_id === drone.id) return false
+        return simulatingDroneIds.has(frame.proximity_intruder_drone_id)
+      }) ?? null,
+    [simulatingDrones, simulatingDroneIds, frames],
+  )
 
   useEffect(() => {
     if (simulatingDrones.length > 0) setHasEverSimulated(true)

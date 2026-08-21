@@ -805,6 +805,18 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
                   ))}
                 </LayerGroup>
               </LayersControl.Overlay>
+              {/*
+                This checkbox is the single control for Government airspace
+                zones: checked (default) both draws the zones AND blocks
+                waypoint/geofence placement inside them; unchecked hides the
+                zones AND allows placement anywhere. It must stay mounted
+                unconditionally (never wrapped in `{governmentZonesEnabled &&
+                ...}`) — conditionally mounting/unmounting this Overlay fights
+                Leaflet's own internal checkbox DOM state and desyncs it from
+                governmentZonesEnabled. GovernmentZonesToggleHandler listens
+                for Leaflet's overlayadd/overlayremove events on this exact
+                layer name and mirrors them into the store.
+              */}
               <LayersControl.Overlay checked name="Government airspace zones">
                 <LayerGroup>
                   {regulatoryZoneLayers.map((layer) => (
@@ -1153,9 +1165,7 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
               routeDrawing={routeDrawing}
               governmentZonesEnabled={governmentZonesEnabled}
             />
-            <GovernmentZonesToggleHandler
-              onChange={setGovernmentZonesEnabled}
-            />
+            <GovernmentZonesToggleHandler onChange={setGovernmentZonesEnabled} />
           </MapContainer>
 
           <div
@@ -1428,6 +1438,16 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
                     <span>
                       Fixed restricted and controlled airspace remains anchored
                       to its real-world coordinates.
+                    </span>
+                  </div>
+                  <div className="da-airspace-note" style={{ margin: "8px 0" }}>
+                    <strong>
+                      Enforcement: {governmentZonesEnabled ? "ON" : "OFF"}
+                    </strong>
+                    <span>
+                      {governmentZonesEnabled
+                        ? "Waypoints and geofences cannot be placed inside restricted/controlled zones."
+                        : "OFF — waypoints and geofences may be placed anywhere. Toggle \"Government airspace zones\" in the map layers picker (top-right) to change this."}
                     </span>
                   </div>
                   <div className="da-airspace-key">

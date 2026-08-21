@@ -15,6 +15,20 @@ const PHASE_COLOR: Record<string, string> = {
   landed:  '#22c55e',
 }
 
+function formatEndurance(seconds: number | null | undefined): string | null {
+  if (seconds == null || !Number.isFinite(seconds)) return null
+  const total = Math.max(0, Math.round(seconds))
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${m}:${s.toString().padStart(2, '0')} remaining`
+}
+
+function formatDistance(meters: number | null | undefined): string | null {
+  if (meters == null || !Number.isFinite(meters)) return null
+  if (meters >= 1000) return `${(meters / 1000).toFixed(2)} km to destination`
+  return `${Math.round(meters)} m to destination`
+}
+
 const PHASE_LABEL: Record<string, string> = {
   idle:    'IDLE',
   armed:   'ARMED',
@@ -42,6 +56,9 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
   const wpIdx    = (frame.sim_waypoint_idx   ?? 0) as number
   const wpCount  = (frame.sim_waypoint_count ?? 0) as number
   const color    = PHASE_COLOR[phase] ?? '#6b7280'
+  const endurance = formatEndurance(frame.estimated_endurance_s)
+  const destDistance = formatDistance(frame.distance_to_destination_m)
+  const batteryRtl = Boolean(frame.battery_rtl_triggered)
 
   const cmd = (action: string, params: Record<string, unknown> = {}) =>
     droneControlApi.command({ drone_id: droneId, command: action as any, params })
@@ -70,15 +87,33 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
         </span>
         <div>
           <strong>{frame.call_sign}</strong>
-          <span>{frame.battery_remaining_pct >= 0 ? `${frame.battery_remaining_pct}% battery` : 'Simulation'}</span>
+          <span>
+            {frame.battery_remaining_pct >= 0 ? `${frame.battery_remaining_pct}% battery` : 'Simulation'}
+            {endurance ? ` · ${endurance}` : ''}
+          </span>
         </div>
       </div>
+
+      {batteryRtl && (
+        <div style={{
+          fontSize: '11px', color: '#f97316', background: 'rgba(249,115,22,0.12)',
+          border: '1px solid rgba(249,115,22,0.3)', borderRadius: 4,
+          padding: '4px 8px', margin: '4px 0',
+        }}>
+          Battery insufficient to reach remaining waypoints — auto-RTL in progress
+        </div>
+      )}
 
       <div className="da-sim-progress-track">
         <div>
           <span>{wpCount > 0 ? `Waypoint ${Math.min(wpIdx + 1, wpCount)} / ${wpCount}` : 'Mission progress'}</span>
           <b>{Math.round(progress * 100)}%</b>
         </div>
+        {destDistance && (
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: 2 }}>
+            {destDistance}
+          </div>
+        )}
         <div className="da-sim-progress-rail">
           <i style={{ width: `${Math.max(0, Math.min(100, progress * 100))}%`, background: color }} />
         </div>

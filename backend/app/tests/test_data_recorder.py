@@ -3,20 +3,35 @@ DataRecorder Unit Tests — Priority 3
 =====================================
 Tests the DataRecorder class in isolation — no database required.
 
+record() buffers changed telemetry in memory; a background _flush() (run on
+a timer, or directly in tests) is what actually executes DB statements.
+
 Covers:
-  - record() skips upsert when state is unchanged (change-detection)
-  - record() writes when state changes on any _COMPARE_FIELDS value
+  - record() skips buffering when state is unchanged (change-detection)
+  - record() buffers when state changes on any _COMPARE_FIELDS value
   - record() treats a new drone_id as always-write (cold start)
   - record() updates _last after a write
+  - _flush() executes buffered frames/gauges/history via TSSessionLocal
   - _gauge_from_frame() maps fields correctly
   - _history_from_frame() maps fields correctly
   - Missing keys in state default to zero-values
 """
+import sys
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 
 from app.modules.drone_control.data_recorder import DataRecorder
+
+# `app.modules.drone_control.__init__` does
+# `from .data_recorder import data_recorder`, which rebinds the
+# `data_recorder` name on the *package* to the module-level DataRecorder
+# singleton. `import app.modules.drone_control.data_recorder as x` then
+# resolves `x` via that shadowed package attribute instead of the actual
+# submodule, so patch.object(x, "TSSessionLocal", ...) patches the instance
+# rather than the module. Pull the real module straight out of sys.modules
+# to sidestep the shadowing.
+data_recorder_module = sys.modules["app.modules.drone_control.data_recorder"]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -68,135 +83,77 @@ class TestChangeDetection:
 
     @pytest.mark.asyncio
     async def test_first_call_always_writes(self):
-        """First record() for a drone_id must always write — no prior snapshot."""
+        """First record() for a drone_id must always buffer — no prior snapshot."""
         dr = _make_recorder()
         state = _full_state()
-        written = False
 
-        async def _fake_session_ctx():
-            sess = AsyncMock()
-            result = MagicMock()
-            result.on_conflict_do_update = MagicMock(return_value=result)
-            sess.execute = AsyncMock()
-            sess.commit = AsyncMock()
-            return sess
+        await dr.record(1, state)
 
-        # Patch TSSessionLocal so no real DB is needed
-        mock_session = AsyncMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-        mock_session.execute = AsyncMock()
-        mock_session.commit = AsyncMock()
-
-        with patch(
-            "app.modules.drone_control.data_recorder.TSSessionLocal",
-            return_value=mock_session,
-        ):
-            await dr.record(1, state)
-
-        # _last must now contain an entry for drone 1
+        # _last must now contain an entry for drone 1, and it must be buffered
         assert 1 in dr._last
+        assert 1 in dr._pending_frames
+        assert 1 in dr._pending_gauges
+        assert len(dr._pending_history) == 1
 
     @pytest.mark.asyncio
     async def test_identical_state_skips_write(self):
-        """Calling record() twice with identical state must skip the second write."""
+        """Calling record() twice with identical state must skip the second buffer."""
         dr = _make_recorder()
         state = _full_state()
 
-        mock_session = AsyncMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-        mock_session.execute = AsyncMock()
-        mock_session.commit = AsyncMock()
+        await dr.record(1, state)
+        first_history_len = len(dr._pending_history)
 
-        with patch(
-            "app.modules.drone_control.data_recorder.TSSessionLocal",
-            return_value=mock_session,
-        ):
-            await dr.record(1, state)
-            first_call_count = mock_session.execute.call_count
+        await dr.record(1, state)   # identical — must not buffer again
+        second_history_len = len(dr._pending_history)
 
-            await dr.record(1, state)   # identical — must not write
-            second_call_count = mock_session.execute.call_count
-
-        assert second_call_count == first_call_count, (
-            "execute() was called again despite identical state — change-detection not working"
+        assert second_history_len == first_history_len, (
+            "record() buffered again despite identical state — change-detection not working"
         )
 
     @pytest.mark.asyncio
     async def test_changed_state_writes_again(self):
-        """A changed field in state must trigger a new write."""
+        """A changed field in state must trigger a new buffered write."""
         dr = _make_recorder()
         state = _full_state()
 
-        mock_session = AsyncMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-        mock_session.execute = AsyncMock()
-        mock_session.commit = AsyncMock()
+        await dr.record(1, state)
+        count_after_first = len(dr._pending_history)
 
-        with patch(
-            "app.modules.drone_control.data_recorder.TSSessionLocal",
-            return_value=mock_session,
-        ):
-            await dr.record(1, state)
-            count_after_first = mock_session.execute.call_count
-
-            state["battery_remaining_pct"] = 80  # change one field
-            await dr.record(1, state)
-            count_after_second = mock_session.execute.call_count
+        state["battery_remaining_pct"] = 80  # change one field
+        await dr.record(1, state)
+        count_after_second = len(dr._pending_history)
 
         assert count_after_second > count_after_first, (
-            "execute() was NOT called after state change — change-detection is over-filtering"
+            "record() did NOT buffer after state change — change-detection is over-filtering"
         )
 
     @pytest.mark.asyncio
     async def test_separate_drone_ids_tracked_independently(self):
-        """Two drones with the same state are each written on first call."""
+        """Two drones with the same state are each buffered on first call."""
         dr = _make_recorder()
         state = _full_state()
 
-        mock_session = AsyncMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-        mock_session.execute = AsyncMock()
-        mock_session.commit = AsyncMock()
+        await dr.record(1, state)
+        await dr.record(2, state)   # same state, different drone — must buffer
 
-        with patch(
-            "app.modules.drone_control.data_recorder.TSSessionLocal",
-            return_value=mock_session,
-        ):
-            await dr.record(1, state)
-            after_drone_1 = mock_session.execute.call_count
-            await dr.record(2, state)   # same state, different drone — must write
-            after_drone_2 = mock_session.execute.call_count
-
-        assert after_drone_2 > after_drone_1
+        assert 1 in dr._pending_frames
+        assert 2 in dr._pending_frames
         assert 1 in dr._last
         assert 2 in dr._last
 
     @pytest.mark.asyncio
     async def test_last_updated_after_write(self):
-        """_last[drone_id] must be updated to the new snapshot after writing."""
+        """_last[drone_id] must be updated to the new snapshot after buffering."""
         dr = _make_recorder()
         state_a = _full_state(battery_remaining_pct=85)
         state_b = _full_state(battery_remaining_pct=70)
 
-        mock_session = AsyncMock()
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-        mock_session.execute = AsyncMock()
-        mock_session.commit = AsyncMock()
+        await dr.record(1, state_a)
+        snap_a = dr._last[1]
 
-        with patch(
-            "app.modules.drone_control.data_recorder.TSSessionLocal",
-            return_value=mock_session,
-        ):
-            await dr.record(1, state_a)
-            snap_a = dr._last[1]
-
-            await dr.record(1, state_b)
-            snap_b = dr._last[1]
+        await dr.record(1, state_b)
+        snap_b = dr._last[1]
 
         assert snap_a != snap_b, "_last was not updated after second write"
 
@@ -204,10 +161,33 @@ class TestChangeDetection:
     async def test_non_compare_field_change_does_not_trigger_write(self):
         """
         mission_id and current_waypoint are NOT in _COMPARE_FIELDS.
-        Changing only those fields must not trigger a write.
+        Changing only those fields must not trigger a buffered write.
         """
         dr = _make_recorder()
         state = _full_state(mission_id=1, current_waypoint=0)
+
+        await dr.record(1, state)
+        count_after_first = len(dr._pending_history)
+
+        state["mission_id"]       = 99
+        state["current_waypoint"] = 5
+        await dr.record(1, state)   # only non-compare fields changed
+        count_after_second = len(dr._pending_history)
+
+        assert count_after_second == count_after_first, (
+            "Non-compare-field change incorrectly triggered a buffered write"
+        )
+
+
+# ── _flush() ──────────────────────────────────────────────────────────────────
+
+class TestFlush:
+
+    @pytest.mark.asyncio
+    async def test_flush_executes_buffered_writes(self):
+        """_flush() must execute frame/gauge/history statements once buffered data exists."""
+        dr = _make_recorder()
+        state = _full_state()
 
         mock_session = AsyncMock()
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
@@ -215,21 +195,64 @@ class TestChangeDetection:
         mock_session.execute = AsyncMock()
         mock_session.commit = AsyncMock()
 
-        with patch(
-            "app.modules.drone_control.data_recorder.TSSessionLocal",
-            return_value=mock_session,
+        await dr.record(1, state)
+
+        with patch.object(
+            data_recorder_module, "TSSessionLocal", return_value=mock_session,
         ):
-            await dr.record(1, state)
-            count_after_first = mock_session.execute.call_count
+            await dr._flush()
 
-            state["mission_id"]       = 99
-            state["current_waypoint"] = 5
-            await dr.record(1, state)   # only non-compare fields changed
-            count_after_second = mock_session.execute.call_count
+        # frame upsert + gauge upsert + history insert = 3 execute() calls
+        assert mock_session.execute.call_count == 3
+        mock_session.commit.assert_awaited_once()
 
-        assert count_after_second == count_after_first, (
-            "Non-compare-field change incorrectly triggered a write"
-        )
+    @pytest.mark.asyncio
+    async def test_flush_clears_pending_buffers(self):
+        dr = _make_recorder()
+        state = _full_state()
+
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
+
+        await dr.record(1, state)
+
+        with patch.object(
+            data_recorder_module, "TSSessionLocal", return_value=mock_session,
+        ):
+            await dr._flush()
+
+        assert dr._pending_frames == {}
+        assert dr._pending_gauges == {}
+        assert dr._pending_history == []
+
+    @pytest.mark.asyncio
+    async def test_flush_with_nothing_pending_does_not_open_session(self):
+        dr = _make_recorder()
+
+        with patch.object(data_recorder_module, "TSSessionLocal") as mock_session_factory:
+            await dr._flush()
+
+        mock_session_factory.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_flush_coalesces_multiple_updates_per_drone(self):
+        """Multiple record() calls for the same drone before a flush must
+        only produce one pending frame/gauge (latest wins), but every
+        history row is retained."""
+        dr = _make_recorder()
+        state = _full_state(battery_remaining_pct=85)
+        await dr.record(1, state)
+
+        state2 = _full_state(battery_remaining_pct=70)
+        await dr.record(1, state2)
+
+        assert len(dr._pending_frames) == 1
+        assert len(dr._pending_gauges) == 1
+        assert len(dr._pending_history) == 2
+        assert dr._pending_frames[1]["battery_remaining_pct"] == 70
 
 
 # ── stop() ────────────────────────────────────────────────────────────────────
@@ -238,7 +261,7 @@ class TestStop:
 
     @pytest.mark.asyncio
     async def test_stop_clears_last(self):
-        """stop() must clear the _last cache so next call is a cold start."""
+        """stop() must flush pending writes and clear the _last cache."""
         dr = _make_recorder()
         state = _full_state()
 
@@ -248,15 +271,16 @@ class TestStop:
         mock_session.execute = AsyncMock()
         mock_session.commit = AsyncMock()
 
-        with patch(
-            "app.modules.drone_control.data_recorder.TSSessionLocal",
-            return_value=mock_session,
-        ):
-            await dr.record(1, state)
-
+        await dr.record(1, state)
         assert 1 in dr._last
-        await dr.stop()
+
+        with patch.object(
+            data_recorder_module, "TSSessionLocal", return_value=mock_session,
+        ):
+            await dr.stop()
+
         assert dr._last == {}
+        mock_session.commit.assert_awaited_once()
 
 
 # ── _gauge_from_frame() ───────────────────────────────────────────────────────

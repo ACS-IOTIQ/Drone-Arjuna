@@ -1,5 +1,5 @@
 {
-  "fingerprint": "51a96c71d730843e4c5f3332c6ae39c40c78a9e5d8fdfb405a10c8cc42b05d59",
+  "fingerprint": "b6a84e40267a25042d911403b7b0fa9b1ca55c046f82ed02f6beaf6aa5a4acc6",
   "nodeids": [
     "app/tests/test_data_recorder.py::TestChangeDetection::test_changed_state_writes_again",
     "app/tests/test_data_recorder.py::TestChangeDetection::test_first_call_always_writes",
@@ -13,6 +13,10 @@
     "app/tests/test_data_recorder.py::TestCompareFields::test_compare_fields_includes_battery",
     "app/tests/test_data_recorder.py::TestCompareFields::test_compare_fields_includes_gps",
     "app/tests/test_data_recorder.py::TestCompareFields::test_compare_fields_includes_position",
+    "app/tests/test_data_recorder.py::TestFlush::test_flush_clears_pending_buffers",
+    "app/tests/test_data_recorder.py::TestFlush::test_flush_coalesces_multiple_updates_per_drone",
+    "app/tests/test_data_recorder.py::TestFlush::test_flush_executes_buffered_writes",
+    "app/tests/test_data_recorder.py::TestFlush::test_flush_with_nothing_pending_does_not_open_session",
     "app/tests/test_data_recorder.py::TestGaugeFromFrame::test_gauge_defaults_when_keys_missing",
     "app/tests/test_data_recorder.py::TestGaugeFromFrame::test_gauge_maps_altitude",
     "app/tests/test_data_recorder.py::TestGaugeFromFrame::test_gauge_maps_battery",

@@ -270,12 +270,19 @@ export default function LiveMap({
     .map((f) => [f.lat, f.lon] as [number, number])
     .filter(([lat, lon]) => lat !== 0 || lon !== 0);
 
+  const simMissionIds = Object.values(frames)
+    .map((f) => f?.mission_id)
+    .filter((id): id is number => id != null);
+  const missingSimMissionIds = simMissionIds.some(
+    (id) => !missions.some((m) => m.id === id),
+  );
+
   useEffect(() => {
     const hasSimFrame = Object.values(frames).some((f) => f?.sim_phase);
-    if (hasSimFrame && missions.length === 0) {
+    if (hasSimFrame && (missions.length === 0 || missingSimMissionIds)) {
       fetchMissions();
     }
-  }, [frames, missions.length, fetchMissions]);
+  }, [frames, missions.length, missingSimMissionIds, fetchMissions]);
 
   useEffect(() => {
     if (!droneId) {
@@ -303,14 +310,16 @@ export default function LiveMap({
   const hasPosition = Boolean(frame && (frame.lat !== 0 || frame.lon !== 0));
   const simMission = useMemo(() => {
     if (!frame?.sim_phase) return null;
+    // Only resolve by the mission id the backend is actually flying. Falling
+    // back to "any mission for this drone" previously picked the wrong
+    // mission's enforce_airspace flag whenever a drone had more than one
+    // saved mission (e.g. an old enforce_airspace=true mission ahead of the
+    // one currently loaded), causing incorrect auto RTL/hold dispatches.
     if (frame.mission_id != null) {
       return missions.find((m) => m.id === frame.mission_id) ?? null;
     }
-    if (droneId != null) {
-      return missions.find((m) => m.drone_instance_id === droneId) ?? null;
-    }
     return null;
-  }, [frame?.sim_phase, frame?.mission_id, missions, droneId]);
+  }, [frame?.sim_phase, frame?.mission_id, missions]);
   const simWaypoints = useMemo<WaypointInput[]>(
     () =>
       (simMission?.waypoints ?? [])
@@ -489,6 +498,26 @@ export default function LiveMap({
 
     if (currentRegulatoryZone.action === "continue") return;
 
+    // When the operator has disabled Government airspace enforcement for
+    // this mission (see enforce_airspace / governmentZonesEnabled), the
+    // drone must keep following its planned waypoints — don't dispatch
+    // auto RTL/hold/altitude-adjust commands. The backend enforces this
+    // same rule for commands tagged source: "airspace_auto"; mirroring it
+    // here avoids firing commands the backend will just drop while still
+    // visibly disturbing the simulated flight (repeated LOITER holds, an
+    // altitude "goto" that overwrites the current waypoint with the
+    // drone's own position, etc).
+    //
+    // Fail CLOSED, not open: for a simulated flight, missions may not have
+    // loaded yet (fetchMissions() only fires after the first sim frame
+    // arrives), so simMission can still be null in the first tick(s) after
+    // a sim starts. Don't treat "we don't know yet" as "enforcement is on" —
+    // wait for the mission to resolve before ever dispatching an auto-action.
+    if (frame.sim_phase) {
+      if (!simMission) return;
+      if (simMission.enforce_airspace === false) return;
+    }
+
     const now = Date.now();
     const lastActionAt = autoActionRef.current.get(zoneKey) ?? 0;
     if (now - lastActionAt < 15_000) return;
@@ -496,7 +525,11 @@ export default function LiveMap({
     const runAutoAction = async () => {
       try {
         if (currentRegulatoryZone.action === "rtl") {
-          await droneControlApi.command({ drone_id: droneId, command: "rtl" });
+          await droneControlApi.command({
+            drone_id: droneId,
+            command: "rtl",
+            params: { source: "airspace_auto" },
+          });
           autoActionRef.current.set(zoneKey, Date.now());
           notify.danger(
             "Automatic RTL sent",
@@ -510,7 +543,7 @@ export default function LiveMap({
           await droneControlApi.command({
             drone_id: droneId,
             command: "set_mode",
-            params: { mode: "LOITER" },
+            params: { mode: "LOITER", source: "airspace_auto" },
           });
           autoActionRef.current.set(zoneKey, Date.now());
           notify.warning(
@@ -534,6 +567,8 @@ export default function LiveMap({
               latitude: frame.lat,
               longitude: frame.lon,
               altitude_m: targetAlt,
+              altitude_only: true,
+              source: "airspace_auto",
             },
           });
           autoActionRef.current.set(zoneKey, Date.now());
@@ -553,7 +588,7 @@ export default function LiveMap({
     };
 
     runAutoAction();
-  }, [droneId, frame, currentRegulatoryZone]);
+  }, [droneId, frame, currentRegulatoryZone, simMission]);
 
   useEffect(() => {
     if (liveRouteCollisions.length === 0) {

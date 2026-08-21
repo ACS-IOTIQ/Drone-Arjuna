@@ -2,25 +2,30 @@
 Data Recorder — persists current drone telemetry to Postgres.
 
 `telemetry` and `telemetry_gauges` each hold exactly one row per drone_id.
-Every StateManager update UPSERTs (INSERT ... ON CONFLICT (drone_id) DO
-UPDATE) that row immediately — no batching — so the DB always reflects the
-same values the UI is showing, with no queue lag. No history is retained
-in these two tables.
+StateManager updates are buffered in memory and flushed on a fixed
+interval (FLUSH_INTERVAL_S) rather than hitting the DB on every message —
+at 10Hz per drone that would be a 3-statement transaction per tick. The UI
+reads live values from the in-memory StateManager, not these tables, so a
+sub-second flush lag here has no user-visible effect while cutting DB
+round-trips by up to FLUSH_INTERVAL_S * 10x per drone.
 
 `telemetry_history` is the exception: an append-only hypertable feeding
 the Telemetry Replay Player, holding RETENTION_DAYS of flight-path frames.
+Its rows are also buffered and flushed as one bulk INSERT per interval.
 """
 import asyncio
 import structlog
 from datetime import datetime, timezone
+from typing import Optional
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.database import TSSessionLocal, ts_engine
-from app.models.telemetry import TelemetryFrame, TelemetryGauge, TelemetryHistory, TSBase
+from app.models.telemetry import TelemetryFrame, TelemetryGauge, TelemetryHistory, BatterySnapshot, TSBase
 
 log = structlog.get_logger()
 
 RETENTION_DAYS = 1   # telemetry_history retention — replay covers recent flights only
+FLUSH_INTERVAL_S = 1.0   # how often buffered telemetry is written to TimescaleDB
 
 
 class DataRecorder:
@@ -42,6 +47,13 @@ class DataRecorder:
     def __init__(self):
         # Last written values per drone_id — used for change detection
         self._last: dict[int, tuple] = {}
+        # Pending writes awaiting the next flush — latest frame/gauge per
+        # drone_id (last write wins) plus every history row seen so far.
+        self._pending_frames: dict[int, dict] = {}
+        self._pending_gauges: dict[int, dict] = {}
+        self._pending_history: list[dict] = []
+        self._flush_lock = asyncio.Lock()
+        self._flush_task: Optional[asyncio.Task] = None
 
     # ── Lifecycle ─────────────────────────────────────────────────
 
@@ -57,15 +69,71 @@ class DataRecorder:
                 await asyncio.sleep(3)
         else:
             raise RuntimeError("TimescaleDB unavailable after 10 attempts")
+        self._flush_task = asyncio.create_task(self._flush_loop())
         log.info("DataRecorder started")
 
     async def stop(self):
+        if self._flush_task:
+            self._flush_task.cancel()
+            try:
+                await self._flush_task
+            except asyncio.CancelledError:
+                pass
+            self._flush_task = None
+        await self._flush()
         self._last.clear()
+
+    async def _flush_loop(self):
+        while True:
+            await asyncio.sleep(FLUSH_INTERVAL_S)
+            try:
+                await self._flush()
+            except Exception as e:
+                log.error("Telemetry flush failed", error=str(e))
+
+    async def _flush(self):
+        """Writes buffered frames/gauges/history as bulk statements in one transaction."""
+        async with self._flush_lock:
+            frames = list(self._pending_frames.values())
+            gauges = list(self._pending_gauges.values())
+            history = self._pending_history
+            self._pending_frames = {}
+            self._pending_gauges = {}
+            self._pending_history = []
+
+        if not frames and not gauges and not history:
+            return
+
+        try:
+            async with TSSessionLocal() as session:
+                if frames:
+                    frame_stmt = pg_insert(TelemetryFrame).values(frames)
+                    frame_stmt = frame_stmt.on_conflict_do_update(
+                        index_elements=["drone_id"],
+                        set_={c.name: c for c in frame_stmt.excluded if c.name != "drone_id"},
+                    )
+                    await session.execute(frame_stmt)
+
+                if gauges:
+                    gauge_stmt = pg_insert(TelemetryGauge).values(gauges)
+                    gauge_stmt = gauge_stmt.on_conflict_do_update(
+                        index_elements=["drone_id"],
+                        set_={c.name: c for c in gauge_stmt.excluded if c.name != "drone_id"},
+                    )
+                    await session.execute(gauge_stmt)
+
+                if history:
+                    await session.execute(pg_insert(TelemetryHistory).values(history))
+
+                await session.commit()
+        except Exception as e:
+            log.error("Telemetry flush write failed", error=str(e),
+                      frames=len(frames), gauges=len(gauges), history=len(history))
 
     # ── Public API ────────────────────────────────────────────────
 
     async def record(self, drone_id: int, state: dict):
-        """Called by StateManager on every telemetry update. Upserts immediately."""
+        """Called by StateManager on every telemetry update. Buffers for the next flush."""
         frame = {
             "recorded_at": datetime.now(timezone.utc),
             "drone_id": drone_id,
@@ -103,30 +171,30 @@ class DataRecorder:
             return  # Nothing changed — skip write
         self._last[drone_id] = snapshot
 
+        async with self._flush_lock:
+            self._pending_frames[drone_id] = frame
+            self._pending_gauges[drone_id] = self._gauge_from_frame(frame)
+            # Always append — this is the one history table we keep.
+            self._pending_history.append(self._history_from_frame(frame))
+
+    async def record_battery_snapshot(self, drone_id: int, battery_pct: int, mission_id: Optional[int] = None):
+        """
+        Appends one row to `battery_snapshots`. Called every 2 minutes by
+        the mission simulator (and, for live flights, by the MAVLink
+        telemetry path) — independent of `record()`'s change-detection so a
+        snapshot is always taken on schedule even if nothing else changed.
+        """
         try:
             async with TSSessionLocal() as session:
-                frame_stmt = pg_insert(TelemetryFrame).values(frame)
-                frame_stmt = frame_stmt.on_conflict_do_update(
-                    index_elements=["drone_id"],
-                    set_={c.name: c for c in frame_stmt.excluded if c.name != "drone_id"},
-                )
-                await session.execute(frame_stmt)
-
-                gauge_stmt = pg_insert(TelemetryGauge).values(self._gauge_from_frame(frame))
-                gauge_stmt = gauge_stmt.on_conflict_do_update(
-                    index_elements=["drone_id"],
-                    set_={c.name: c for c in gauge_stmt.excluded if c.name != "drone_id"},
-                )
-                await session.execute(gauge_stmt)
-
-                # Always append — this is the one history table we keep.
-                await session.execute(
-                    pg_insert(TelemetryHistory).values(self._history_from_frame(frame))
-                )
-
+                await session.execute(pg_insert(BatterySnapshot).values(
+                    recorded_at=datetime.now(timezone.utc),
+                    drone_id=drone_id,
+                    battery_pct=battery_pct,
+                    mission_id=mission_id,
+                ))
                 await session.commit()
         except Exception as e:
-            log.error("Telemetry upsert failed", error=str(e), drone_id=drone_id)
+            log.error("Battery snapshot insert failed", error=str(e), drone_id=drone_id)
 
     @staticmethod
     def _gauge_from_frame(frame: dict) -> dict:
@@ -200,21 +268,22 @@ class DataRecorder:
             # Create tables via ORM metadata if they don't exist yet (fresh install)
             await conn.run_sync(TSBase.metadata.create_all)
 
-            # telemetry_history is append-only — make it a hypertable with retention.
-            await conn.execute(text("""
-                SELECT create_hypertable(
-                    'telemetry_history', 'recorded_at',
-                    if_not_exists => TRUE,
-                    migrate_data  => TRUE
-                )
-            """))
-            await conn.execute(text(f"""
-                SELECT add_retention_policy(
-                    'telemetry_history',
-                    INTERVAL '{RETENTION_DAYS} days',
-                    if_not_exists => TRUE
-                )
-            """))
+            # telemetry_history and battery_snapshots are append-only — hypertables with retention.
+            for hypertable in ("telemetry_history", "battery_snapshots"):
+                await conn.execute(text(f"""
+                    SELECT create_hypertable(
+                        '{hypertable}', 'recorded_at',
+                        if_not_exists => TRUE,
+                        migrate_data  => TRUE
+                    )
+                """))
+                await conn.execute(text(f"""
+                    SELECT add_retention_policy(
+                        '{hypertable}',
+                        INTERVAL '{RETENTION_DAYS} days',
+                        if_not_exists => TRUE
+                    )
+                """))
 
         log.info("Telemetry schema verified — single row per drone_id, "
                  "history retained for replay", retention_days=RETENTION_DAYS)

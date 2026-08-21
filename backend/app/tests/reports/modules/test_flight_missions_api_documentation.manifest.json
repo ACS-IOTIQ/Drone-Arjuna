@@ -1,6 +1,8 @@
 {
-  "fingerprint": "da6143d72f2d3a2cdf228fcf56ad9a7f794d6e459db98904f26a82d8b22fbc03",
+  "fingerprint": "33d02e3a76707a6bd5386cc0cd8426c8321727ad49d601d4ac8589fdb5c01a03",
   "nodeids": [
+    "app/tests/test_flight_missions_api.py::test_create_mission_default_enforce_airspace_true",
+    "app/tests/test_flight_missions_api.py::test_create_mission_persists_enforce_airspace_false",
     "app/tests/test_flight_missions_api.py::test_create_mission_rejects_waypoint_leg_touching_restricted_zone",
     "app/tests/test_flight_missions_api.py::test_delete_executing_mission_409",
     "app/tests/test_flight_missions_api.py::test_delete_mission_204",
@@ -15,10 +17,12 @@
     "app/tests/test_flight_missions_api.py::test_list_missions_returns_created_missions",
     "app/tests/test_flight_missions_api.py::test_list_missions_unauthenticated_401",
     "app/tests/test_flight_missions_api.py::test_list_missions_viewer_can_read",
+    "app/tests/test_flight_missions_api.py::test_update_mission_can_disable_enforce_airspace",
     "app/tests/test_flight_missions_api.py::test_update_mission_geofence_200",
     "app/tests/test_flight_missions_api.py::test_update_mission_name_and_waypoints_200",
     "app/tests/test_flight_missions_api.py::test_update_mission_non_planning_status_409",
     "app/tests/test_flight_missions_api.py::test_update_mission_not_found_404",
+    "app/tests/test_flight_missions_api.py::test_update_mission_omitting_enforce_airspace_leaves_it_unchanged",
     "app/tests/test_flight_missions_api.py::test_update_mission_unauthenticated_401",
     "app/tests/test_flight_missions_api.py::test_update_mission_viewer_403",
     "app/tests/test_flight_missions_api.py::test_upload_drone_not_connected_503",

@@ -1,0 +1,11 @@
+{
+  "fingerprint": "70f920e11387d6ef46e33c95b831acdc6ee2b12f99d0088e9d00d50ccf58007e",
+  "nodeids": [
+    "app/tests/test_system_events.py::TestBroadcastSystemEvent::test_extra_kwargs_are_serialized_into_payload",
+    "app/tests/test_system_events.py::TestBroadcastSystemEvent::test_full_queue_is_silently_skipped",
+    "app/tests/test_system_events.py::TestBroadcastSystemEvent::test_multiple_subscribers_all_receive",
+    "app/tests/test_system_events.py::TestBroadcastSystemEvent::test_no_subscribers_does_not_raise",
+    "app/tests/test_system_events.py::TestBroadcastSystemEvent::test_non_serializable_extra_is_stringified",
+    "app/tests/test_system_events.py::TestBroadcastSystemEvent::test_single_subscriber_receives_payload"
+  ]
+}

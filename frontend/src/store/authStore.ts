@@ -45,6 +45,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const res = await apiLogin(username, password)
       localStorage.setItem('da_token', res.access_token)
+      localStorage.setItem('da_refresh_token', res.refresh_token)
 
       const isTemp = Boolean(res.must_change_password)
       let pendingEmail: string | null = null
@@ -86,6 +87,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () => {
     localStorage.removeItem('da_token')
+    localStorage.removeItem('da_refresh_token')
     clearPasswordSetupState()
     set({ token: null, user: null, role: 'viewer', setupPending: false, pendingUsername: null, pendingTempPassword: null, pendingEmail: null, pendingMobile: null })
   },
@@ -96,6 +98,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user, role: user.role })
     } catch {
       localStorage.removeItem('da_token')
+    localStorage.removeItem('da_refresh_token')
       clearPasswordSetupState()
       set({ token: null, setupPending: false, pendingUsername: null, pendingTempPassword: null, pendingEmail: null, pendingMobile: null })
     }
@@ -104,6 +107,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   completePasswordSetup: () => {
     clearPasswordSetupState()
     localStorage.removeItem('da_token')
+    localStorage.removeItem('da_refresh_token')
     set({ token: null, user: null, role: 'viewer', setupPending: false, pendingUsername: null, pendingTempPassword: null, pendingEmail: null, pendingMobile: null })
   },
 }))

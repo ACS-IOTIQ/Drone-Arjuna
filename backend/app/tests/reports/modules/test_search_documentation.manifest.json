@@ -1,0 +1,28 @@
+{
+  "fingerprint": "9d50b16fac6fdbad3cccae751c87e174bbc31f7268f5483aeb5404e63fd8b6b9",
+  "nodeids": [
+    "app/tests/test_search.py::TestBulkIndexAll::test_exception_is_logged_and_does_not_raise",
+    "app/tests/test_search.py::TestBulkIndexAll::test_indexes_all_active_rows_across_three_models",
+    "app/tests/test_search.py::TestCloseClient::test_closes_and_clears_singleton",
+    "app/tests/test_search.py::TestCloseClient::test_no_client_is_a_noop",
+    "app/tests/test_search.py::TestDeleteDocument::test_deletes_document_by_id",
+    "app/tests/test_search.py::TestDeleteDocument::test_not_found_is_silently_ignored",
+    "app/tests/test_search.py::TestDeleteDocument::test_other_exception_is_logged_and_swallowed",
+    "app/tests/test_search.py::TestEnsureIndices::test_creates_missing_indices",
+    "app/tests/test_search.py::TestEnsureIndices::test_exception_for_one_index_does_not_abort_others",
+    "app/tests/test_search.py::TestEnsureIndices::test_skips_existing_indices",
+    "app/tests/test_search.py::TestGetClient::test_lazily_constructs_and_caches_client",
+    "app/tests/test_search.py::TestIndexDroneType::test_exception_is_logged_and_swallowed",
+    "app/tests/test_search.py::TestIndexDroneType::test_indexes_with_expected_document_shape",
+    "app/tests/test_search.py::TestIndexDroneType::test_missing_optional_fields_default_to_empty_string",
+    "app/tests/test_search.py::TestIndexPayloadType::test_exception_is_logged_and_swallowed",
+    "app/tests/test_search.py::TestIndexPayloadType::test_indexes_with_expected_document_shape",
+    "app/tests/test_search.py::TestIndexPayloadType::test_none_sensor_type_becomes_empty_string",
+    "app/tests/test_search.py::TestIndexThreatSystem::test_exception_is_logged_and_swallowed",
+    "app/tests/test_search.py::TestIndexThreatSystem::test_indexes_with_expected_document_shape",
+    "app/tests/test_search.py::TestSearchInventory::test_empty_query_returns_empty_list_without_calling_es",
+    "app/tests/test_search.py::TestSearchInventory::test_exception_returns_empty_list",
+    "app/tests/test_search.py::TestSearchInventory::test_maps_hits_to_typed_results",
+    "app/tests/test_search.py::TestSearchInventory::test_uses_multi_index_and_limit"
+  ]
+}

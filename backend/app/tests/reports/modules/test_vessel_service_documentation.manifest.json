@@ -1,0 +1,27 @@
+{
+  "fingerprint": "019888f1a80ecd91172ff2e76764767307c85850cd15b774d4880c62c182dba8",
+  "nodeids": [
+    "app/tests/test_vessel_service.py::TestArchive::test_archive_blocked_when_drones_assigned",
+    "app/tests/test_vessel_service.py::TestArchive::test_archive_nonexistent_raises_404",
+    "app/tests/test_vessel_service.py::TestArchive::test_archive_succeeds_when_no_drones_assigned",
+    "app/tests/test_vessel_service.py::TestAssignUnassignDrone::test_assign_drone_not_found_raises_404",
+    "app/tests/test_vessel_service.py::TestAssignUnassignDrone::test_assign_sets_home_vessel_id",
+    "app/tests/test_vessel_service.py::TestAssignUnassignDrone::test_assign_vessel_not_found_raises_404",
+    "app/tests/test_vessel_service.py::TestAssignUnassignDrone::test_unassign_clears_home_vessel_id",
+    "app/tests/test_vessel_service.py::TestAssignUnassignDrone::test_unassign_drone_not_found_raises_404",
+    "app/tests/test_vessel_service.py::TestCreate::test_creates_with_uppercased_vessel_id",
+    "app/tests/test_vessel_service.py::TestCreate::test_duplicate_vessel_id_raises_409",
+    "app/tests/test_vessel_service.py::TestGetById::test_found_and_active_returned",
+    "app/tests/test_vessel_service.py::TestGetById::test_inactive_raises_404",
+    "app/tests/test_vessel_service.py::TestGetById::test_missing_raises_404",
+    "app/tests/test_vessel_service.py::TestGetByVesselId::test_found_by_upper_vessel_id",
+    "app/tests/test_vessel_service.py::TestGetByVesselId::test_not_found_raises_404",
+    "app/tests/test_vessel_service.py::TestListActive::test_returns_active_vessels",
+    "app/tests/test_vessel_service.py::TestUpdate::test_partial_update_only_changes_given_fields",
+    "app/tests/test_vessel_service.py::TestUpdate::test_update_nonexistent_raises_404",
+    "app/tests/test_vessel_service.py::TestUpdatePosition::test_heading_and_speed_untouched_when_omitted",
+    "app/tests/test_vessel_service.py::TestUpdatePosition::test_heading_and_speed_updated_when_provided",
+    "app/tests/test_vessel_service.py::TestUpdatePosition::test_nonexistent_vessel_raises_404",
+    "app/tests/test_vessel_service.py::TestUpdatePosition::test_updates_lat_lon_and_timestamp"
+  ]
+}

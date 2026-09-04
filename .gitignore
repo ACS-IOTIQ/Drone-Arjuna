@@ -4,6 +4,9 @@
 !.env.example
 .mcp.json
 
+# Database backups (contain live operational/mission data)
+backend/backups/
+
 # Python
 __pycache__/
 *.py[cod]

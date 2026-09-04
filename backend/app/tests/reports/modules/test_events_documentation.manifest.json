@@ -1,0 +1,24 @@
+{
+  "fingerprint": "933dde95dc49813a11ec7b4f58f9ba7f56972fb1753337dc13dd71fdf17a2d03",
+  "nodeids": [
+    "app/tests/test_events.py::TestCloseRabbitmq::test_closes_existing_connection",
+    "app/tests/test_events.py::TestCloseRabbitmq::test_no_connection_is_a_noop",
+    "app/tests/test_events.py::TestConveniencePublishers::test_emit_drone_connected",
+    "app/tests/test_events.py::TestConveniencePublishers::test_emit_drone_disconnected",
+    "app/tests/test_events.py::TestConveniencePublishers::test_emit_geofence_breach",
+    "app/tests/test_events.py::TestConveniencePublishers::test_emit_geofence_recovered",
+    "app/tests/test_events.py::TestConveniencePublishers::test_emit_health_alert",
+    "app/tests/test_events.py::TestConveniencePublishers::test_emit_mission_status",
+    "app/tests/test_events.py::TestConveniencePublishers::test_emit_telemetry_update",
+    "app/tests/test_events.py::TestInitRabbitmq::test_all_attempts_fail_disables_exchange",
+    "app/tests/test_events.py::TestInitRabbitmq::test_retries_then_succeeds",
+    "app/tests/test_events.py::TestInitRabbitmq::test_successful_connect_sets_globals",
+    "app/tests/test_events.py::TestPublish::test_no_exchange_is_a_noop",
+    "app/tests/test_events.py::TestPublish::test_publish_exception_is_swallowed",
+    "app/tests/test_events.py::TestPublish::test_publishes_json_message_with_routing_key",
+    "app/tests/test_events.py::TestSubscribe::test_declares_queue_and_binds_exchange",
+    "app/tests/test_events.py::TestSubscribe::test_no_channel_logs_and_returns",
+    "app/tests/test_events.py::TestSubscribe::test_process_wrapper_decodes_and_calls_handler",
+    "app/tests/test_events.py::TestSubscribe::test_process_wrapper_swallows_handler_exception"
+  ]
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Anchor,
   FileText,
@@ -14,11 +14,29 @@ import { useFleetStore } from '@/store/fleetStore'
 import { useVesselStore } from '@/store/vesselStore'
 import { useAuthStore } from '@/store/authStore'
 import { droneFlightApi } from '@/api/droneFlight'
+import { droneMasterApi } from '@/api/droneMaster'
 import { notify } from '@/store/notificationStore'
 import { ConfirmModal } from '@/components/common/ConfirmModal'
 import type { Mission } from '@/store/missionStore'
 
 type EditorSection = 'details' | 'waypoints' | 'geofence' | 'missions'
+
+interface DroneTypeLite {
+  id: number
+  range_km: number
+}
+
+const EARTH_RADIUS_M = 6_371_000
+
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+  return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
 
 export default function MissionEditor() {
   const {
@@ -50,6 +68,13 @@ export default function MissionEditor() {
   const [deleteErr, setDeleteErr] = useState('')
   const [summary, setSummary] = useState<any>(null)
   const [err, setErr] = useState('')
+  const [droneTypes, setDroneTypes] = useState<DroneTypeLite[]>([])
+
+  useEffect(() => {
+    droneMasterApi.listTypes()
+      .then(({ data }) => setDroneTypes(data))
+      .catch(() => {})
+  }, [])
 
   const estimate = async () => {
     if (draftWaypoints.length < 2) return
@@ -101,6 +126,27 @@ export default function MissionEditor() {
       setErr('Select a home vessel for ship-based operations')
       return
     }
+
+    const drone = instances.find(instance => instance.id === droneId)
+    const droneType = drone ? droneTypes.find(dt => dt.id === drone.drone_type_id) : undefined
+    if (droneType?.range_km) {
+      const maxLegM = (droneType.range_km * 1000) / 2
+      const ordered = [...draftWaypoints].sort((a, b) => a.sequence - b.sequence)
+      for (let i = 0; i < ordered.length - 1; i++) {
+        const a = ordered[i]
+        const b = ordered[i + 1]
+        const legM = haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude)
+        if (legM > maxLegM) {
+          setErr(
+            `Leg from waypoint ${a.sequence} to ${b.sequence} is ${(legM / 1000).toFixed(2)} km, ` +
+            `exceeding the max allowed leg distance of ${(maxLegM / 1000).toFixed(2)} km ` +
+            `(half of the assigned drone's ${droneType.range_km} km range)`
+          )
+          return
+        }
+      }
+    }
+
     setSaving(true)
     setErr('')
     try {

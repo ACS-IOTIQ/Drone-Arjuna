@@ -3,6 +3,7 @@ import { Activity, CheckCircle2, PanelLeft, Send, XCircle } from 'lucide-react'
 import { useMissionStore } from '@/store/missionStore'
 import { useFleetStore } from '@/store/fleetStore'
 import { useVesselStore } from '@/store/vesselStore'
+import { notify } from '@/store/notificationStore'
 import MapCanvas from './MapCanvas'
 import MissionEditor from './MissionEditor'
 import LiveOpsPanel from './LiveOpsPanel'
@@ -20,11 +21,17 @@ export default function PlanWorkspace() {
   const [liveOpsOpen, setLiveOpsOpen] = useState(false)
 
   useEffect(() => {
-    fetchMissions()
-    fetchInstances()
-    fetchConnections()
-    fetchVessels()
-  }, [])
+    void Promise.allSettled([
+      fetchMissions(),
+      fetchInstances(),
+      fetchConnections(),
+      fetchVessels(),
+    ]).then(results => {
+      if (results.some(result => result.status === 'rejected')) {
+        notify.warning('Plan data incomplete', 'One or more mission, fleet, or vessel feeds could not be loaded.')
+      }
+    })
+  }, [fetchMissions, fetchInstances, fetchConnections, fetchVessels])
 
   const activeMission = useMemo(
     () => missions.find(m => m.id === activeMissionId),

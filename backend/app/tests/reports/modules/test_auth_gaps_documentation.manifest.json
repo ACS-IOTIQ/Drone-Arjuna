@@ -1,0 +1,21 @@
+{
+  "fingerprint": "bdb3c031fa4da8e7d1e927cd1545ef2c3340354918603054c6f68013ccde2209",
+  "nodeids": [
+    "app/tests/test_auth_gaps.py::test_forgot_password_known_email_smtp_disabled_returns_generic_message",
+    "app/tests/test_auth_gaps.py::test_forgot_password_smtp_enabled_issues_reset_token",
+    "app/tests/test_auth_gaps.py::test_forgot_password_unknown_email_returns_generic_message",
+    "app/tests/test_auth_gaps.py::test_list_users_admin_200",
+    "app/tests/test_auth_gaps.py::test_list_users_unauthenticated_401",
+    "app/tests/test_auth_gaps.py::test_list_users_viewer_forbidden_403",
+    "app/tests/test_auth_gaps.py::test_refresh_rejects_access_token_used_as_refresh",
+    "app/tests/test_auth_gaps.py::test_refresh_rejects_inactive_user",
+    "app/tests/test_auth_gaps.py::test_refresh_rejects_malformed_token",
+    "app/tests/test_auth_gaps.py::test_refresh_returns_new_access_token",
+    "app/tests/test_auth_gaps.py::test_register_happy_path_201",
+    "app/tests/test_auth_gaps.py::test_register_unauthenticated_401",
+    "app/tests/test_auth_gaps.py::test_register_viewer_forbidden_403",
+    "app/tests/test_auth_gaps.py::test_reset_password_expired_token_400",
+    "app/tests/test_auth_gaps.py::test_reset_password_happy_path_updates_credentials",
+    "app/tests/test_auth_gaps.py::test_reset_password_invalid_token_400"
+  ]
+}

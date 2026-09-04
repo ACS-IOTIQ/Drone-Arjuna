@@ -2,11 +2,11 @@
 // src/store/telemetryStore.ts
 // ═══════════════════════════════════════════
 import { create } from 'zustand'
+import { notify } from './notificationStore'
 import { makeTelemetryUrl } from '@/api/client'
 import { droneControlApi } from '@/api/droneControl'
 import { RobustWebSocket } from '@/store/connectionHealthStore'
 import { eventLog } from './eventLogStore'
-import { notify } from './notificationStore'
 
 // ── Core flight state (always present) ─────────────────────────
 export interface TelemetryFrame {
@@ -371,7 +371,9 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
       console.log('[Telemetry] already subscribed to drone', droneId)
       droneControlApi.telemetry(droneId)
         .then(({ data }) => mergeFrame(droneId, data, set, get))
-        .catch(() => {})
+        .catch(() => {
+          notify.warning('Telemetry snapshot unavailable', `Could not load the latest snapshot for drone ${droneId}.`)
+        })
       return
     }
 
@@ -402,7 +404,9 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
 
     droneControlApi.telemetry(droneId)
       .then(({ data }) => mergeFrame(droneId, data, set, get))
-      .catch(() => {})
+      .catch(() => {
+        notify.warning('Telemetry snapshot unavailable', `Could not load the latest snapshot for drone ${droneId}.`)
+      })
   },
 
   unsubscribe: (droneId) => {

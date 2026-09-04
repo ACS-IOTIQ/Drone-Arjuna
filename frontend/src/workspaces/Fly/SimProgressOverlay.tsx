@@ -23,10 +23,10 @@ function formatEndurance(seconds: number | null | undefined): string | null {
   return `${m}:${s.toString().padStart(2, '0')} remaining`
 }
 
-function formatDistance(meters: number | null | undefined): string | null {
+function formatDistance(meters: number | null | undefined, label: string): string | null {
   if (meters == null || !Number.isFinite(meters)) return null
-  if (meters >= 1000) return `${(meters / 1000).toFixed(2)} km to destination`
-  return `${Math.round(meters)} m to destination`
+  if (meters >= 1000) return `${(meters / 1000).toFixed(2)} km ${label}`
+  return `${Math.round(meters)} m ${label}`
 }
 
 const PHASE_LABEL: Record<string, string> = {
@@ -57,7 +57,11 @@ export default function SimProgressOverlay({ droneId, onStopped }: Props) {
   const wpCount  = (frame.sim_waypoint_count ?? 0) as number
   const color    = PHASE_COLOR[phase] ?? '#6b7280'
   const endurance = formatEndurance(frame.estimated_endurance_s)
-  const destDistance = formatDistance(frame.distance_to_destination_m)
+  const returningHome = phase === 'rtl' || phase === 'landing'
+  const destDistance = formatDistance(
+    frame.distance_to_destination_m,
+    returningHome ? 'to home' : 'to destination',
+  )
   const batteryRtl = Boolean(frame.battery_rtl_triggered)
 
   const cmd = (action: string, params: Record<string, unknown> = {}) =>

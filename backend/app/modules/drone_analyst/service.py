@@ -22,7 +22,7 @@ import structlog
 from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from fastapi import HTTPException
 
 from app.database import TSSessionLocal
@@ -86,25 +86,24 @@ class AnalystService:
     # ── Module status ─────────────────────────────────────────────
 
     async def get_status(self) -> dict:
-        total = (await self.db.execute(select(AnalysisJob.id))).scalars().all()
-        running = (await self.db.execute(
-            select(AnalysisJob.id).where(AnalysisJob.status == "running")
-        )).scalars().all()
-        queued = (await self.db.execute(
-            select(AnalysisJob.id).where(AnalysisJob.status == "queued")
-        )).scalars().all()
-        done = (await self.db.execute(
-            select(AnalysisJob.id).where(AnalysisJob.status == "done")
-        )).scalars().all()
+        counts = await self.db.execute(
+            select(
+                func.count(AnalysisJob.id),
+                func.count(AnalysisJob.id).filter(AnalysisJob.status == "running"),
+                func.count(AnalysisJob.id).filter(AnalysisJob.status == "queued"),
+                func.count(AnalysisJob.id).filter(AnalysisJob.status == "done"),
+            )
+        )
+        total, running, queued, done = counts.one()
 
         return {
             "module_version":     "1.0.0",
             "ai_inference_ready": False,    # Becomes True in V2
             "jobs": {
-                "active":   len(running),
-                "pending":  len(queued),
-                "complete": len(done),
-                "total":    len(total),
+                "active":   running,
+                "pending":  queued,
+                "complete": done,
+                "total":    total,
             },
             "registered_models": len(_MODEL_REGISTRY),
             "capabilities": {

@@ -1,0 +1,26 @@
+{
+  "fingerprint": "b1d77168ca91704ee4aeb9218c5221e123af4d92529f89d27cee3655548503d3",
+  "nodeids": [
+    "app/tests/test_backup.py::TestCreateDump::test_creates_backup_dir_and_writes_json",
+    "app/tests/test_backup.py::TestCreateDump::test_rotates_after_creating",
+    "app/tests/test_backup.py::TestJsonDefault::test_datetime_is_isoformatted",
+    "app/tests/test_backup.py::TestJsonDefault::test_other_types_are_stringified",
+    "app/tests/test_backup.py::TestLatestDump::test_no_dumps_returns_none",
+    "app/tests/test_backup.py::TestLatestDump::test_returns_most_recent_by_sorted_name",
+    "app/tests/test_backup.py::TestRestoreLatestDump::test_no_dump_file_returns_false",
+    "app/tests/test_backup.py::TestRestoreLatestDump::test_restores_empty_tables_and_broadcasts",
+    "app/tests/test_backup.py::TestRestoreLatestDump::test_skips_tables_that_already_have_rows",
+    "app/tests/test_backup.py::TestRestoreLatestDump::test_skips_tables_with_no_rows_in_dump",
+    "app/tests/test_backup.py::TestRotateOldDumps::test_deletes_oldest_beyond_retention_count",
+    "app/tests/test_backup.py::TestRotateOldDumps::test_keeps_dumps_within_retention_count",
+    "app/tests/test_backup.py::TestRunBackupScheduler::test_exception_in_create_dump_is_logged_and_loop_continues",
+    "app/tests/test_backup.py::TestRunBackupScheduler::test_loop_calls_create_dump_then_sleeps",
+    "app/tests/test_backup.py::TestRunIntegrityMonitor::test_data_loss_detected_triggers_restore_and_broadcast",
+    "app/tests/test_backup.py::TestRunIntegrityMonitor::test_exception_during_check_is_logged_and_loop_continues",
+    "app/tests/test_backup.py::TestRunIntegrityMonitor::test_no_data_loss_does_not_restore",
+    "app/tests/test_backup.py::TestTablesWithExpectedDataAreEmpty::test_all_tables_empty_returns_true",
+    "app/tests/test_backup.py::TestTablesWithExpectedDataAreEmpty::test_any_table_with_rows_returns_false",
+    "app/tests/test_backup.py::TestTablesWithExpectedDataAreEmpty::test_dump_with_no_rows_anywhere_returns_false",
+    "app/tests/test_backup.py::TestTablesWithExpectedDataAreEmpty::test_no_dump_returns_false"
+  ]
+}

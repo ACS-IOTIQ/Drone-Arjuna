@@ -48,9 +48,19 @@ class UserOut(BaseModel):
 
 class TokenOut(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
     role: str
     must_change_password: bool = False
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
 
 
 class TokenPayload(BaseModel):

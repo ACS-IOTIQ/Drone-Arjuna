@@ -13,8 +13,10 @@ from app.core.events import init_rabbitmq, close_rabbitmq
 from app.core.search import bulk_index_all, close_client as close_es
 from app.core.auth import ensure_default_admin
 from app.core.hf_feed import HFFeedListener
+from app.core.backup import run_backup_scheduler, run_integrity_monitor, restore_latest_dump
 
 # Module routers
+from app.core.system_events import router as system_events_router
 from app.modules.drone_control.router import router as control_router
 from app.modules.drone_master.router import router as master_router
 from app.modules.drone_inventory.router import router as inventory_router
@@ -51,51 +53,54 @@ async def lifespan(app: FastAPI):
         log.error("Could not connect to database after 10 attempts — exiting")
         raise RuntimeError("Database unavailable")
 
-    # Connect to RabbitMQ event bus
-    await init_rabbitmq()
-
-    # Start geofence → RTL consumer (spec 3-45: RTL via RabbitMQ consumer, not direct call)
-    from app.modules.drone_control.mavlink_manager import mavlink_manager
-    await mavlink_manager.start_geofence_rtl_consumer()
-
-    # Start Drone Analyst job-queue consumer (queued -> running -> done/failed)
-    from app.modules.drone_analyst.job_consumer import start_job_consumer
-    await start_job_consumer()
-
-    # Ensure the MinIO bucket for Analyst source imagery exists
-    from app.core.storage import ensure_bucket
-    await ensure_bucket()
-
-    # Start telemetry recorder (creates TimescaleDB hypertable if needed)
-    await data_recorder.start()
-
-    # Start the vessel NMEA GGA feed listener.
-    await hf_feed.start()
+    # If the Postgres volume was wiped but a backup exists in MinIO, restore
+    # it now — before seeding a default admin into what would otherwise look
+    # like a brand-new, empty database.
+    await restore_latest_dump()
 
     # Seed default admin account if DB is empty
     async with AsyncSessionLocal() as db:
         await ensure_default_admin(db)
 
-    # Bulk-index all inventory records into Elasticsearch
-    async with AsyncSessionLocal() as db:
-        await bulk_index_all(db)
+    async def initialize_secondary_services():
+        """Start non-critical integrations without delaying API availability."""
+        try:
+            await init_rabbitmq()
+            from app.modules.drone_control.mavlink_manager import mavlink_manager
+            await mavlink_manager.start_geofence_rtl_consumer()
+            from app.modules.drone_analyst.job_consumer import start_job_consumer
+            await start_job_consumer()
+            from app.core.storage import ensure_bucket
+            await ensure_bucket()
+            await data_recorder.start()
+            await hf_feed.start()
+            async with AsyncSessionLocal() as db:
+                await bulk_index_all(db)
+            log.info("Secondary services initialised")
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.error("Secondary service initialization failed", error=str(exc))
 
-    # Start auto-connector background task (scans ports, connects drones)
-    from app.modules.drone_control.auto_connector import run_auto_connector
-    _auto_connector_task = asyncio.create_task(
-        run_auto_connector(AsyncSessionLocal),
-        name="auto-connector",
+    _secondary_task = asyncio.create_task(
+        initialize_secondary_services(), name="secondary-services"
     )
+    from app.modules.drone_control.auto_connector import run_auto_connector
+    _auto_connector_task = asyncio.create_task(run_auto_connector(AsyncSessionLocal), name="auto-connector")
+    _backup_task = asyncio.create_task(run_backup_scheduler(), name="backup-scheduler")
+    _integrity_task = asyncio.create_task(run_integrity_monitor(), name="integrity-monitor")
 
-    log.info("All services initialised — ready to accept connections")
+    log.info("Primary services initialised — ready to accept connections")
     yield
 
     # Graceful shutdown
-    _auto_connector_task.cancel()
-    try:
-        await _auto_connector_task
-    except asyncio.CancelledError:
-        pass
+    for task in (_secondary_task, _auto_connector_task, _backup_task, _integrity_task):
+        task.cancel()
+    for task in (_secondary_task, _auto_connector_task, _backup_task, _integrity_task):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     log.info("DroneArjuna shutting down")
     await hf_feed.stop()
     await data_recorder.stop()
@@ -126,6 +131,7 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # ── Routers ───────────────────────────────────────────────────────
+app.include_router(system_events_router, prefix="/api/system",  tags=["System"])
 app.include_router(auth_router,      prefix="/api/auth",      tags=["Auth"])
 app.include_router(control_router,   prefix="/api/drone-control", tags=["Drone Control"])
 app.include_router(master_router,    prefix="/api/master",    tags=["Drone Master"])

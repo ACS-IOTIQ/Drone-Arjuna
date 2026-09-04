@@ -1,0 +1,14 @@
+{
+  "fingerprint": "7788fab3277c7956f2231bbf63c39ee92ef68f1643b9028dc6d82831e0a5e6d9",
+  "nodeids": [
+    "app/tests/test_payload_service.py::TestCreate::test_creates_new_payload_type",
+    "app/tests/test_payload_service.py::TestCreate::test_duplicate_name_raises_409",
+    "app/tests/test_payload_service.py::TestDelete::test_delete_nonexistent_raises_404",
+    "app/tests/test_payload_service.py::TestDelete::test_deletes_existing_payload_type",
+    "app/tests/test_payload_service.py::TestGetById::test_found_returned",
+    "app/tests/test_payload_service.py::TestGetById::test_missing_raises_404",
+    "app/tests/test_payload_service.py::TestListAll::test_returns_all_ordered_by_name",
+    "app/tests/test_payload_service.py::TestUpdate::test_partial_update_only_changes_given_fields",
+    "app/tests/test_payload_service.py::TestUpdate::test_update_nonexistent_raises_404"
+  ]
+}

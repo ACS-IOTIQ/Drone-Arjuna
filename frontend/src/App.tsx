@@ -4,6 +4,7 @@ import AppShell from '@/components/layout/AppShell'
 import LoginScreen from '@/components/layout/LoginScreen'
 import PasswordSetupScreen from '@/components/layout/PasswordSetupScreen'
 import ResetPasswordScreen from '@/components/layout/ResetPasswordScreen'
+import { initSystemEventsStream } from '@/store/systemEventsStore'
 
 function readResetTokenFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get('token')
@@ -24,7 +25,10 @@ export default function App() {
   const [resetToken, setResetToken] = useState<string | null>(readResetTokenFromUrl)
 
   useEffect(() => {
-    if (token) hydrate()
+    if (token) {
+      hydrate()
+      initSystemEventsStream()
+    }
   }, [token, hydrate])
 
   useEffect(() => {

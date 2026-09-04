@@ -21,6 +21,7 @@ from app.schemas.user import (
     TokenOut, UserOut, UserCreate,
     AccessRequestCreate, AccessRequestOut, AcceptBody, RejectBody,
     ForgotPasswordRequest, ResetPasswordRequest,
+    RefreshRequest, RefreshOut,
 )
 from app.core.security import PasswordPolicy, AuditLogger
 from app.core.email import send_approval_email, send_password_reset_email, send_forgot_password_email
@@ -50,6 +51,15 @@ def create_access_token(data: dict) -> str:
     payload = data.copy()
     payload["exp"] = datetime.now(timezone.utc) + timedelta(
         minutes=cfg.access_token_expire_minutes
+    )
+    return jwt.encode(payload, cfg.secret_key, algorithm=cfg.algorithm)
+
+
+def create_refresh_token(data: dict) -> str:
+    payload = data.copy()
+    payload["type"] = "refresh"
+    payload["exp"] = datetime.now(timezone.utc) + timedelta(
+        days=cfg.refresh_token_expire_days
     )
     return jwt.encode(payload, cfg.secret_key, algorithm=cfg.algorithm)
 
@@ -92,13 +102,40 @@ async def login(
         raise HTTPException(status_code=401, detail="Incorrect username or password")
 
     token = create_access_token({"sub": str(user.id), "role": user.role})
+    refresh_token = create_refresh_token({"sub": str(user.id)})
     await AuditLogger(db).login_success(user.id, "unknown")
     return TokenOut(
         access_token=token,
+        refresh_token=refresh_token,
         token_type="bearer",
         role=user.role,
         must_change_password=user.must_change_password,
     )
+
+
+@router.post("/refresh", response_model=RefreshOut)
+async def refresh_access_token(
+    body: RefreshRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    exc = HTTPException(status_code=401, detail="Invalid or expired refresh token")
+    try:
+        payload = jwt.decode(body.refresh_token, cfg.secret_key, algorithms=[cfg.algorithm])
+        if payload.get("type") != "refresh":
+            raise exc
+        user_id: str = payload.get("sub")
+        if not user_id:
+            raise exc
+    except JWTError:
+        raise exc
+
+    result = await db.execute(select(User).where(User.id == int(user_id)))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise exc
+
+    new_access_token = create_access_token({"sub": str(user.id), "role": user.role})
+    return RefreshOut(access_token=new_access_token)
 
 
 @router.get("/me", response_model=UserOut)
@@ -243,10 +280,15 @@ async def reset_password(
     """Public endpoint — consume a reset token and set a new password."""
     result = await db.execute(select(User).where(User.reset_token == body.token))
     user = result.scalar_one_or_none()
+    expires_at = user.reset_token_expires if user else None
+    if expires_at is not None and expires_at.tzinfo is None:
+        # SQLite (used in tests) does not preserve tz-awareness on DateTime(timezone=True)
+        # columns, unlike PostgreSQL — normalize so the comparison below is always tz-aware.
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
     if (
         not user
-        or not user.reset_token_expires
-        or user.reset_token_expires < datetime.now(timezone.utc)
+        or not expires_at
+        or expires_at < datetime.now(timezone.utc)
     ):
         raise HTTPException(status_code=400, detail="Reset link is invalid or has expired")
 

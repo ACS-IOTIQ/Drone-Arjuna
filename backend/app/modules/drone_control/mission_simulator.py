@@ -731,6 +731,13 @@ class _SimulatedFlight:
             self.battery_pct = max(0.0, self.battery_pct - self.BATT_DRAIN * 0.5 * dt)
 
         elif self.phase == SimPhase.RTL:
+            # While RTLing, the "distance to destination" the UI shows should
+            # read as distance-to-home, updated every tick (cheap point-to-point
+            # haversine, unlike the multi-waypoint route sum used in FLYING).
+            self.distance_to_destination_m = _haversine_m(
+                self.lat, self.lon, self._home_lat, self._home_lon
+            )
+
             if self._rtl_route:
                 wp = self._rtl_route[0]
                 t_lat, t_lon, t_alt = wp["latitude"], wp["longitude"], wp["altitude_m"]
@@ -755,7 +762,7 @@ class _SimulatedFlight:
                     self._rtl_route.pop(0)
                 return
 
-            dist = _haversine_m(self.lat, self.lon, self._home_lat, self._home_lon)
+            dist = self.distance_to_destination_m
             if dist < 5.0 and self.alt < 2.0:
                 self.alt = 0.0; self.groundspeed = 0.0
                 self.climb_rate = 0.0; self.is_armed = False

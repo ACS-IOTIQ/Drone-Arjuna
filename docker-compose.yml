@@ -84,7 +84,7 @@ services:
     networks:
       - da_network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD:-changeme}\" ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -127,6 +127,11 @@ services:
       - "9001:9001"   # Console UI
     networks:
       - da_network
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 
   # ── Elasticsearch (full-text search — P4-06) ─────────────────────
@@ -197,9 +202,12 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     volumes:
       - ./backend:/app   # Hot reload in dev
       - .:/project:ro    # project root (read-only) for infra tests
+      - db_backups:/app/backups   # persisted DB dumps (survive container recreation)
     privileged: true   # allows access to USB serial devices passed in via usbipd-win
     networks:
       - da_network
@@ -236,6 +244,7 @@ volumes:
   rabbitmq_data:
   minio_data:
   es_data:
+  db_backups:
 
 networks:
   da_network:

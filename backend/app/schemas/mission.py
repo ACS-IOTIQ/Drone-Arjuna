@@ -74,6 +74,8 @@ class MissionCreate(BaseModel):
     description: Optional[str] = None
     mission_type: str = "ISR"
     drone_instance_id: Optional[int] = None
+    home_point_type: str = "fixed"
+    home_vessel_id: Optional[int] = None
     waypoints: list[WaypointCreate] = []
     geofence: Optional[dict] = None        # GeoJSON Polygon
     payload_weight_kg: Optional[float] = None
@@ -111,6 +113,8 @@ class MissionOut(BaseModel):
     status: str
     created_by: int
     drone_instance_id: Optional[int]
+    home_point_type: str
+    home_vessel_id: Optional[int]
     created_at: datetime
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
@@ -127,6 +131,8 @@ class MissionUpdate(BaseModel):
     description: Optional[str] = None
     mission_type: Optional[str] = None
     drone_instance_id: Optional[int] = None
+    home_point_type: Optional[str] = None
+    home_vessel_id: Optional[int] = None
     notes: Optional[str] = None
     geofence: Optional[dict] = None
     payload_weight_kg: Optional[float] = None

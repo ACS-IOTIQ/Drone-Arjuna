@@ -88,6 +88,8 @@ async def create_mission(body: MissionCreate, db: DbDep, user: PilotDep):
         description=body.description,
         mission_type=body.mission_type,
         drone_instance_id=body.drone_instance_id,
+        home_point_type=body.home_point_type,
+        home_vessel_id=body.home_vessel_id,
         created_by=user.id,
         notes=body.notes,
         geofence=body.geofence,

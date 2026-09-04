@@ -220,6 +220,7 @@ class MissionValidator:
             self._check_altitude_limits(waypoints, drone_type, result)
             self._check_speed_limits(waypoints, drone_type, result)
             self._check_battery_budget(waypoints, drone_type, result, vessel=vessel)
+            self._check_leg_distance(waypoints, drone_type, result)
 
         # ── 4. Dynamic home point advisory ─────────────────────────
         if mission.home_point_type == "dynamic_vessel":
@@ -323,6 +324,31 @@ class MissionValidator:
                 r.add_error(
                     f"Waypoint {wp.sequence} speed {wp.speed_ms} m/s exceeds "
                     f"max speed {dt.max_speed_ms} m/s for {dt.name}"
+                )
+
+    # ── Leg distance vs. drone range ────────────────────────────────
+
+    def _check_leg_distance(
+        self, wps: list[Waypoint], dt: DroneType, r: ValidationResult
+    ):
+        """
+        No single leg between consecutive waypoints may exceed half of
+        the drone's rated range — this keeps the drone within safe
+        telemetry/return-to-home distance at every point in the route.
+        """
+        if not dt.range_km or len(wps) < 2:
+            return
+
+        max_leg_m = (dt.range_km * 1000) / 2
+        ordered = sorted(wps, key=lambda w: w.sequence)
+        for a, b in zip(ordered, ordered[1:]):
+            leg_m = haversine_m(a.latitude, a.longitude, b.latitude, b.longitude)
+            if leg_m > max_leg_m:
+                r.add_error(
+                    f"Leg from waypoint {a.sequence} to {b.sequence} is "
+                    f"{leg_m/1000:.2f} km, exceeding the max allowed leg distance "
+                    f"of {max_leg_m/1000:.2f} km (half of {dt.name}'s "
+                    f"{dt.range_km} km range)"
                 )
 
     # ── Battery budget ────────────────────────────────────────────

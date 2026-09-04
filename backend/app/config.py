@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # Elasticsearch
     elasticsearch_url: str = "http://localhost:9200"
 
+    # Database backup / auto-restore
+    backup_interval_minutes: int = 60
+    backup_retention_count: int = 24
+    integrity_check_interval_minutes: int = 15
+
     # SMTP — email notifications
     smtp_enabled: bool = False
     smtp_host: str = "smtp.gmail.com"

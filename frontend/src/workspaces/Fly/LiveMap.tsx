@@ -149,19 +149,19 @@ function vesselIcon(heading: number) {
   });
 }
 
-function simWaypointIcon(seq: number, isHome = false) {
-  const size = 16;
+function simWaypointIcon(seq: number, isHome = false, isCurrent = false) {
+  const size = isCurrent ? 20 : 16;
   return L.divIcon({
     className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     html: `<div style="
       width:${size}px; height:${size}px; border-radius:50%;
-      background:${isHome ? "#16a34a" : "#ffffff"};
-      border:2px solid ${isHome ? "#15803d" : "#2563eb"};
+      background:${isHome ? "#16a34a" : isCurrent ? "#2563eb" : "#ffffff"};
+      border:2px solid ${isHome ? "#15803d" : isCurrent ? "#1d4ed8" : "#2563eb"};
       display:flex; align-items:center; justify-content:center;
-      color:${isHome ? "#ffffff" : "#1d4ed8"}; font-size:7px; font-weight:800;
-      box-shadow:0 1px 4px rgba(15,23,42,0.20);
+      color:${isHome || isCurrent ? "#ffffff" : "#1d4ed8"}; font-size:${isCurrent ? 8 : 7}px; font-weight:800;
+      box-shadow:${isCurrent ? "0 0 0 3px rgba(37,99,235,0.28), 0 2px 6px rgba(15,23,42,0.30)" : "0 1px 4px rgba(15,23,42,0.20)"};
     ">${isHome ? "H" : seq}</div>`,
   });
 }
@@ -762,7 +762,14 @@ export default function LiveMap({
             <Marker
               key={`sim-wp-${wp.sequence}`}
               position={[wp.latitude, wp.longitude]}
-              icon={simWaypointIcon(wp.sequence, !!wp.is_home)}
+              icon={simWaypointIcon(
+                wp.sequence,
+                !!wp.is_home,
+                // sim_waypoint_idx is 0-indexed into the home-excluded route,
+                // so the currently-targeted waypoint's 1-indexed sequence is
+                // sim_waypoint_idx + 1.
+                !wp.is_home && wp.sequence === (frame?.sim_waypoint_idx ?? -1) + 1,
+              )}
               interactive={false}
             />
           ))}

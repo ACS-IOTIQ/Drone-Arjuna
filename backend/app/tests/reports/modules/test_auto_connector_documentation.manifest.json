@@ -1,5 +1,5 @@
 {
-  "fingerprint": "f6f86e8b084700bc71801edabae8d20cf418b85effc1d92b91fa8e71ceb123a1",
+  "fingerprint": "bc0a44854cac5c3b8bea2acd07d378a16731ba9dbcb2cb2e4e559740bf029a4d",
   "nodeids": [
     "app/tests/test_auto_connector.py::test_build_candidates_bridge_connected_is_first",
     "app/tests/test_auto_connector.py::test_build_candidates_bridge_none_no_bridge_entry",
@@ -9,7 +9,7 @@
     "app/tests/test_auto_connector.py::test_connect_drone_exception_on_candidate_is_swallowed_and_retried",
     "app/tests/test_auto_connector.py::test_connect_drone_falls_through_to_second_candidate",
     "app/tests/test_auto_connector.py::test_connect_drone_no_candidates_returns_false_without_calling_connect",
-    "app/tests/test_auto_connector.py::test_connect_drone_success_on_first_candidate",
+    "app/tests/test_auto_connector.py::test_connect_drone_success_all_candidates_probed_concurrently",
     "app/tests/test_auto_connector.py::test_get_bridge_status_bad_json_returns_none",
     "app/tests/test_auto_connector.py::test_get_bridge_status_bridge_not_running_returns_none",
     "app/tests/test_auto_connector.py::test_get_bridge_status_success",

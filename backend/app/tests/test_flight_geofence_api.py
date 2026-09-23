@@ -135,6 +135,7 @@ async def _create_and_validate(
     client: AsyncClient,
     hdrs: dict,
     waypoints: list,
+    drone_instance_id: int,
     geofence=_GEOFENCE,
     name: str = "GF-Test-Mission",
 ) -> tuple[int, dict]:
@@ -147,6 +148,7 @@ async def _create_and_validate(
         "name":         name,
         "mission_type": "ISR",
         "waypoints":    waypoints,
+        "drone_instance_id": drone_instance_id,
     }
     if geofence is not None:
         body["geofence"] = geofence
@@ -168,7 +170,7 @@ async def _create_and_validate(
 # ═══════════════════════════════════════════════════════════════════════
 
 async def test_all_waypoints_inside_geofence_passes(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, gf_drone_instance, make_token
 ):
     """
     Waypoints at (12.970, 77.590) and (12.972, 77.592) are both inside
@@ -178,6 +180,7 @@ async def test_all_waypoints_inside_geofence_passes(
     mid, result = await _create_and_validate(
         client, hdrs,
         waypoints=[_HOME_INSIDE, _WP_INSIDE],
+        drone_instance_id=gf_drone_instance["id"],
     )
     try:
         gf_errors = [e for e in result["errors"] if "outside" in e.lower()]
@@ -191,7 +194,7 @@ async def test_all_waypoints_inside_geofence_passes(
 # ═══════════════════════════════════════════════════════════════════════
 
 async def test_waypoint_outside_geofence_returns_error(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, gf_drone_instance, make_token
 ):
     """
     Waypoint 2 at (13.000, 77.400) is 3 km north and 20 km west of the
@@ -201,6 +204,7 @@ async def test_waypoint_outside_geofence_returns_error(
     mid, result = await _create_and_validate(
         client, hdrs,
         waypoints=[_HOME_INSIDE, _WP_OUTSIDE],
+        drone_instance_id=gf_drone_instance["id"],
     )
     try:
         assert result["valid"] is False, "Expected valid=False when waypoint is outside geofence"
@@ -215,7 +219,7 @@ async def test_waypoint_outside_geofence_returns_error(
 # ═══════════════════════════════════════════════════════════════════════
 
 async def test_geofence_error_contains_sequence_and_coords(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, gf_drone_instance, make_token
 ):
     """
     MissionValidator formats the error as:
@@ -227,6 +231,7 @@ async def test_geofence_error_contains_sequence_and_coords(
     mid, result = await _create_and_validate(
         client, hdrs,
         waypoints=[_HOME_INSIDE, _WP_OUTSIDE],
+        drone_instance_id=gf_drone_instance["id"],
     )
     try:
         gf_errors = [e for e in result["errors"] if "outside" in e.lower()]
@@ -246,7 +251,7 @@ async def test_geofence_error_contains_sequence_and_coords(
 # ═══════════════════════════════════════════════════════════════════════
 
 async def test_multiple_waypoints_outside_all_reported(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, gf_drone_instance, make_token
 ):
     """
     When two waypoints breach the geofence the validator must report a
@@ -259,6 +264,7 @@ async def test_multiple_waypoints_outside_all_reported(
     mid, result = await _create_and_validate(
         client, hdrs,
         waypoints=[_HOME_INSIDE, outside_2, outside_3],
+        drone_instance_id=gf_drone_instance["id"],
     )
     try:
         assert result["valid"] is False
@@ -278,7 +284,7 @@ async def test_multiple_waypoints_outside_all_reported(
 # ═══════════════════════════════════════════════════════════════════════
 
 async def test_home_waypoint_outside_geofence_caught(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, gf_drone_instance, make_token
 ):
     """
     The home/takeoff waypoint is not exempt from the geofence check.
@@ -291,6 +297,7 @@ async def test_home_waypoint_outside_geofence_caught(
     mid, result = await _create_and_validate(
         client, hdrs,
         waypoints=[home_outside, _WP_INSIDE],
+        drone_instance_id=gf_drone_instance["id"],
     )
     try:
         assert result["valid"] is False
@@ -306,7 +313,7 @@ async def test_home_waypoint_outside_geofence_caught(
 # ═══════════════════════════════════════════════════════════════════════
 
 async def test_no_geofence_check_skipped(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, gf_drone_instance, make_token
 ):
     """
     When mission.geofence is None the validator skips the geofence check
@@ -316,6 +323,7 @@ async def test_no_geofence_check_skipped(
     mid, result = await _create_and_validate(
         client, hdrs,
         waypoints=[_HOME_INSIDE, _WP_OUTSIDE],
+        drone_instance_id=gf_drone_instance["id"],
         geofence=None,    # explicitly no geofence
     )
     try:
@@ -335,7 +343,7 @@ async def test_no_geofence_check_skipped(
 # ═══════════════════════════════════════════════════════════════════════
 
 async def test_malformed_geofence_warns_and_skips(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, gf_drone_instance, make_token
 ):
     """
     A geofence dict missing the 'coordinates' key causes
@@ -350,6 +358,7 @@ async def test_malformed_geofence_warns_and_skips(
     mid, result = await _create_and_validate(
         client, hdrs,
         waypoints=[_HOME_INSIDE, _WP_OUTSIDE],
+        drone_instance_id=gf_drone_instance["id"],
         geofence=bad_geofence,
     )
     try:

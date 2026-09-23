@@ -39,7 +39,11 @@ interface FleetState {
   connectionFetchFailures: number
   fetchInstances: () => Promise<void>
   fetchConnections: () => Promise<void>
+  startConnectionPolling: () => void
+  stopConnectionPolling: () => void
 }
+
+const CONNECTION_POLL_MS = 5000
 
 export const STALE_DRONE_DAYS = 30
 
@@ -72,6 +76,12 @@ export function sortDronesByActivity(
     return a.call_sign.localeCompare(b.call_sign)
   })
 }
+
+// Module-level (not store state) — several components each want connection
+// status polled while mounted, but must share a single interval/request
+// instead of each opening their own 5s poll against the same endpoint.
+let _pollRefCount = 0
+let _pollHandle: ReturnType<typeof setInterval> | null = null
 
 export const useFleetStore = create<FleetState>((set, get) => ({
   instances: [],
@@ -138,6 +148,22 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         instances: sortDronesByActivity(state.instances, {}),
         connectionFetchFailures: failures,
       }))
+    }
+  },
+
+  startConnectionPolling: () => {
+    _pollRefCount += 1
+    if (_pollHandle) return
+    _pollHandle = setInterval(() => {
+      if (!document.hidden) get().fetchConnections()
+    }, CONNECTION_POLL_MS)
+  },
+
+  stopConnectionPolling: () => {
+    _pollRefCount = Math.max(0, _pollRefCount - 1)
+    if (_pollRefCount === 0 && _pollHandle) {
+      clearInterval(_pollHandle)
+      _pollHandle = null
     }
   },
 }))

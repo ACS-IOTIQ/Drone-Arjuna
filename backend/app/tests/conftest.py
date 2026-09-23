@@ -71,8 +71,6 @@ import app.models.payload  # noqa: F401, E402 — registers PayloadType
 import app.models.threat   # noqa: F401, E402 — registers ThreatSystem
 import app.models.analysis # noqa: F401, E402 — registers AnalysisJob, JobArtifact
 
-pytest_plugins = ("app.tests.testcase_word_report",)
-
 cfg = get_settings()
 
 # ── In-memory SQLite test engine ──────────────────────────────────────────────

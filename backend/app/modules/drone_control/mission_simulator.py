@@ -678,9 +678,14 @@ class _SimulatedFlight:
             tgt_hdg = _bearing_deg(self.lat, self.lon, t_lat, t_lon) if dist > 0.5 else self.heading
             self._update_distance_to_destination(dt)
 
-            # Smooth heading — max 25°/s
+            # Smooth heading — max 25°/s of simulated time. Must scale by
+            # speed_mult like translation speed does (spd above) — otherwise
+            # at higher speed multipliers the drone covers ground far faster
+            # than it can turn onto the correct bearing, and sweeps wide
+            # circles around each waypoint instead of converging on it.
             hdg_err  = ((tgt_hdg - self.heading + 180) % 360) - 180
-            turn     = max(min(hdg_err, 25.0 * dt), -25.0 * dt)
+            max_turn = 25.0 * self.speed_mult * dt
+            turn     = max(min(hdg_err, max_turn), -max_turn)
             self.heading = (self.heading + turn) % 360
 
             if dist > 1.0:
@@ -923,6 +928,9 @@ class _SimulatedFlight:
             "call_sign":             self.call_sign,
             "mission_id":            self.mission_id,
             "connected":             True,
+            # 1-indexed to match the waypoint numbers shown on the map —
+            # wp_idx is the 0-indexed position into self.waypoints.
+            "current_waypoint":      (self.wp_idx + 1) if self.waypoints and self.wp_idx < len(self.waypoints) else None,
             # Simulation-specific extras (read by frontend overlay)
             "sim_phase":             self.phase.value,
             "sim_progress":          self.wp_idx / len(self.waypoints) if self.waypoints else 0.0,

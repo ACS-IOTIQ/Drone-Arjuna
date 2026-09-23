@@ -1,0 +1,17 @@
+{
+  "fingerprint": "8e8e6fcfea67f1c9f6b908fa4f4a6ec0e63dd23f30d07f193c6db7005d9958a1",
+  "nodeids": [
+    "app/tests/test_payload_camera.py::TestEncodeForSubscriber::test_locked_subscriber_gets_overlay_drawn",
+    "app/tests/test_payload_camera.py::TestEncodeForSubscriber::test_overlay_does_not_mutate_shared_frame",
+    "app/tests/test_payload_camera.py::TestEncodeForSubscriber::test_two_locked_subscribers_dont_share_overlay_state",
+    "app/tests/test_payload_camera.py::TestEncodeForSubscriber::test_unlocked_subscriber_gets_plain_frame",
+    "app/tests/test_payload_camera.py::TestLockObject::test_lock_creates_tracker_state_for_subscriber",
+    "app/tests/test_payload_camera.py::TestLockObject::test_lock_point_outside_frame_returns_false",
+    "app/tests/test_payload_camera.py::TestLockObject::test_lock_unknown_session_returns_false",
+    "app/tests/test_payload_camera.py::TestLockObject::test_lock_without_frame_returns_false",
+    "app/tests/test_payload_camera.py::TestUnlockObject::test_unlock_removes_lock_state",
+    "app/tests/test_payload_camera.py::TestUnlockObject::test_unlock_unknown_session_is_noop",
+    "app/tests/test_payload_camera.py::TestUnlockObject::test_unlock_without_prior_lock_is_noop",
+    "app/tests/test_payload_camera.py::TestUnsubscribeClearsLock::test_unsubscribe_removes_lock_state"
+  ]
+}

@@ -122,6 +122,10 @@ export default function MissionEditor() {
 
   const save = async () => {
     if (!name.trim() || draftWaypoints.length === 0) return
+    if (!droneId) {
+      setErr('Assign a drone before saving the mission')
+      return
+    }
     if (homeType === 'dynamic_vessel' && !homeVesselId) {
       setErr('Select a home vessel for ship-based operations')
       return
@@ -255,6 +259,7 @@ export default function MissionEditor() {
                   <option key={drone.id} value={drone.id}>{drone.call_sign}</option>
                 ))}
               </select>
+              {!droneId && <p>Select a drone before saving this mission.</p>}
             </label>
 
             <label className="da-mission-field">
@@ -416,7 +421,8 @@ export default function MissionEditor() {
           type="button"
           className="da-btn da-btn-primary justify-center"
           onClick={save}
-          disabled={saving || !name.trim() || draftWaypoints.length === 0}>
+          disabled={saving || !name.trim() || draftWaypoints.length === 0 || !droneId}
+          title={!droneId ? 'Assign a drone before saving the mission' : 'Save mission'}>
           <Save size={14} /> {saving ? 'Saving...' : 'Save Mission'}
         </button>
       </footer>

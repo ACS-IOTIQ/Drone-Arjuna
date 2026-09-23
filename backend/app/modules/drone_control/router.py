@@ -4,14 +4,14 @@ import structlog
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 import serial.tools.list_ports
 from urllib.request import urlopen
 
 from app.core.rbac import require_min_role, Role
-from app.database import get_db, get_ts_db
+from app.database import get_db, get_ts_db, AsyncSessionLocal
 from app.models.user import User
 from app.models.mission import Mission, Waypoint
 from app.models.drone import DroneInstance
@@ -20,7 +20,9 @@ from app.utils.geofence import geofence_store
 from app.utils.geo_utils import all_points_in_geofence
 from app.modules.drone_control.mavlink_manager import mavlink_manager
 from app.modules.drone_control.mission_simulator import mission_simulator
+from app.modules.drone_control.payload_camera import payload_camera_manager
 from app.modules.drone_master.service import DroneInstanceService
+from app.core.auth import get_current_user_from_token
 
 log = structlog.get_logger()
 router = APIRouter()
@@ -800,3 +802,77 @@ async def telemetry_stream(drone_id: int, ws: WebSocket):
     receiver_task.cancel()
     ws_manager.unsubscribe(drone_id, queue)
     log.info("WebSocket disconnected", drone_id=drone_id)
+
+
+# ── Payload camera stream (OpenCV) ─────────────────────────────────
+
+@router.websocket("/camera-stream")
+async def payload_camera_stream(ws: WebSocket, source: str = Query(...), token: str = Query(...)):
+    """
+    WS /api/drone-control/camera-stream?source=<ip-or-url-or-index>&token=<jwt>
+
+    Opens `source` with OpenCV and streams JPEG frames as binary WebSocket
+    messages. A bare integer ("0", "1", ...) selects a local webcam index;
+    a bare IP or IP:port is auto-probed against several common mobile
+    IP-camera app conventions (see app.modules.drone_control.payload_camera);
+    anything else (a full rtsp://, http://, ... URL) is passed straight
+    through as-is.
+
+    Browsers can't attach an Authorization header to a WebSocket handshake,
+    so the access token is passed as a query parameter instead and validated
+    the same way as the Bearer token on REST routes.
+    """
+    async with AsyncSessionLocal() as db:
+        try:
+            await get_current_user_from_token(token, db)
+        except HTTPException:
+            await ws.close(code=4401)
+            return
+
+    await ws.accept()
+    loop = asyncio.get_event_loop()
+    queue, key = payload_camera_manager.subscribe(source, loop)
+
+    async def _sender():
+        try:
+            while True:
+                frame = await queue.get()
+                await ws.send_bytes(frame)
+        except Exception:
+            pass
+
+    async def _receiver():
+        """
+        Text messages from the client are lock/unlock commands for the
+        server-side OpenCV object tracker (see payload_camera.py):
+          {"cmd": "lock", "x": 0..1, "y": 0..1}  — normalized image coords
+          {"cmd": "unlock"}
+        Malformed messages are ignored — this channel carries no other
+        traffic today.
+        """
+        try:
+            while True:
+                raw = await ws.receive_text()
+                try:
+                    msg = json.loads(raw)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                cmd = msg.get("cmd") if isinstance(msg, dict) else None
+                if cmd == "lock":
+                    x, y = msg.get("x"), msg.get("y")
+                    if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                        payload_camera_manager.lock_object(key, queue, float(x), float(y))
+                elif cmd == "unlock":
+                    payload_camera_manager.unlock_object(key, queue)
+        except (WebSocketDisconnect, Exception):
+            pass
+
+    sender_task   = asyncio.create_task(_sender())
+    receiver_task = asyncio.create_task(_receiver())
+
+    await asyncio.wait({sender_task, receiver_task}, return_when=asyncio.FIRST_COMPLETED)
+
+    sender_task.cancel()
+    receiver_task.cancel()
+    payload_camera_manager.unsubscribe(key, queue)
+    log.info("Payload camera stream closed", source=source)

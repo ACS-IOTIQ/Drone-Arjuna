@@ -1,5 +1,5 @@
 {
-  "fingerprint": "b03f8d8b6585b2535730135acc59584d5e1816924481646b7b722fcd11dfe612",
+  "fingerprint": "a3ee48fca9097f7b784bd2e909f3de9bdf631e0db720a03b825597c19dbce98a",
   "nodeids": [
     "app/tests/test_drone_control_api.py::test_autoconnect_already_connected_409",
     "app/tests/test_drone_control_api.py::test_autoconnect_drone_not_found_404",

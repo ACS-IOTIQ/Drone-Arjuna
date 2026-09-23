@@ -137,15 +137,15 @@ async def test_list_missions_empty_200(
 
 
 async def test_list_missions_returns_created_missions(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """
     Missions created via POST must appear in the GET list response.
     Each item must carry its id, name, mission_type, and a waypoints list.
     """
     hdrs = auth_headers(flight_controller_user, make_token)
-    m1 = await _make_mission(client, hdrs, name="List-Mission-A")
-    m2 = await _make_mission(client, hdrs, name="List-Mission-B")
+    m1 = await _make_mission(client, hdrs, name="List-Mission-A", drone_instance_id=drone_instance["id"])
+    m2 = await _make_mission(client, hdrs, name="List-Mission-B", drone_instance_id=drone_instance["id"])
     try:
         resp = await client.get("/api/flight/missions", headers=hdrs)
         assert resp.status_code == 200
@@ -163,15 +163,15 @@ async def test_list_missions_returns_created_missions(
 
 
 async def test_list_missions_ordered_newest_first(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """
     The list must be ordered newest-first (created_at DESC).
     The second mission created should appear before the first.
     """
     hdrs = auth_headers(flight_controller_user, make_token)
-    m1 = await _make_mission(client, hdrs, name="Ordered-First")
-    m2 = await _make_mission(client, hdrs, name="Ordered-Second")
+    m1 = await _make_mission(client, hdrs, name="Ordered-First", drone_instance_id=drone_instance["id"])
+    m2 = await _make_mission(client, hdrs, name="Ordered-Second", drone_instance_id=drone_instance["id"])
     try:
         resp = await client.get("/api/flight/missions", headers=hdrs)
         assert resp.status_code == 200
@@ -183,14 +183,14 @@ async def test_list_missions_ordered_newest_first(
 
 
 async def test_list_missions_viewer_can_read(
-    client: AsyncClient, viewer_user, flight_controller_user, make_token
+    client: AsyncClient, viewer_user, flight_controller_user, drone_instance, make_token
 ):
     """
     VIEWER role must be able to list missions (read-only access).
     """
     fc_hdrs  = auth_headers(flight_controller_user, make_token)
     vw_hdrs  = auth_headers(viewer_user, make_token)
-    m = await _make_mission(client, fc_hdrs, name="Viewer-List-Test")
+    m = await _make_mission(client, fc_hdrs, name="Viewer-List-Test", drone_instance_id=drone_instance["id"])
     try:
         resp = await client.get("/api/flight/missions", headers=vw_hdrs)
         assert resp.status_code == 200
@@ -215,7 +215,7 @@ async def test_list_missions_unauthenticated_401(client: AsyncClient):
 # to honor auto-RTL/auto-hold/auto-goto commands triggered by zone entry.
 
 async def test_create_mission_persists_enforce_airspace_false(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     hdrs = auth_headers(flight_controller_user, make_token)
     resp = await client.post(
@@ -225,6 +225,7 @@ async def test_create_mission_persists_enforce_airspace_false(
             "mission_type": "ISR",
             "waypoints": [_HOME_WP, _TARGET_WP],
             "enforce_airspace": False,
+            "drone_instance_id": drone_instance["id"],
         },
         headers=hdrs,
     )
@@ -239,11 +240,11 @@ async def test_create_mission_persists_enforce_airspace_false(
 
 
 async def test_create_mission_default_enforce_airspace_true(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """When the field is omitted, enforcement must default to enabled."""
     hdrs = auth_headers(flight_controller_user, make_token)
-    m = await _make_mission(client, hdrs, name="Enforce-Airspace-Default")
+    m = await _make_mission(client, hdrs, name="Enforce-Airspace-Default", drone_instance_id=drone_instance["id"])
     try:
         assert m["enforce_airspace"] is True
     finally:
@@ -251,14 +252,14 @@ async def test_create_mission_default_enforce_airspace_true(
 
 
 async def test_update_mission_can_disable_enforce_airspace(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """PATCH is only allowed in 'planning' status, and a drone's first
     mission auto-approves — so create a throwaway first mission for this
     drone_instance_id to push the one under test into 'planning'."""
     hdrs = auth_headers(flight_controller_user, make_token)
-    throwaway = await _make_mission(client, hdrs, name="Enforce-Airspace-Update-Throwaway")
-    m = await _make_mission(client, hdrs, name="Enforce-Airspace-Update")
+    throwaway = await _make_mission(client, hdrs, name="Enforce-Airspace-Update-Throwaway", drone_instance_id=drone_instance["id"])
+    m = await _make_mission(client, hdrs, name="Enforce-Airspace-Update", drone_instance_id=drone_instance["id"])
     try:
         resp = await client.patch(
             f"/api/flight/missions/{m['id']}",
@@ -273,12 +274,12 @@ async def test_update_mission_can_disable_enforce_airspace(
 
 
 async def test_update_mission_omitting_enforce_airspace_leaves_it_unchanged(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """A PATCH that doesn't mention enforce_airspace must not reset it to True."""
     hdrs = auth_headers(flight_controller_user, make_token)
-    throwaway = await _make_mission(client, hdrs, name="Enforce-Airspace-Unchanged-Throwaway")
-    m = await _make_mission(client, hdrs, name="Enforce-Airspace-Unchanged")
+    throwaway = await _make_mission(client, hdrs, name="Enforce-Airspace-Unchanged-Throwaway", drone_instance_id=drone_instance["id"])
+    m = await _make_mission(client, hdrs, name="Enforce-Airspace-Unchanged", drone_instance_id=drone_instance["id"])
     try:
         await client.patch(
             f"/api/flight/missions/{m['id']}",
@@ -302,7 +303,7 @@ async def test_update_mission_omitting_enforce_airspace_leaves_it_unchanged(
 # ═══════════════════════════════════════════════════════════════════════
 
 async def test_create_mission_rejects_waypoint_leg_touching_restricted_zone(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """
     Waypoints can both be outside a restricted zone while the straight mission
@@ -335,6 +336,7 @@ async def test_create_mission_rejects_waypoint_leg_touching_restricted_zone(
             "name": "Restricted-Zone-Touch-Test",
             "mission_type": "ISR",
             "waypoints": waypoints,
+            "drone_instance_id": drone_instance["id"],
         },
         headers=hdrs,
     )
@@ -347,14 +349,14 @@ async def test_create_mission_rejects_waypoint_leg_touching_restricted_zone(
 
 
 async def test_delete_mission_204(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """
     DELETE on an existing mission must return 204 and the mission must
     no longer be accessible via GET.
     """
     hdrs = auth_headers(flight_controller_user, make_token)
-    m = await _make_mission(client, hdrs, name="Delete-Me-Mission")
+    m = await _make_mission(client, hdrs, name="Delete-Me-Mission", drone_instance_id=drone_instance["id"])
 
     delete_resp = await client.delete(f"/api/flight/missions/{m['id']}", headers=hdrs)
     assert delete_resp.status_code == 204
@@ -373,7 +375,7 @@ async def test_delete_mission_not_found_404(
 
 
 async def test_delete_executing_mission_409(
-    client: AsyncClient, admin_user, flight_controller_user, make_token
+    client: AsyncClient, admin_user, flight_controller_user, drone_instance, make_token
 ):
     """
     A mission whose status has been set to 'executing' must NOT be
@@ -383,7 +385,7 @@ async def test_delete_executing_mission_409(
     fc_hdrs    = auth_headers(flight_controller_user, make_token)
     admin_hdrs = auth_headers(admin_user, make_token)
 
-    m = await _make_mission(client, fc_hdrs, name="Executing-Mission")
+    m = await _make_mission(client, fc_hdrs, name="Executing-Mission", drone_instance_id=drone_instance["id"])
 
     # Promote to executing status via admin
     patch = await client.patch(
@@ -409,13 +411,13 @@ async def test_delete_executing_mission_409(
 
 
 async def test_delete_mission_viewer_403(
-    client: AsyncClient, viewer_user, flight_controller_user, make_token
+    client: AsyncClient, viewer_user, flight_controller_user, drone_instance, make_token
 ):
     """VIEWER must receive 403 when trying to delete a mission."""
     fc_hdrs = auth_headers(flight_controller_user, make_token)
     vw_hdrs = auth_headers(viewer_user, make_token)
 
-    m = await _make_mission(client, fc_hdrs, name="Viewer-Delete-Blocked")
+    m = await _make_mission(client, fc_hdrs, name="Viewer-Delete-Blocked", drone_instance_id=drone_instance["id"])
     try:
         resp = await client.delete(f"/api/flight/missions/{m['id']}", headers=vw_hdrs)
         assert resp.status_code == 403
@@ -424,11 +426,11 @@ async def test_delete_mission_viewer_403(
 
 
 async def test_delete_mission_unauthenticated_401(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """No Bearer token on DELETE must return 401."""
     hdrs = auth_headers(flight_controller_user, make_token)
-    m = await _make_mission(client, hdrs, name="Unauth-Delete-Mission")
+    m = await _make_mission(client, hdrs, name="Unauth-Delete-Mission", drone_instance_id=drone_instance["id"])
     try:
         resp = await client.delete(f"/api/flight/missions/{m['id']}")
         assert resp.status_code == 401
@@ -502,11 +504,11 @@ async def test_upload_invalid_mission_422(
 
 
 async def test_upload_mission_unauthenticated_401(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """No Bearer token on the upload endpoint must return 401."""
     hdrs = auth_headers(flight_controller_user, make_token)
-    m = await _make_mission(client, hdrs, name="Upload-Unauth-Mission")
+    m = await _make_mission(client, hdrs, name="Upload-Unauth-Mission", drone_instance_id=drone_instance["id"])
     try:
         resp = await client.post(f"/api/flight/missions/{m['id']}/upload")
         assert resp.status_code == 401
@@ -519,11 +521,11 @@ async def test_upload_mission_unauthenticated_401(
 # ══════════════════════════════════════════════════════════════════════
 
 async def test_get_mission_by_id_200(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """GET by ID returns mission with waypoints list."""
     hdrs = auth_headers(flight_controller_user, make_token)
-    m = await _make_mission(client, hdrs, name="GetById-Mission")
+    m = await _make_mission(client, hdrs, name="GetById-Mission", drone_instance_id=drone_instance["id"])
     try:
         resp = await client.get(
             f"/api/flight/missions/{m['id']}",
@@ -562,15 +564,13 @@ async def test_get_mission_by_id_unauthenticated_401(client: AsyncClient):
 # ══════════════════════════════════════════════════════════════════════
 
 async def test_validate_mission_200(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """
     Valid mission → 200 with {valid, errors, warnings} shape.
-    No drone assigned so the validator skips drone-type checks
-    and returns valid=True with an empty errors list.
     """
     hdrs = auth_headers(flight_controller_user, make_token)
-    m = await _make_mission(client, hdrs, name="Validate-OK-Mission")
+    m = await _make_mission(client, hdrs, name="Validate-OK-Mission", drone_instance_id=drone_instance["id"])
     try:
         resp = await client.post(
             f"/api/flight/missions/{m['id']}/validate",
@@ -623,15 +623,15 @@ async def test_validate_mission_unauthenticated_401(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_update_mission_geofence_200(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """Update a planning-status mission's geofence and verify it persists."""
     hdrs = auth_headers(flight_controller_user, make_token)
-    # The first mission created for a given drone_instance_id (None here) is
+    # The first mission created for a given drone_instance_id is
     # auto-approved; create a throwaway one first so this mission lands in
     # "planning" status, which is required for PATCH to succeed.
-    await _make_mission(client, hdrs, name="Consume-Auto-Approve-Slot")
-    m = await _make_mission(client, hdrs)
+    await _make_mission(client, hdrs, name="Consume-Auto-Approve-Slot", drone_instance_id=drone_instance["id"])
+    m = await _make_mission(client, hdrs, drone_instance_id=drone_instance["id"])
     try:
         geofence = {
             "type": "Polygon",
@@ -651,15 +651,15 @@ async def test_update_mission_geofence_200(
 
 @pytest.mark.asyncio
 async def test_update_mission_name_and_waypoints_200(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
     """Update mission name and replace waypoints."""
     hdrs = auth_headers(flight_controller_user, make_token)
-    # The first mission created for a given drone_instance_id (None here) is
+    # The first mission created for a given drone_instance_id is
     # auto-approved; create a throwaway one first so this mission lands in
     # "planning" status, which is required for PATCH to succeed.
-    await _make_mission(client, hdrs, name="Consume-Auto-Approve-Slot")
-    m = await _make_mission(client, hdrs)
+    await _make_mission(client, hdrs, name="Consume-Auto-Approve-Slot", drone_instance_id=drone_instance["id"])
+    m = await _make_mission(client, hdrs, drone_instance_id=drone_instance["id"])
     try:
         new_wp = {
             "sequence": 1, "latitude": 12.95, "longitude": 77.55,
@@ -681,12 +681,12 @@ async def test_update_mission_name_and_waypoints_200(
 
 @pytest.mark.asyncio
 async def test_update_mission_non_planning_status_409(
-    client: AsyncClient, flight_controller_user, mission_commander_user, make_token
+    client: AsyncClient, flight_controller_user, mission_commander_user, drone_instance, make_token
 ):
     """Cannot edit a mission that is not in 'planning' status → 409."""
     fc_hdrs = auth_headers(flight_controller_user, make_token)
     mc_hdrs = auth_headers(mission_commander_user, make_token)
-    m = await _make_mission(client, fc_hdrs)
+    m = await _make_mission(client, fc_hdrs, drone_instance_id=drone_instance["id"])
     try:
         # Approve the mission
         approve = await client.patch(

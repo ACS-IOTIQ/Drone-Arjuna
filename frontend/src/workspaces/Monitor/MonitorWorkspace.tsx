@@ -7,17 +7,17 @@ import TelemetryChart from "./TelemetryChart";
 import SystemLog from "./SystemLog";
 
 export default function MonitorWorkspace() {
-  const { instances, connections, fetchInstances, fetchConnections } =
+  const { instances, connections, fetchInstances, fetchConnections, startConnectionPolling, stopConnectionPolling } =
     useFleetStore();
   const { subscribe, unsubscribe } = useTelemetryStore();
   const [selDrone, setSelDrone] = useState<number | null>(null);
 
-  // Fetch data on mount and poll every 5 s for connection changes
+  // Fetch data on mount; connection polling is shared across components via the store.
   useEffect(() => {
     fetchInstances();
     fetchConnections();
-    const poll = setInterval(fetchConnections, 5000);
-    return () => clearInterval(poll);
+    startConnectionPolling();
+    return () => stopConnectionPolling();
   }, []);
 
   const connectedDrones = instances.filter((d) => connections[d.id]?.connected);

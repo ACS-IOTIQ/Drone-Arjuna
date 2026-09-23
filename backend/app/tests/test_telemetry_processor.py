@@ -62,16 +62,35 @@ def state():
     return s
 
 
+class _SyncExecutor:
+    """Stand-in for the real ThreadPoolExecutor: runs the callable inline via
+    submit() so run_in_executor(executor, fn, ...) completes synchronously
+    before process() returns, instead of racing a background thread."""
+
+    def submit(self, fn, /, *args, **kwargs):
+        from concurrent.futures import Future
+        future = Future()
+        try:
+            future.set_result(fn(*args, **kwargs))
+        except Exception as e:  # pragma: no cover - defensive
+            future.set_exception(e)
+        return future
+
+
 @pytest.fixture(autouse=True)
 def _mock_broadcaster():
     """
-    process() relays every parsed update to mavlink_broadcaster.send().
-    Mock it out so these unit tests never touch a real UDP socket and so
-    we can assert on the relay call itself where relevant.
+    process() relays every parsed update to mavlink_broadcaster.send() via
+    loop.run_in_executor(mavlink_executor, ...). Mock the broadcaster out so
+    these unit tests never touch a real UDP socket, and replace the real
+    ThreadPoolExecutor with a synchronous stand-in so the relay call is
+    guaranteed to have happened by the time process() returns.
     """
     with patch(
         "app.modules.drone_control.telemetry_processor.mavlink_broadcaster"
-    ) as mock_broadcaster:
+    ) as mock_broadcaster, patch(
+        "app.modules.drone_control.telemetry_processor.mavlink_executor", _SyncExecutor()
+    ):
         mock_broadcaster.send = MagicMock()
         yield mock_broadcaster
 

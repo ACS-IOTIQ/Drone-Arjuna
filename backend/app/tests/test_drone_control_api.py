@@ -425,7 +425,7 @@ async def test_simulate_start_mission_not_found_404(
 async def test_simulate_start_no_drone_422(
     client: AsyncClient, flight_controller_user, make_token
 ):
-    """Mission with no drone assigned and no drone_instance_id override → 422."""
+    """A mission cannot be created without an assigned drone → 422."""
     token = make_token(flight_controller_user.id, flight_controller_user.role)
     hdrs  = {"Authorization": f"Bearer {token}"}
     m_resp = await client.post(
@@ -433,24 +433,21 @@ async def test_simulate_start_no_drone_422(
         json={"name": "Sim-NoDrone", "mission_type": "ISR", "waypoints": []},
         headers=hdrs,
     )
-    assert m_resp.status_code == 201
-    resp = await client.post(
-        "/api/drone-control/simulate/start",
-        json={"mission_id": m_resp.json()["id"]},
-        headers=hdrs,
-    )
-    assert resp.status_code == 422
+    assert m_resp.status_code == 422
 
 
 async def test_simulate_start_drone_not_found_404(
-    client: AsyncClient, flight_controller_user, make_token
+    client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
-    """Mission exists but the given drone_instance_id does not → 404."""
+    """Mission exists but the given drone_instance_id override does not → 404."""
     token = make_token(flight_controller_user.id, flight_controller_user.role)
     hdrs  = {"Authorization": f"Bearer {token}"}
     m_resp = await client.post(
         "/api/flight/missions",
-        json={"name": "Sim-BadDrone", "mission_type": "ISR", "waypoints": []},
+        json={
+            "name": "Sim-BadDrone", "mission_type": "ISR", "waypoints": [],
+            "drone_instance_id": drone_instance["id"],
+        },
         headers=hdrs,
     )
     assert m_resp.status_code == 201

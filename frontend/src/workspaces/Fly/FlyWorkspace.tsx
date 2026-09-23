@@ -18,7 +18,7 @@ const PANEL_LABELS: Record<FlightPanel, string> = {
 }
 
 export default function FlyWorkspace() {
-  const { instances, connections, fetchConnections, fetchInstances } = useFleetStore()
+  const { instances, connections, fetchConnections, fetchInstances, startConnectionPolling, stopConnectionPolling } = useFleetStore()
   const { subscribe, clearDrone, frames } = useTelemetryStore()
 
   const [selectedDroneId, setSelectedDroneId] = useState<number | null>(null)
@@ -29,10 +29,8 @@ export default function FlyWorkspace() {
   useEffect(() => {
     fetchInstances()
     fetchConnections()
-    const poll = setInterval(() => {
-      if (!document.hidden) fetchConnections()
-    }, 5000)
-    return () => clearInterval(poll)
+    startConnectionPolling()
+    return () => stopConnectionPolling()
   }, [])
 
   const simulatingDrones = useMemo(

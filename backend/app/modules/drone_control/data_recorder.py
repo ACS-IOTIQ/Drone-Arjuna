@@ -27,6 +27,16 @@ log = structlog.get_logger()
 RETENTION_DAYS = 1   # telemetry_history retention — replay covers recent flights only
 FLUSH_INTERVAL_S = 1.0   # how often buffered telemetry is written to TimescaleDB
 
+# Hard cap on rows awaiting the next flush. If TimescaleDB is unreachable or
+# slow for an extended period, _pending_history would otherwise grow without
+# bound (unlike _pending_frames/_pending_gauges, which are capped implicitly
+# at one entry per drone_id) — at 10Hz across a large fleet this is a real
+# memory-growth risk during an outage. Once full, new history rows are
+# dropped (replay loses a few seconds of path detail) rather than risking
+# the process running out of memory; latest-frame data (read by the live UI)
+# is unaffected since it isn't subject to this cap.
+MAX_PENDING_HISTORY = 20_000
+
 
 class DataRecorder:
     """
@@ -174,8 +184,14 @@ class DataRecorder:
         async with self._flush_lock:
             self._pending_frames[drone_id] = frame
             self._pending_gauges[drone_id] = self._gauge_from_frame(frame)
-            # Always append — this is the one history table we keep.
-            self._pending_history.append(self._history_from_frame(frame))
+            if len(self._pending_history) < MAX_PENDING_HISTORY:
+                self._pending_history.append(self._history_from_frame(frame))
+            else:
+                log.warning(
+                    "Pending telemetry history buffer full — dropping row "
+                    "(TimescaleDB flush is stalled or falling behind)",
+                    drone_id=drone_id, pending=len(self._pending_history),
+                )
 
     async def record_battery_snapshot(self, drone_id: int, battery_pct: int, mission_id: Optional[int] = None):
         """

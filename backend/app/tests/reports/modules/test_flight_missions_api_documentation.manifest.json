@@ -1,5 +1,5 @@
 {
-  "fingerprint": "33d02e3a76707a6bd5386cc0cd8426c8321727ad49d601d4ac8589fdb5c01a03",
+  "fingerprint": "5abd8fc69970f0cab262eac14f91a43fa824e39a5c61c15943ac5dc4102f0524",
   "nodeids": [
     "app/tests/test_flight_missions_api.py::test_create_mission_default_enforce_airspace_true",
     "app/tests/test_flight_missions_api.py::test_create_mission_persists_enforce_airspace_false",

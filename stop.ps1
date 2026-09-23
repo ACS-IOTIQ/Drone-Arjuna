@@ -66,5 +66,18 @@ if ($bridge) {
     Write-Host "[launcher] com_bridge.py was not running." -ForegroundColor DarkGray
 }
 
+# ── 4. Kill the native payload-camera server ─────────────────────────────────
+
+$camera = Get-WmiObject Win32_Process -Filter "Name='python.exe' OR Name='python3.exe'" |
+          Where-Object { $_.CommandLine -like "*camera_server.py*" }
+
+if ($camera) {
+    Write-Host "[launcher] Stopping native camera server (PID $($camera.ProcessId))..." -ForegroundColor Cyan
+    $camera | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Write-Host "[launcher] Native camera server stopped." -ForegroundColor Green
+} else {
+    Write-Host "[launcher] Native camera server was not running." -ForegroundColor DarkGray
+}
+
 Write-Host ""
 Write-Host "[launcher] DroneArjuna GCS stopped." -ForegroundColor Green

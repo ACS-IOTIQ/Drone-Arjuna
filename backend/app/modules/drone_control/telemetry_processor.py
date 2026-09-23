@@ -15,6 +15,7 @@ from app.utils.mavlink_utils import (
 from app.utils.geofence import geofence_store
 from app.core.events import emit_geofence_breach, emit_geofence_recovered
 from app.modules.drone_control.mavlink_broadcaster import mavlink_broadcaster
+from app.utils.mavlink_executor import mavlink_executor
 from pymavlink import mavutil
 
 log = structlog.get_logger()
@@ -74,7 +75,7 @@ class TelemetryProcessor(metaclass=_TelemetryProcessorCompat):
                 if src_system is not None:
                     loop = asyncio.get_running_loop()
                     loop.run_in_executor(
-                        None, mavlink_broadcaster.send, drone_id, src_system, state.get(drone_id),
+                        mavlink_executor, mavlink_broadcaster.send, drone_id, src_system, state.get(drone_id),
                     )
                 if msg_type == "GLOBAL_POSITION_INT":
                     await self._check_geofence(drone_id, update, state)

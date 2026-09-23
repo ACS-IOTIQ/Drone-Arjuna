@@ -73,3 +73,21 @@ export function makeTelemetryUrl(droneId: number): string {
   const host  = window.location.host
   return `${proto}//${host}/api/drone-control/stream/${droneId}?token=${token}`
 }
+
+// Payload camera — OpenCV-backed stream. `source` is a bare webcam index
+// ("0", "1", ...) or an IP/RTSP/HTTP stream URL/address.
+//
+// Routed through /camera-api (not /api) — the Vite proxy sends this to the
+// natively-run backend (backend/run_native.ps1) instead of the Dockerized
+// one, since Docker Desktop on Windows can't pass a host webcam into a
+// container. IP/RTSP camera sources work through either backend; only
+// webcam-index sources ("0", "1", ...) require the native one.
+export function makeCameraStreamWS(source: string): WebSocket {
+  const token = localStorage.getItem('da_token') ?? ''
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const host  = window.location.host
+  const url = `${proto}//${host}/camera-api/drone-control/camera-stream?source=${encodeURIComponent(source)}&token=${token}`
+  const ws = new WebSocket(url)
+  ws.binaryType = 'arraybuffer'
+  return ws
+}

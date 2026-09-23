@@ -12,6 +12,7 @@ import redis.asyncio as aioredis
 from app.config import get_settings
 from app.database import AsyncSessionLocal, TSSessionLocal
 from app.core.auth import get_current_user
+from app.core.backup import maybe_check_and_restore
 from app.models.user import User
 
 cfg = get_settings()
@@ -23,6 +24,12 @@ cfg = get_settings()
 # keeping the import surface consistent.
 
 async def get_db():
+    # Debounced check so data loss (e.g. a wiped table/dump deleted from
+    # MinIO) is caught within seconds of the next API request, instead of
+    # waiting for the periodic integrity monitor's interval. Fire-and-forget
+    # — runs in the background so this request doesn't wait on a separate DB
+    # session + MinIO round-trip before getting its own.
+    maybe_check_and_restore()
     async with AsyncSessionLocal() as session:
         try:
             yield session

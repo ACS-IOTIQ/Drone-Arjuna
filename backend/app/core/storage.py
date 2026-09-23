@@ -49,6 +49,7 @@ def classify_content_type(content_type: str) -> str:
 
 
 _client = None
+_public_client = None
 
 
 def _get_client():
@@ -64,6 +65,24 @@ def _get_client():
     return _client
 
 
+def _get_public_client():
+    """
+    S3 client pointed at the browser-reachable MinIO endpoint. Used only for
+    presigning — the signature covers path/query, not the host, so it can
+    safely differ from the internal client used for server-to-server calls.
+    """
+    global _public_client
+    if _public_client is None:
+        cfg = get_settings()
+        _public_client = boto3.client(
+            "s3",
+            endpoint_url=f"{'https' if cfg.minio_secure else 'http'}://{cfg.minio_public_endpoint}",
+            aws_access_key_id=cfg.minio_user,
+            aws_secret_access_key=cfg.minio_password,
+        )
+    return _public_client
+
+
 async def ensure_bucket() -> None:
     """Create the analyst imagery bucket if it doesn't already exist."""
     def _ensure():
@@ -72,6 +91,25 @@ async def ensure_bucket() -> None:
             client.head_bucket(Bucket=BUCKET_NAME)
         except ClientError:
             client.create_bucket(Bucket=BUCKET_NAME)
+
+        cfg = get_settings()
+        try:
+            client.put_bucket_cors(
+                Bucket=BUCKET_NAME,
+                CORSConfiguration={
+                    "CORSRules": [{
+                        "AllowedOrigins": cfg.allowed_origins,
+                        "AllowedMethods": ["GET"],
+                        "AllowedHeaders": ["*"],
+                    }]
+                },
+            )
+        except ClientError as e:
+            # Plain <img>/GET requests aren't CORS-preflighted by browsers, so
+            # this bucket is already usable without it — some MinIO builds
+            # reject PutBucketCors outright (NotImplemented), which must not
+            # block startup.
+            log.warning("Failed to set bucket CORS policy", bucket=BUCKET_NAME, error=str(e))
 
     await asyncio.to_thread(_ensure)
 
@@ -101,7 +139,7 @@ async def upload_bytes(object_key: str, data: bytes, content_type: str = "applic
 async def get_presigned_url(object_key: str, expires_seconds: int = 3600) -> str:
     """Generate a time-limited GET URL for an object, for UI download/preview."""
     def _presign():
-        return _get_client().generate_presigned_url(
+        return _get_public_client().generate_presigned_url(
             "get_object",
             Params={"Bucket": BUCKET_NAME, "Key": object_key},
             ExpiresIn=expires_seconds,

@@ -47,18 +47,33 @@ export default function PayloadManager() {
     [payloads],
   )
 
+  const LOAD_RETRIES = 2
+  const LOAD_RETRY_DELAY_MS = 800
+
   const load = async () => {
     setLoading(true); setErr('')
-    try {
-      const { data } = await payloadApi.listTypes()
-      setPayloads(data)
-      setUsingFallback(false)
-    } catch (e: any) {
-      setPayloads(readFallback())
-      setUsingFallback(true)
-      setErr(e.response?.data?.detail ?? 'P2-02 payload API is not reachable; using local UI cache.')
-    } finally {
-      setLoading(false)
+    for (let attempt = 0; attempt <= LOAD_RETRIES; attempt++) {
+      try {
+        const { data } = await payloadApi.listTypes()
+        setPayloads(data)
+        setUsingFallback(false)
+        setLoading(false)
+        return
+      } catch (e: any) {
+        const isLastAttempt = attempt === LOAD_RETRIES
+        console.warn(
+          `Payload types load failed (attempt ${attempt + 1}/${LOAD_RETRIES + 1})`,
+          e?.response?.status, e?.response?.data?.detail ?? e?.message,
+        )
+        if (isLastAttempt) {
+          setPayloads(readFallback())
+          setUsingFallback(true)
+          setErr(e.response?.data?.detail ?? 'P2-02 payload API is not reachable; using local UI cache.')
+          setLoading(false)
+          return
+        }
+        await new Promise(r => setTimeout(r, LOAD_RETRY_DELAY_MS))
+      }
     }
   }
 

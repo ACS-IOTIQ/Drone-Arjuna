@@ -72,6 +72,8 @@ def _enforce_airspace(waypoints_body, geofence_body, enforce: bool = True):
 
 @router.post("/missions", response_model=MissionOut, status_code=201)
 async def create_mission(body: MissionCreate, db: DbDep, user: PilotDep):
+    if body.drone_instance_id is None:
+        raise HTTPException(422, "A drone must be assigned before saving a mission")
     _enforce_airspace(body.waypoints, body.geofence, body.enforce_airspace)
 
     existing_count = await db.scalar(
@@ -150,6 +152,11 @@ async def update_mission(
         raise HTTPException(404, "Mission not found")
     if m.status not in ("planning",):
         raise HTTPException(409, f"Cannot edit a mission with status '{m.status}'")
+    if (
+        body.drone_instance_id is None
+        and (m.drone_instance_id is None or "drone_instance_id" in body.model_fields_set)
+    ):
+        raise HTTPException(422, "A drone must be assigned before saving a mission")
 
     effective_enforce = body.enforce_airspace if body.enforce_airspace is not None else m.enforce_airspace
     _enforce_airspace(body.waypoints, body.geofence, effective_enforce)

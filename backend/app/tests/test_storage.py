@@ -182,7 +182,7 @@ async def test_get_presigned_url_calls_generate_presigned_url():
     mock_client = MagicMock()
     mock_client.generate_presigned_url.return_value = "http://minio.local/signed"
 
-    with patch("app.core.storage._get_client", return_value=mock_client):
+    with patch("app.core.storage._get_public_client", return_value=mock_client):
         url = await storage.get_presigned_url("jobs/abc/img.jpg", expires_seconds=120)
 
     assert url == "http://minio.local/signed"
@@ -197,7 +197,7 @@ async def test_get_presigned_url_default_expiry():
     mock_client = MagicMock()
     mock_client.generate_presigned_url.return_value = "http://minio.local/signed"
 
-    with patch("app.core.storage._get_client", return_value=mock_client):
+    with patch("app.core.storage._get_public_client", return_value=mock_client):
         await storage.get_presigned_url("jobs/abc/img.jpg")
 
     assert mock_client.generate_presigned_url.call_args.kwargs["ExpiresIn"] == 3600

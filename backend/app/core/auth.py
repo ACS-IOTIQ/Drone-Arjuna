@@ -64,10 +64,12 @@ def create_refresh_token(data: dict) -> str:
     return jwt.encode(payload, cfg.secret_key, algorithm=cfg.algorithm)
 
 
-async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> User:
+async def get_current_user_from_token(token: str, db: AsyncSession) -> User:
+    """
+    Same validation as get_current_user, but takes the token as a plain
+    string. Used for WebSocket routes, where the browser can't set an
+    Authorization header — the token is passed as a query parameter instead.
+    """
     exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -86,6 +88,13 @@ async def get_current_user(
     if not user or not user.is_active:
         raise exc
     return user
+
+
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> User:
+    return await get_current_user_from_token(token, db)
 
 
 # ── Routes ────────────────────────────────────────────────────────

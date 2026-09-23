@@ -12,6 +12,8 @@ htmlcov/
 .env.*
 *.log
 .venv/
+.venv_native/
+.venv_native_py313/
 venv/
 env/
 ENV/

@@ -36,6 +36,10 @@ class Settings(BaseSettings):
 
     # MinIO / S3
     minio_endpoint: str = "minio:9000"
+    # Host:port the BROWSER can resolve, used only when presigning URLs handed
+    # to the frontend — minio_endpoint above is Docker-internal DNS and is
+    # unreachable from the host browser (same class of bug as DEF-08).
+    minio_public_endpoint: str = "localhost:9000"
     minio_user: str = "da_minio"
     minio_password: str = "changeme123"
     minio_secure: bool = False

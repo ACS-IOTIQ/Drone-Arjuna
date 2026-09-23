@@ -194,7 +194,10 @@ _CANDIDATES = [
 
 
 @pytest.mark.asyncio
-async def test_connect_drone_success_on_first_candidate():
+async def test_connect_drone_success_all_candidates_probed_concurrently():
+    """All candidates are probed concurrently (see _connect_drone docstring) —
+    when every candidate succeeds, the first one to complete wins and every
+    candidate still gets a real connect() attempt with the right kwargs."""
     with patch(
         "app.modules.drone_control.mavlink_manager.mavlink_manager.connect",
         new=AsyncMock(return_value=True),
@@ -202,11 +205,11 @@ async def test_connect_drone_success_on_first_candidate():
         result = await ac._connect_drone(1, "D1", _CANDIDATES)
 
     assert result is True
-    mock_connect.assert_awaited_once()
-    _, kwargs = mock_connect.call_args
-    assert kwargs["drone_id"] == 1
-    assert kwargs["call_sign"] == "D1"
-    assert kwargs["heartbeat_timeout"] == ac.HEARTBEAT_TIMEOUT
+    assert mock_connect.await_count == len(_CANDIDATES)
+    for _, kwargs in mock_connect.call_args_list:
+        assert kwargs["drone_id"] == 1
+        assert kwargs["call_sign"] == "D1"
+        assert kwargs["heartbeat_timeout"] == ac.HEARTBEAT_TIMEOUT
 
 
 @pytest.mark.asyncio

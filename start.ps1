@@ -88,7 +88,40 @@ try {
     Write-Host "[launcher] Bridge discovery endpoint not responding — continuing anyway" -ForegroundColor Yellow
 }
 
-# ── 4. Start Docker Compose ──────────────────────────────────────────────────
+# ── 4. Start the native payload-camera server ────────────────────────────────
+# cv2.VideoCapture(0) inside the Dockerized backend can never see the host's
+# webcam — Docker Desktop for Windows has no device passthrough for it — so
+# camera_server.py runs natively on Windows instead, in its own window,
+# alongside the Docker stack. See backend/run_native.ps1 for details.
+
+$NativeCameraScript = Join-Path $ScriptDir "backend\run_native.ps1"
+if (Test-Path $NativeCameraScript) {
+    $staleCamera = Get-WmiObject Win32_Process -Filter "Name='python.exe' OR Name='python3.exe'" |
+                   Where-Object { $_.CommandLine -like "*camera_server.py*" }
+    if ($staleCamera) {
+        Write-Host "[launcher] Stopping stale camera_server.py (PID $($staleCamera.ProcessId))..." -ForegroundColor Yellow
+        $staleCamera | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        Start-Sleep -Milliseconds 500
+    }
+
+    Write-Host "[launcher] Starting native payload-camera server (webcam access)..." -ForegroundColor Cyan
+    Start-Process `
+        -FilePath "powershell.exe" `
+        -ArgumentList "-NoExit", "-File", "`"$NativeCameraScript`"" `
+        -WorkingDirectory (Join-Path $ScriptDir "backend") | Out-Null
+
+    Start-Sleep -Seconds 3
+    try {
+        Invoke-RestMethod -Uri "http://localhost:8001/openapi.json" -TimeoutSec 3 | Out-Null
+        Write-Host "[launcher] Native camera server ready on :8001" -ForegroundColor Green
+    } catch {
+        Write-Host "[launcher] Native camera server not responding yet (it may still be installing its venv on first run)" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "[launcher] backend\run_native.ps1 not found — skipping native camera server" -ForegroundColor DarkGray
+}
+
+# ── 5. Start Docker Compose ──────────────────────────────────────────────────
 
 Set-Location $ScriptDir
 
@@ -104,7 +137,7 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# ── 5. Baseline backup ───────────────────────────────────────────────────────
+# ── 6. Baseline backup ───────────────────────────────────────────────────────
 # Snapshots whatever's in the DB right now the stack has just come up. Covers
 # the case where the session later ends uncleanly (crash, force-close) and
 # stop.ps1's pre-shutdown backup never gets to run.
@@ -119,7 +152,7 @@ if (Test-Path $backupScript) {
     }
 }
 
-# ── 6. Summary ────────────────────────────────────────────────────────────────
+# ── 7. Summary ────────────────────────────────────────────────────────────────
 
 Write-Host ""
 Write-Host "┌─────────────────────────────────────────────────────────────┐" -ForegroundColor Green
@@ -127,6 +160,7 @@ Write-Host "│  DroneArjuna GCS is up                                       │
 Write-Host "│                                                               │" -ForegroundColor Green
 Write-Host "│  Frontend  →  http://localhost:3000                          │" -ForegroundColor Green
 Write-Host "│  Backend   →  http://localhost:8000/docs                     │" -ForegroundColor Green
+Write-Host "│  Camera    →  native server on :8001 (webcam access)         │" -ForegroundColor Green
 Write-Host "│  MailHog   →  http://localhost:8025                          │" -ForegroundColor Green
 Write-Host "│  RabbitMQ  →  http://localhost:15672  (da_mq / changeme)     │" -ForegroundColor Green
 Write-Host "│                                                               │" -ForegroundColor Green

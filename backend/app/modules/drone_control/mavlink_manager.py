@@ -17,6 +17,7 @@ from pymavlink import mavutil
 
 from app.utils.mavlink_utils import build_connection_string
 from app.utils.geofence import geofence_store
+from app.utils.mavlink_executor import mavlink_executor
 from app.modules.drone_control.telemetry_processor import TelemetryProcessor
 from app.modules.drone_control.state_manager import StateManager, home_point_updater
 from app.modules.drone_control.health_monitor import HealthMonitor
@@ -87,6 +88,13 @@ class MAVLinkManager:
         # Wire health monitor and data recorder into state update callbacks
         self.state.subscribe(self._health.evaluate)
         self.state.subscribe(data_recorder.record)
+        # Serializes connect() per drone_id — auto_connector now probes
+        # multiple candidate transports/ports concurrently for the same
+        # drone, and without this lock two candidates racing past the
+        # "already connected" check could both open a real connection and
+        # both write self._connections[drone_id], leaking whichever one
+        # loses that race (its task/socket would never be cleaned up).
+        self._connect_locks: dict[int, asyncio.Lock] = {}
 
     def _build_connection_string(self, transport: str, host: str, port: int,
                                   serial_port: str, baud_rate: int) -> str:
@@ -97,9 +105,20 @@ class MAVLinkManager:
                       serial_port: str = "/dev/ttyUSB0", baud_rate: int = 57600,
                       hf_modem_type: str = "generic",
                       heartbeat_timeout: float | None = None) -> bool:
-        if drone_id in self._connections and self._connections[drone_id].connected:
-            log.warning("Drone already connected", drone_id=drone_id)
-            return True
+        # Only the pre-check and final commit are serialized per drone_id —
+        # auto_connector probes multiple candidate transports/ports for the
+        # same drone concurrently, and the socket-open + heartbeat-wait below
+        # (the actually slow part) must stay lock-free so those candidates
+        # race in parallel instead of queuing behind each other. Without the
+        # lock around the pre-check + commit specifically, two candidates
+        # could both pass "not yet connected" and both write
+        # self._connections[drone_id], leaking whichever one loses.
+        lock = self._connect_locks.setdefault(drone_id, asyncio.Lock())
+
+        async with lock:
+            if drone_id in self._connections and self._connections[drone_id].connected:
+                log.warning("Drone already connected", drone_id=drone_id)
+                return True
 
         conn_str = self._build_connection_string(transport, host, port, serial_port, baud_rate)
         conn = DroneConnection(
@@ -120,12 +139,12 @@ class MAVLinkManager:
             # pymavlink connection — runs synchronously but we offload to executor
             loop = asyncio.get_event_loop()
             conn.mav = await loop.run_in_executor(
-                None,
+                mavlink_executor,
                 lambda: mavutil.mavlink_connection(conn_str, source_system=255)
             )
             # Wait for first heartbeat — HF uses a much longer timeout
             await asyncio.wait_for(
-                loop.run_in_executor(None, conn.mav.wait_heartbeat),
+                loop.run_in_executor(mavlink_executor, conn.mav.wait_heartbeat),
                 timeout=heartbeat_timeout,
             )
 
@@ -173,31 +192,45 @@ class MAVLinkManager:
                         0, 0, 0, 0, 0,
                     )
 
-            await loop.run_in_executor(None, _request_streams, conn.mav)
+            await loop.run_in_executor(mavlink_executor, _request_streams, conn.mav)
             log.info("Stream rates requested", drone_id=drone_id)
 
-            conn.connected = True
-            conn.link_timeout_s = max(heartbeat_timeout, _LINK_LIVENESS_TIMEOUT.get(transport, 10.0))
-            self._connections[drone_id] = conn
-            self.state.init_drone(drone_id, call_sign)
+            async with lock:
+                # Re-check: another concurrently-probed candidate for this
+                # same drone_id may have already won and committed while
+                # this one was opening its socket / waiting for heartbeat.
+                # If so, back off and release this candidate's own
+                # connection instead of overwriting the winner.
+                if drone_id in self._connections and self._connections[drone_id].connected:
+                    log.info("autoconnect race lost — another candidate already connected",
+                             drone_id=drone_id, transport=transport)
+                    self._close_mav(conn)
+                    if conn.hf_adapter:
+                        hf_link_adapter.remove(drone_id)
+                    return False
 
-            # Create a CommandController for this drone
-            conn.controller = CommandController(drone_id, conn.mav, self.state)
+                conn.connected = True
+                conn.link_timeout_s = max(heartbeat_timeout, _LINK_LIVENESS_TIMEOUT.get(transport, 10.0))
+                self._connections[drone_id] = conn
+                self.state.init_drone(drone_id, call_sign)
 
-            # Start background reader task (heartbeat is sent inside the same thread)
-            conn.task = asyncio.create_task(
-                self._read_loop(drone_id),
-                name=f"mavlink-reader-{call_sign}"
-            )
+                # Create a CommandController for this drone
+                conn.controller = CommandController(drone_id, conn.mav, self.state)
 
-            # Start vessel home-point updater — tracks vessel:position in Redis
-            # and sends MAV_CMD_DO_SET_HOME every 5 s so RTL returns to the vessel
-            from app.dependencies import get_redis
-            redis = await get_redis()
-            conn.home_task = asyncio.create_task(
-                home_point_updater(drone_id, conn.mav, redis),
-                name=f"home-updater-{call_sign}"
-            )
+                # Start background reader task (heartbeat is sent inside the same thread)
+                conn.task = asyncio.create_task(
+                    self._read_loop(drone_id),
+                    name=f"mavlink-reader-{call_sign}"
+                )
+
+                # Start vessel home-point updater — tracks vessel:position in Redis
+                # and sends MAV_CMD_DO_SET_HOME every 5 s so RTL returns to the vessel
+                from app.dependencies import get_redis
+                redis = await get_redis()
+                conn.home_task = asyncio.create_task(
+                    home_point_updater(drone_id, conn.mav, redis),
+                    name=f"home-updater-{call_sign}"
+                )
 
             log.info("Drone connected", drone_id=drone_id, call_sign=call_sign,
                      transport=transport)
@@ -215,6 +248,21 @@ class MAVLinkManager:
                 hf_link_adapter.remove(drone_id)
             self._close_mav(conn)
             return False
+        except asyncio.CancelledError:
+            # A candidate probed concurrently by auto_connector for this
+            # same drone_id can be cancelled mid-connect once another
+            # candidate wins the race — release whatever socket this one
+            # had already opened before letting the cancellation propagate,
+            # otherwise it leaks (connect() never reaches the commit step
+            # that would normally own its cleanup).
+            if conn.mav:
+                try:
+                    conn.mav.close()
+                except Exception:
+                    pass
+            if conn.hf_adapter:
+                hf_link_adapter.remove(drone_id)
+            raise
         except Exception as e:
             log.error("Connection failed", drone_id=drone_id, error=str(e))
             if conn.mav:
@@ -284,7 +332,7 @@ class MAVLinkManager:
 
         while conn.connected:
             try:
-                msg = await loop.run_in_executor(None, _recv_and_heartbeat)
+                msg = await loop.run_in_executor(mavlink_executor, _recv_and_heartbeat)
                 consecutive_errors = 0   # successful recv resets counter
                 if msg is None:
                     # recv_match times out (returns None) on a dead/unplugged link
@@ -403,7 +451,7 @@ class MAVLinkManager:
 
         loop = asyncio.get_event_loop()
         try:
-            await loop.run_in_executor(None, _send, conn.mav)
+            await loop.run_in_executor(mavlink_executor, _send, conn.mav)
             log.info("Home position set on connect", drone_id=drone_id, lat=lat, lon=lon)
             return True
         except Exception as e:

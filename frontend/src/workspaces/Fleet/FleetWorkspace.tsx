@@ -60,7 +60,7 @@ function readAssignments(): Record<number, number | null> {
 }
 
 export default function FleetWorkspace() {
-  const { instances, connections, fetchInstances, fetchConnections } =
+  const { instances, connections, fetchInstances, fetchConnections, startConnectionPolling, stopConnectionPolling } =
     useFleetStore();
   const role = useAuthStore((s) => s.role);
   const subscribe = useTelemetryStore((s) => s.subscribe);
@@ -145,14 +145,32 @@ export default function FleetWorkspace() {
     }
   }, [instances, fetchConnections]);
 
+  const PAYLOAD_FETCH_RETRIES = 2;
+  const PAYLOAD_FETCH_RETRY_DELAY_MS = 800;
+
   const fetchPayloads = async () => {
     setPayloadErr("");
-    try {
-      const { data } = await payloadApi.listTypes();
-      setPayloads(data);
-    } catch {
-      setPayloads(readCachedPayloads());
-      setPayloadErr("Payload API unavailable; showing cached payloads.");
+    for (let attempt = 0; attempt <= PAYLOAD_FETCH_RETRIES; attempt++) {
+      try {
+        const { data } = await payloadApi.listTypes();
+        setPayloads(data);
+        return;
+      } catch (e: any) {
+        const isLastAttempt = attempt === PAYLOAD_FETCH_RETRIES;
+        // Logged (not just swallowed) so a transient blip vs. a real auth/
+        // server failure is diagnosable from the console instead of always
+        // surfacing as the same generic "API unavailable" banner.
+        console.warn(
+          `Payload types fetch failed (attempt ${attempt + 1}/${PAYLOAD_FETCH_RETRIES + 1})`,
+          e?.response?.status, e?.response?.data?.detail ?? e?.message,
+        );
+        if (isLastAttempt) {
+          setPayloads(readCachedPayloads());
+          setPayloadErr("Payload API unavailable; showing cached payloads.");
+          return;
+        }
+        await new Promise(r => setTimeout(r, PAYLOAD_FETCH_RETRY_DELAY_MS));
+      }
     }
   };
 
@@ -162,10 +180,12 @@ export default function FleetWorkspace() {
   }, []);
 
   // Keep online state and active-first ordering current while this workspace is open.
+  // Polling itself is shared across every mounted component via the store —
+  // this just registers/unregisters this component's interest in it.
   useEffect(() => {
-    const id = setInterval(fetchConnections, 5000);
-    return () => clearInterval(id);
-  }, [fetchConnections]);
+    startConnectionPolling();
+    return () => stopConnectionPolling();
+  }, [startConnectionPolling, stopConnectionPolling]);
 
   useEffect(() => {
     let active = true;

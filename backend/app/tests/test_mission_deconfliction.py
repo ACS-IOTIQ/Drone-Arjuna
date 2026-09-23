@@ -193,14 +193,58 @@ class TestDeconflictMissions:
 
 # Helpers to create missions and waypoints through the API
 
+_DT_BODY = {
+    "name":                  "Deconflict-Test-DroneType",
+    "manufacturer":          "ACS Systems",
+    "model":                 "DC-Alpha",
+    "size_class":            "medium",
+    "mission_type":          "ISR",
+    "is_vtol":               True,
+    "max_speed_ms":          30.0,
+    "cruise_speed_ms":       20.0,
+    "max_altitude_m":        500.0,
+    "endurance_h":           4.0,
+    "range_km":              100.0,
+    "max_takeoff_weight_kg": 20.0,
+    "max_payload_weight_kg": 5.0,
+    "autopilot_type":        "ArduPilot",
+}
+
+
+@pytest_asyncio.fixture
+async def drone_type(client: AsyncClient, admin_user, make_token):
+    """Creates a DroneType; deletes it on teardown."""
+    hdrs = auth_headers(admin_user, make_token)
+    resp = await client.post("/api/master/drone-types", json=_DT_BODY, headers=hdrs)
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    yield data
+    await client.delete(f"/api/master/drone-types/{data['id']}", headers=hdrs)
+
+
+@pytest_asyncio.fixture
+async def drone_instance(client: AsyncClient, admin_user, drone_type, make_token):
+    """Creates a DroneInstance linked to drone_type."""
+    hdrs = auth_headers(admin_user, make_token)
+    body = {
+        "call_sign":      "DC-ALPHA-01",
+        "serial_number":  "DC-SN-001",
+        "drone_type_id":  drone_type["id"],
+    }
+    resp = await client.post("/api/master/drones", json=body, headers=hdrs)
+    assert resp.status_code == 201, resp.text
+    yield resp.json()
+
+
 async def _create_mission(client: AsyncClient, hdrs: dict, waypoints: list,
-                           name: str = "Test") -> int:
+                           name: str = "Test", drone_instance_id: int | None = None) -> int:
     resp = await client.post(
         "/api/flight/missions",
         json={
             "name": name,
             "mission_type": "ISR",
             "waypoints": waypoints,
+            "drone_instance_id": drone_instance_id,
         },
         headers=hdrs,
     )
@@ -232,17 +276,17 @@ _API_WPS_OVERLAP_A = [_wp(0, 9.995, 69.995), _wp(1, 10.015, 70.015)]
 
 
 async def test_approve_no_conflict_returns_200(
-    client: AsyncClient, mission_commander_user, make_token
+    client: AsyncClient, mission_commander_user, drone_instance, make_token
 ):
     """Approving a mission with no active conflicts must return 200."""
     hdrs = auth_headers(mission_commander_user, make_token)
-    mid = await _create_mission(client, hdrs, _API_WPS_A, "Alpha")
+    mid = await _create_mission(client, hdrs, _API_WPS_A, "Alpha", drone_instance["id"])
     code = await _set_status(client, hdrs, mid, "approved")
     assert code == 200
 
 
 async def test_approve_with_overlap_still_succeeds(
-    client: AsyncClient, mission_commander_user, make_token
+    client: AsyncClient, mission_commander_user, drone_instance, make_token
 ):
     """
     Mission approval is never blocked by another mission's overlapping
@@ -252,10 +296,10 @@ async def test_approve_with_overlap_still_succeeds(
     """
     hdrs = auth_headers(mission_commander_user, make_token)
 
-    mid_a = await _create_mission(client, hdrs, _API_WPS_A, "Alpha")
+    mid_a = await _create_mission(client, hdrs, _API_WPS_A, "Alpha", drone_instance["id"])
     assert await _set_status(client, hdrs, mid_a, "approved") == 200
 
-    mid_b = await _create_mission(client, hdrs, _API_WPS_OVERLAP_A, "Bravo")
+    mid_b = await _create_mission(client, hdrs, _API_WPS_OVERLAP_A, "Bravo", drone_instance["id"])
     resp = await client.patch(
         f"/api/flight/missions/{mid_b}/status",
         json={"status": "approved"},
@@ -265,20 +309,20 @@ async def test_approve_with_overlap_still_succeeds(
 
 
 async def test_approve_separate_areas_no_conflict(
-    client: AsyncClient, mission_commander_user, make_token
+    client: AsyncClient, mission_commander_user, drone_instance, make_token
 ):
     """Two missions in separate areas: both can be approved without conflict."""
     hdrs = auth_headers(mission_commander_user, make_token)
 
-    mid_a = await _create_mission(client, hdrs, _API_WPS_A, "Alpha")
+    mid_a = await _create_mission(client, hdrs, _API_WPS_A, "Alpha", drone_instance["id"])
     assert await _set_status(client, hdrs, mid_a, "approved") == 200
 
-    mid_b = await _create_mission(client, hdrs, _API_WPS_B, "Bravo")
+    mid_b = await _create_mission(client, hdrs, _API_WPS_B, "Bravo", drone_instance["id"])
     assert await _set_status(client, hdrs, mid_b, "approved") == 200
 
 
 async def test_non_approved_transition_skips_deconfliction(
-    client: AsyncClient, mission_commander_user, make_token
+    client: AsyncClient, mission_commander_user, drone_instance, make_token
 ):
     """
     Status transitions to planning/aborted/completed must never trigger
@@ -287,16 +331,16 @@ async def test_non_approved_transition_skips_deconfliction(
     hdrs = auth_headers(mission_commander_user, make_token)
 
     # Approve a mission to make it "active"
-    mid_a = await _create_mission(client, hdrs, _API_WPS_A, "Alpha")
+    mid_a = await _create_mission(client, hdrs, _API_WPS_A, "Alpha", drone_instance["id"])
     assert await _set_status(client, hdrs, mid_a, "approved") == 200
 
     # Set an overlapping mission back to planning — no 409
-    mid_b = await _create_mission(client, hdrs, _API_WPS_OVERLAP_A, "Bravo")
+    mid_b = await _create_mission(client, hdrs, _API_WPS_OVERLAP_A, "Bravo", drone_instance["id"])
     assert await _set_status(client, hdrs, mid_b, "planning") == 200
 
 
 async def test_approve_overlap_with_executing_mission_still_succeeds(
-    client: AsyncClient, mission_commander_user, make_token
+    client: AsyncClient, mission_commander_user, drone_instance, make_token
 ):
     """
     An "executing" mission overlapping the one being approved must not
@@ -304,11 +348,11 @@ async def test_approve_overlap_with_executing_mission_still_succeeds(
     """
     hdrs = auth_headers(mission_commander_user, make_token)
 
-    mid_a = await _create_mission(client, hdrs, _API_WPS_A, "Alpha")
+    mid_a = await _create_mission(client, hdrs, _API_WPS_A, "Alpha", drone_instance["id"])
     # Set directly to executing (simulating an in-progress mission)
     assert await _set_status(client, hdrs, mid_a, "executing") == 200
 
-    mid_b = await _create_mission(client, hdrs, _API_WPS_OVERLAP_A, "Bravo")
+    mid_b = await _create_mission(client, hdrs, _API_WPS_OVERLAP_A, "Bravo", drone_instance["id"])
     resp = await client.patch(
         f"/api/flight/missions/{mid_b}/status",
         json={"status": "approved"},

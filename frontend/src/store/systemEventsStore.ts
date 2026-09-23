@@ -7,6 +7,7 @@
 import { notify } from './notificationStore'
 import { useFleetStore } from './fleetStore'
 import { useMissionStore } from './missionStore'
+import { useVesselStore } from './vesselStore'
 
 let socket: WebSocket | null = null
 
@@ -33,6 +34,9 @@ function connect() {
       useFleetStore.getState().fetchInstances()
       useFleetStore.getState().fetchConnections()
       useMissionStore.getState().fetchMissions()
+      useVesselStore.getState().fetchVessels()
+    } else if (data.type === 'BACKUP_MISSING') {
+      notify.danger('Backup Unavailable', data.message ?? 'No backup dump is available to restore from.')
     }
   }
 

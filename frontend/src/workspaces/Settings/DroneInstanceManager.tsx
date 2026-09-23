@@ -40,7 +40,7 @@ export default function DroneInstanceManager() {
   const [removeBusy, setRemoveBusy] = useState(false)
   const [removeSuccess, setRemoveSuccess] = useState('')
   const { vessels, fetchVessels } = useVesselStore()
-  const { connections, fetchConnections } = useFleetStore()
+  const { connections, fetchConnections, startConnectionPolling, stopConnectionPolling } = useFleetStore()
   const displayedDrones = sortDronesByActivity(drones as DroneInstance[], connections)
 
   const load = async () => {
@@ -58,8 +58,8 @@ export default function DroneInstanceManager() {
     load()
     fetchVessels()
     fetchConnections()
-    const connectionPoll = setInterval(fetchConnections, 5000)
-    return () => clearInterval(connectionPoll)
+    startConnectionPolling()
+    return () => stopConnectionPolling()
   }, [])
 
   const openNew = () => {

@@ -20,6 +20,7 @@ Timing (worst case end-to-end after cable plug-in):
 """
 import asyncio
 import json
+import time
 import structlog
 from urllib.request import urlopen
 
@@ -34,6 +35,22 @@ STARTUP_DELAY        = 5     # seconds — wait after lifespan start for DB/brid
 HEARTBEAT_TIMEOUT    = 8.0   # seconds — pymavlink wait_heartbeat timeout per candidate
 
 DISCOVERY_URL = "http://host.docker.internal:5761/ports"
+
+# A fallback TCP/UDP candidate (tcp:host:5762, udp:14550, ...) that fails
+# repeatedly with nothing listening is skipped for this long before being
+# retried, instead of being re-probed every RETRY_INTERVAL forever. This
+# matters specifically for TCP candidates: pymavlink's mavtcp will happily
+# connect() to a port with nothing valid behind it, then spend the full
+# heartbeat_timeout printing "EOF on TCP socket" on every failed read — with
+# no real drone/SITL present, that repeats every 15s indefinitely and floods
+# the logs. Bridge candidates (built fresh from live com_bridge status) and
+# discovered serial ports are never cooled down — only the fixed fallback
+# list, which is the same every cycle regardless of what's actually present.
+FAILURE_COOLDOWN_S = 120
+COOLDOWN_AFTER_FAILURES = 2
+
+_candidate_failures: dict[str, int] = {}
+_candidate_cooldown_until: dict[str, float] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -66,10 +83,27 @@ def _scan_linux_serial() -> list[dict]:
     return out
 
 
+_FALLBACK_CANDIDATES = [
+    {"transport": "tcp", "host": "host.docker.internal", "port": 5762,
+     "serial_port": "/dev/ttyUSB0", "baud_rate": 115200, "label": "tcp:host:5762"},
+    {"transport": "tcp", "host": "host.docker.internal", "port": 5760,
+     "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,  "label": "tcp:host:5760"},
+    {"transport": "udp", "host": "0.0.0.0", "port": 14550,
+     "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,  "label": "udp:14550"},
+    {"transport": "udp", "host": "0.0.0.0", "port": 14551,
+     "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,  "label": "udp:14551"},
+    {"transport": "udp", "host": "0.0.0.0", "port": 14560,
+     "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,  "label": "udp:14560"},
+]
+
+
 def _build_candidates(bridge: dict | None) -> list[dict]:
     """
     Ordered probe list.
     Bridge (cable via TCP) is always first — it is the most reliable path.
+    Fallback candidates currently in their failure cooldown are skipped
+    (see FAILURE_COOLDOWN_S) — bridge/serial candidates are always included
+    since they're only present when something real was actually detected.
     """
     candidates = []
 
@@ -87,26 +121,47 @@ def _build_candidates(bridge: dict | None) -> list[dict]:
 
     candidates += _scan_linux_serial()
 
-    candidates += [
-        {"transport": "tcp", "host": "host.docker.internal", "port": 5762,
-         "serial_port": "/dev/ttyUSB0", "baud_rate": 115200, "label": "tcp:host:5762"},
-        {"transport": "tcp", "host": "host.docker.internal", "port": 5760,
-         "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,  "label": "tcp:host:5760"},
-        {"transport": "udp", "host": "0.0.0.0", "port": 14550,
-         "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,  "label": "udp:14550"},
-        {"transport": "udp", "host": "0.0.0.0", "port": 14551,
-         "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,  "label": "udp:14551"},
-        {"transport": "udp", "host": "0.0.0.0", "port": 14560,
-         "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,  "label": "udp:14560"},
-    ]
+    now = time.monotonic()
+    for c in _FALLBACK_CANDIDATES:
+        if _candidate_cooldown_until.get(c["label"], 0.0) > now:
+            continue
+        candidates.append(c)
     return candidates
 
 
+def _record_candidate_result(label: str, succeeded: bool) -> None:
+    if succeeded:
+        _candidate_failures.pop(label, None)
+        _candidate_cooldown_until.pop(label, None)
+        return
+    failures = _candidate_failures.get(label, 0) + 1
+    _candidate_failures[label] = failures
+    if failures >= COOLDOWN_AFTER_FAILURES:
+        _candidate_cooldown_until[label] = time.monotonic() + FAILURE_COOLDOWN_S
+        log.debug("autoconnect.candidate_cooldown", label=label,
+                  failures=failures, cooldown_s=FAILURE_COOLDOWN_S)
+
+
 async def _connect_drone(drone_id: int, call_sign: str, candidates: list[dict]) -> bool:
-    """Try each candidate in order. Returns True on first success."""
+    """
+    Try every candidate concurrently and take the first one that actually
+    gets a heartbeat, cancelling the rest. Candidates bind distinct ports/
+    transports so probing them in parallel is safe — there's no shared
+    resource to contend over. This bounds total wait to roughly one
+    candidate's heartbeat_timeout instead of the sum of every candidate's
+    timeout (sequential probing of N candidates could take N * timeout —
+    e.g. ~40s for 5 fallback ports at 8s each — before finding the right one
+    if it wasn't first in the list).
+
+    mavlink_manager.connect() itself resolves any race between concurrent
+    candidates for the same drone_id (only one can ever actually commit a
+    connection; a losing candidate that got as far as a real heartbeat
+    still returns False and releases its own socket) — this function just
+    picks the first True result and cancels whatever's still probing.
+    """
     from app.modules.drone_control.mavlink_manager import mavlink_manager
 
-    for c in candidates:
+    async def _probe(c: dict) -> tuple[dict, bool]:
         log.info("autoconnect.probe", drone_id=drone_id, label=c["label"])
         try:
             ok = await mavlink_manager.connect(
@@ -119,13 +174,33 @@ async def _connect_drone(drone_id: int, call_sign: str, candidates: list[dict]) 
                 baud_rate     = c["baud_rate"],
                 heartbeat_timeout = HEARTBEAT_TIMEOUT,
             )
-            if ok:
-                log.info("autoconnect.connected",
-                         drone_id=drone_id, call_sign=call_sign, via=c["label"])
-                return True
+            return c, ok
         except Exception as exc:
             log.debug("autoconnect.probe_failed",
                       drone_id=drone_id, label=c["label"], error=str(exc))
+            return c, False
+
+    tasks = [asyncio.create_task(_probe(c)) for c in candidates]
+    winner: dict | None = None
+    try:
+        pending = set(tasks)
+        while pending and winner is None:
+            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                c, ok = task.result()
+                _record_candidate_result(c["label"], ok)
+                if ok and winner is None:
+                    winner = c
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    if winner is not None:
+        log.info("autoconnect.connected",
+                 drone_id=drone_id, call_sign=call_sign, via=winner["label"])
+        return True
 
     log.warning("autoconnect.no_heartbeat", drone_id=drone_id, tried=len(candidates))
     return False

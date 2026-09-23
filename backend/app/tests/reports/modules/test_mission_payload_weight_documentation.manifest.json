@@ -1,6 +1,7 @@
 {
-  "fingerprint": "3c0f275aac582125f885fd28ae5372a3df8fa78d6b1e4df0dc664bd4019b5e98",
+  "fingerprint": "068386627c561385031d530c843625dda5b77047563787d02af2be591aff08b5",
   "nodeids": [
+    "app/tests/test_mission_payload_weight.py::test_create_mission_without_drone_422",
     "app/tests/test_mission_payload_weight.py::test_mission_summary_no_waypoints_400",
     "app/tests/test_mission_payload_weight.py::test_mission_summary_returns_estimates",
     "app/tests/test_mission_payload_weight.py::test_negative_payload_weight_422",
@@ -9,7 +10,6 @@
     "app/tests/test_mission_payload_weight.py::test_patch_mission_status_not_found_404",
     "app/tests/test_mission_payload_weight.py::test_patch_mission_status_viewer_403",
     "app/tests/test_mission_payload_weight.py::test_payload_at_exact_limit_valid",
-    "app/tests/test_mission_payload_weight.py::test_payload_check_skipped_without_drone",
     "app/tests/test_mission_payload_weight.py::test_payload_error_message_contains_weights",
     "app/tests/test_mission_payload_weight.py::test_payload_exceeds_limit_invalid",
     "app/tests/test_mission_payload_weight.py::test_payload_under_limit_valid",

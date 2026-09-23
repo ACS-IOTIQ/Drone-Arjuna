@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 import { useTimezoneStore } from '@/store/timezoneStore'
-import { droneControlApi } from '@/api/droneControl'
+import { useFleetStore } from '@/store/fleetStore'
 import type { Workspace } from './AppShell'
 
 const LABELS: Record<Workspace, string> = {
@@ -39,7 +39,11 @@ export function TopBar({ workspace, onNotifClick }: Props) {
   const frames = useTelemetryStore(s => s.frames)
   const primary = Object.values(frames)[0] ?? null
   const [time, setTime] = useState(new Date())
-  const [connected, setConnected] = useState(0)
+  const connections = useFleetStore(s => s.connections)
+  const fetchConnections = useFleetStore(s => s.fetchConnections)
+  const startConnectionPolling = useFleetStore(s => s.startConnectionPolling)
+  const stopConnectionPolling = useFleetStore(s => s.stopConnectionPolling)
+  const connected = Object.values(connections).filter(c => c.connected).length
   const timezone = useTimezoneStore(s => s.timezone)
   const formatTime = useTimezoneStore(s => s.formatTime)
 
@@ -48,18 +52,13 @@ export function TopBar({ workspace, onNotifClick }: Props) {
     return () => clearInterval(timer)
   }, [])
 
+  // TopBar is mounted on every page, so this keeps the shared connection
+  // poll (see fleetStore) alive even when no workspace-level component is
+  // also polling it, instead of running its own separate 5s fetch.
   useEffect(() => {
-    const poll = async () => {
-      try {
-        const { data } = await droneControlApi.status()
-        setConnected(data.drones?.filter((drone: any) => drone.connected).length ?? 0)
-      } catch {
-        setConnected(0)
-      }
-    }
-    poll()
-    const timer = setInterval(poll, 5000)
-    return () => clearInterval(timer)
+    fetchConnections()
+    startConnectionPolling()
+    return () => stopConnectionPolling()
   }, [])
 
   const linkTone = connected > 0 ? 'ok' : 'danger'

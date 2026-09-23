@@ -1,7 +1,7 @@
 # Web framework
 fastapi==0.111.0
 uvicorn[standard]==0.29.0
-uvloop==0.19.0          # Drop-in asyncio loop replacement (2-4x faster I/O)
+uvloop==0.19.0; sys_platform != "win32"   # Drop-in asyncio loop replacement (2-4x faster I/O) — Linux/macOS only (used in Docker); see app/main.py fallback
 
 # Data validation
 pydantic==2.7.1
@@ -30,6 +30,11 @@ pymavlink==2.4.41
 pyserial==3.5
 pynmea2==1.19.0
 
+# Payload camera capture (IP camera / RTSP / webcam) + object lock tracking
+# (contrib build — TrackerCSRT lives in the contrib "tracking" module, not
+# in plain opencv-python-headless)
+opencv-contrib-python-headless==4.10.0.84
+
 # Geospatial
 shapely==2.0.4
 pyproj==3.6.1
@@ -38,10 +43,15 @@ pyproj==3.6.1
 ortools==9.10.4067
 numpy==1.26.4
 
-# Quantum path for fleet assignment (use_quantum=True) — QAOA on Qiskit Aer
-qiskit==1.1.0
-qiskit-aer==0.14.2
-scipy==1.13.1
+# Quantum path for fleet assignment (use_quantum=True) — QAOA on Qiskit Aer.
+# Lazily imported in fleet_router.quantum_assignment(), which already
+# degrades to a 501 "Quantum backend not installed" if these are absent —
+# left commented out because they're a combined ~150MB+ of downloads
+# (qiskit-aer, scipy, symengine, rustworkx, ...) unrelated to core GCS
+# features. Uncomment to enable the quantum solver path.
+# qiskit==1.1.0
+# qiskit-aer==0.14.2
+# scipy==1.13.1
 
 # HTTP client (for internal calls)
 httpx==0.27.0

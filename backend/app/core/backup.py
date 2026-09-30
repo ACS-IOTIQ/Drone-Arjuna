@@ -202,8 +202,8 @@ async def create_dump(target: DumpTarget = MAIN_TARGET, tables: set[str] | None 
         tables=len(data), tables_read=len(tables_to_read),
     )
 
-    _upload_to_minio(target, dump_path, dump_name)
-    _rotate_old_dumps(target)
+    await asyncio.to_thread(_upload_to_minio, target, dump_path, dump_name)
+    await _rotate_old_dumps(target)
     return dump_path
 
 
@@ -217,14 +217,14 @@ def _upload_to_minio(target: DumpTarget, dump_path: Path, dump_name: str):
         log.error("Failed to upload dump to MinIO", db=target.name, error=str(e))
 
 
-def _rotate_old_dumps(target: DumpTarget):
+async def _rotate_old_dumps(target: DumpTarget):
     dumps = sorted(target.backup_dir.glob("dump_*.json"))
     excess = len(dumps) - cfg.backup_retention_count
     for stale in dumps[:excess]:
         stale.unlink(missing_ok=True)
         log.info("Rotated old dump", db=target.name, path=str(stale))
 
-    _rotate_old_minio_dumps(target)
+    await asyncio.to_thread(_rotate_old_minio_dumps, target)
 
 
 def _rotate_old_minio_dumps(target: DumpTarget):
@@ -374,7 +374,7 @@ async def _tables_with_expected_data_are_empty(db, target: DumpTarget) -> bool:
     per-table rather than requiring the whole database to be wiped, and must
     look back across recent dump history rather than just the newest one.
     """
-    fetched = _fetch_recent_dumps(target, RESTORE_HISTORY_DEPTH)
+    fetched = await asyncio.to_thread(_fetch_recent_dumps, target, RESTORE_HISTORY_DEPTH)
     if not fetched:
         return False
 

@@ -130,11 +130,6 @@ class _SimulatedFlight:
     BATT_DRAIN  = 0.015  # % per second at cruise
     WP_RADIUS_M = 3.0    # waypoint arrival acceptance radius
     HOME_MSL    = 50.0   # assumed ground elevation above sea level
-    BATTERY_RESERVE_PCT = 20.0   # reserve floor — endurance counts down to this, not 0
-    ENDURANCE_SAMPLE_S  = 2.0    # re-sample consumption rate over this window (smooths tick noise)
-    BATTERY_LOG_INTERVAL_S = 120.0   # persist a battery % snapshot this often while sim runs
-    RTL_SAFETY_RESERVE_PCT = 5.0   # extra margin added on top of the RTL-trip estimate
-    DEST_DIST_UPDATE_S = 120.0   # recompute distance-to-destination this often while flying
 
     # ── Collision avoidance tuning ──────────────────────────────────
     CONFLICT_RADIUS_M  = 40.0   # horizontal distance that triggers avoidance
@@ -142,7 +137,6 @@ class _SimulatedFlight:
     AVOID_ALT_STEP_M   = 15.0   # altitude offset the give-way drone climbs to
     AVOID_ALT_RATE_MS  = 3.0    # max climb/descent rate while avoiding, m/s
     AVOID_LATERAL_MS   = 6.0    # max sideways push speed while avoiding, m/s
-    LANDING_PAD_RADIUS_M = 8.0   # min clearance from another drone's landing spot
 
     def __init__(self):
         self._sm      = None   # StateManager injected on start()
@@ -156,11 +150,6 @@ class _SimulatedFlight:
         self.phase      = SimPhase.IDLE
         self.drone_id:  Optional[int] = None
         self.mission_id: Optional[int] = None
-        # Mirrors Mission.enforce_airspace — when False, the operator disabled
-        # the Government airspace zones layer for this mission, so airspace-
-        # triggered auto-RTL/auto-hold/auto-goto commands must be ignored
-        # (the drone should keep following its planned waypoints).
-        self.enforce_airspace = True
         self.mavlink_system_id = 1
         self.call_sign  = ""
         self.waypoints: list = []
@@ -182,19 +171,6 @@ class _SimulatedFlight:
         self.throttle    = 0.0
         self.is_armed    = False
         self.battery_pct = 100.0
-
-        # Endurance estimate — see _update_endurance()
-        self._endurance_window_start_pct = 100.0
-        self._endurance_window_elapsed_s = 0.0
-        self.consumption_rate_pct_s = 0.0   # last measured (prev% - current%) / elapsed
-        self.estimated_endurance_s: Optional[float] = None
-        self._battery_log_elapsed_s = 0.0
-
-        # Distance-to-destination — recomputed only every DEST_DIST_UPDATE_S
-        # (2 min) instead of every tick, so the UI value reads like a
-        # periodic nav update rather than jittering every 100ms.
-        self.distance_to_destination_m: Optional[float] = None
-        self._dist_update_elapsed_s = 0.0
 
         self._home_lat   = 0.0
         self._home_lon   = 0.0
@@ -236,7 +212,6 @@ class _SimulatedFlight:
         mavlink_system_id: int = 1,
         mission_id: Optional[int] = None,
         manager=None,
-        enforce_airspace: bool = True,
     ):
         if self.active:
             await self.stop()
@@ -250,7 +225,6 @@ class _SimulatedFlight:
 
         self.drone_id   = drone_id
         self.mission_id = mission_id
-        self.enforce_airspace = enforce_airspace
         self.mavlink_system_id = mavlink_system_id
         self.call_sign  = call_sign
         self.waypoints  = waypoints
@@ -267,11 +241,6 @@ class _SimulatedFlight:
         self.pitch_rate_dps = 0.0
         self.yaw_rate_dps = 0.0
         self.battery_pct = 100.0
-        self._endurance_window_start_pct = 100.0
-        self._endurance_window_elapsed_s = 0.0
-        self.consumption_rate_pct_s = 0.0
-        self.estimated_endurance_s = None
-        self._battery_log_elapsed_s = 0.0
         self.is_armed   = False
         self.phase      = SimPhase.IDLE
         self.wp_idx     = 0
@@ -280,8 +249,6 @@ class _SimulatedFlight:
         self._manual_vz = 0.0
         self._manual_until = 0.0
         self._rtl_route = []
-        self.distance_to_destination_m = None
-        self._dist_update_elapsed_s = 0.0
 
         self._sm.init_drone(drone_id, call_sign)
 
@@ -348,8 +315,6 @@ class _SimulatedFlight:
                     previous_pitch = self.pitch
                     previous_heading = self.heading
                     self._tick(dt)
-                    self._update_endurance(dt)
-                    await self._log_battery_snapshot(dt)
                     self.roll_rate_dps = (self.roll - previous_roll) / dt
                     self.pitch_rate_dps = (self.pitch - previous_pitch) / dt
                     heading_delta = ((self.heading - previous_heading + 180.0) % 360.0) - 180.0
@@ -380,17 +345,6 @@ class _SimulatedFlight:
     # ── Command handler ───────────────────────────────────────────
 
     def _handle_cmd(self, action: str, params: dict):
-        # Airspace-triggered auto-maneuvers (auto-RTL, auto-hold, auto-goto
-        # issued by the Fly workspace when a live position enters a
-        # regulated zone) are only honored when this mission has airspace
-        # enforcement enabled. Otherwise the drone must keep following its
-        # planned waypoints — the backend, not the client, decides this so
-        # a stale/mistaken client-side toggle can't silently divert a flight.
-        if params.get("source") == "airspace_auto" and not self.enforce_airspace:
-            log.info("Ignored airspace-triggered command — enforcement disabled for mission",
-                      drone_id=self.drone_id, mission_id=self.mission_id, action=action)
-            return
-
         if action == "arm":
             if self.phase == SimPhase.IDLE:
                 self.is_armed = True
@@ -420,7 +374,6 @@ class _SimulatedFlight:
             elif mode == "RTL":
                 self._enter_rtl(shortest_path=True)
             elif mode == "LAND":
-                self._clear_landing_pad()
                 self.phase = SimPhase.LANDING
             elif mode == "GUIDED" and self.phase not in (SimPhase.IDLE, SimPhase.LANDED, SimPhase.LANDING):
                 self.phase = SimPhase.GUIDED
@@ -433,7 +386,6 @@ class _SimulatedFlight:
             self._enter_rtl(shortest_path=params.get("shortest_path", True))
 
         elif action == "land":
-            self._clear_landing_pad()
             self.phase = SimPhase.LANDING
 
         elif action == "velocity":
@@ -452,19 +404,6 @@ class _SimulatedFlight:
             lat = params.get("latitude", params.get("lat"))
             lon = params.get("longitude", params.get("lon"))
             if lat is not None and lon is not None:
-                # altitude_only: a pure climb/descend-in-place correction (e.g.
-                # airspace altitude enforcement) — must NOT overwrite the
-                # planned waypoint's lat/lon with the drone's current position,
-                # or the mission route is silently corrupted: the "waypoint"
-                # becomes wherever the drone happened to be, so it instantly
-                # "arrives", wp_idx advances, and the drone never actually
-                # travels toward the real next waypoint (visible as endlessly
-                # circling in place while the waypoint counter still climbs).
-                if params.get("altitude_only") and self.waypoints and self.wp_idx < len(self.waypoints):
-                    self.waypoints[self.wp_idx]["altitude_m"] = float(params.get("altitude_m", self.alt))
-                    if self.phase not in (SimPhase.IDLE, SimPhase.LANDED, SimPhase.LANDING):
-                        self.phase = SimPhase.FLYING
-                    return
                 target = {
                     "sequence": 0,
                     "latitude": float(lat),
@@ -569,67 +508,6 @@ class _SimulatedFlight:
         self.battery_pct = max(0.0, self.battery_pct - self.BATT_DRAIN * dt)
         return True
 
-    def _update_endurance(self, dt: float):
-        """
-        Battery consumption rate = (previous % - current %) / time elapsed
-        Remaining endurance      = (current % - reserve %) / consumption rate
-
-        Sampled over a rolling ENDURANCE_SAMPLE_S window (rather than every
-        10 Hz tick) so single-tick drain jitter doesn't make the estimate
-        jump around; the window resets its "previous %" baseline each time
-        it closes.
-        """
-        self._endurance_window_elapsed_s += dt
-        if self._endurance_window_elapsed_s < self.ENDURANCE_SAMPLE_S:
-            return
-
-        elapsed = self._endurance_window_elapsed_s
-        drained = self._endurance_window_start_pct - self.battery_pct
-        self.consumption_rate_pct_s = max(0.0, drained / elapsed)
-
-        if self.consumption_rate_pct_s > 1e-9:
-            usable_pct = max(0.0, self.battery_pct - self.BATTERY_RESERVE_PCT)
-            self.estimated_endurance_s = usable_pct / self.consumption_rate_pct_s
-        else:
-            self.estimated_endurance_s = None  # not draining — endurance undefined (e.g. idle/disarmed)
-
-        self._endurance_window_start_pct = self.battery_pct
-        self._endurance_window_elapsed_s = 0.0
-
-    async def _log_battery_snapshot(self, dt: float):
-        """Persists battery % to the battery_snapshots table every BATTERY_LOG_INTERVAL_S."""
-        self._battery_log_elapsed_s += dt
-        if self._battery_log_elapsed_s < self.BATTERY_LOG_INTERVAL_S:
-            return
-        self._battery_log_elapsed_s = 0.0
-        if self.drone_id is None:
-            return
-        from app.modules.drone_control.data_recorder import data_recorder
-        await data_recorder.record_battery_snapshot(
-            self.drone_id, int(self.battery_pct), self.mission_id
-        )
-
-    def _remaining_route_distance_m(self) -> float:
-        """Straight-leg distance from the current position, through every
-        remaining waypoint in order, to the final destination waypoint."""
-        if not self.waypoints or self.wp_idx >= len(self.waypoints):
-            return 0.0
-        total = 0.0
-        prev_lat, prev_lon = self.lat, self.lon
-        for wp in self.waypoints[self.wp_idx:]:
-            wp_lat, wp_lon = float(wp["latitude"]), float(wp["longitude"])
-            total += _haversine_m(prev_lat, prev_lon, wp_lat, wp_lon)
-            prev_lat, prev_lon = wp_lat, wp_lon
-        return total
-
-    def _update_distance_to_destination(self, dt: float):
-        self._dist_update_elapsed_s += dt
-        if (self.distance_to_destination_m is not None
-                and self._dist_update_elapsed_s < self.DEST_DIST_UPDATE_S):
-            return
-        self._dist_update_elapsed_s = 0.0
-        self.distance_to_destination_m = self._remaining_route_distance_m()
-
     def _tick(self, dt: float):
         if self._apply_manual_velocity(dt):
             return
@@ -676,16 +554,10 @@ class _SimulatedFlight:
 
             dist = _haversine_m(self.lat, self.lon, t_lat, t_lon)
             tgt_hdg = _bearing_deg(self.lat, self.lon, t_lat, t_lon) if dist > 0.5 else self.heading
-            self._update_distance_to_destination(dt)
 
-            # Smooth heading — max 25°/s of simulated time. Must scale by
-            # speed_mult like translation speed does (spd above) — otherwise
-            # at higher speed multipliers the drone covers ground far faster
-            # than it can turn onto the correct bearing, and sweeps wide
-            # circles around each waypoint instead of converging on it.
+            # Smooth heading — max 25°/s
             hdg_err  = ((tgt_hdg - self.heading + 180) % 360) - 180
-            max_turn = 25.0 * self.speed_mult * dt
-            turn     = max(min(hdg_err, max_turn), -max_turn)
+            turn     = max(min(hdg_err, 25.0 * dt), -25.0 * dt)
             self.heading = (self.heading + turn) % 360
 
             if dist > 1.0:
@@ -736,13 +608,6 @@ class _SimulatedFlight:
             self.battery_pct = max(0.0, self.battery_pct - self.BATT_DRAIN * 0.5 * dt)
 
         elif self.phase == SimPhase.RTL:
-            # While RTLing, the "distance to destination" the UI shows should
-            # read as distance-to-home, updated every tick (cheap point-to-point
-            # haversine, unlike the multi-waypoint route sum used in FLYING).
-            self.distance_to_destination_m = _haversine_m(
-                self.lat, self.lon, self._home_lat, self._home_lon
-            )
-
             if self._rtl_route:
                 wp = self._rtl_route[0]
                 t_lat, t_lon, t_alt = wp["latitude"], wp["longitude"], wp["altitude_m"]
@@ -767,7 +632,7 @@ class _SimulatedFlight:
                     self._rtl_route.pop(0)
                 return
 
-            dist = self.distance_to_destination_m
+            dist = _haversine_m(self.lat, self.lon, self._home_lat, self._home_lon)
             if dist < 5.0 and self.alt < 2.0:
                 self.alt = 0.0; self.groundspeed = 0.0
                 self.climb_rate = 0.0; self.is_armed = False
@@ -810,25 +675,6 @@ class _SimulatedFlight:
         if self.phase in (SimPhase.FLYING, SimPhase.GUIDED, SimPhase.PAUSED,
                           SimPhase.RTL, SimPhase.TAKEOFF):
             self._apply_collision_avoidance(dt)
-
-    def _clear_landing_pad(self):
-        """
-        Called once on entry to LANDING. If another drone (flying or already
-        landed) occupies the current lat/lon within LANDING_PAD_RADIUS_M, side-steps
-        this drone's position so it touches down beside it rather than on top of it.
-        """
-        if not self._manager or self.drone_id is None:
-            return
-        occupants = self._manager.get_positions(
-            exclude_drone_id=self.drone_id, include_grounded=True,
-        )
-        for other in occupants:
-            dist = _haversine_m(self.lat, self.lon, other["lat"], other["lon"])
-            if dist >= self.LANDING_PAD_RADIUS_M:
-                continue
-            bearing_away = (self.heading + 90.0) % 360 if dist <= 0.5 else \
-                _bearing_deg(other["lat"], other["lon"], self.lat, self.lon)
-            self.lat, self.lon = _move_toward(self.lat, self.lon, bearing_away, self.LANDING_PAD_RADIUS_M)
 
     def _apply_collision_avoidance(self, dt: float):
         """
@@ -916,8 +762,6 @@ class _SimulatedFlight:
             "battery_voltage_v":     22.4 * (self.battery_pct / 100.0),
             "battery_remaining_pct": int(self.battery_pct),
             "battery_current_a":     8.5 if self.is_armed else 0.5,
-            "battery_consumption_rate_pct_s": self.consumption_rate_pct_s,
-            "estimated_endurance_s": self.estimated_endurance_s,
             "gps_fix_type":          "3D Fix",
             "gps_satellites":        14,
             "gps_hdop":              0.8,
@@ -928,15 +772,11 @@ class _SimulatedFlight:
             "call_sign":             self.call_sign,
             "mission_id":            self.mission_id,
             "connected":             True,
-            # 1-indexed to match the waypoint numbers shown on the map —
-            # wp_idx is the 0-indexed position into self.waypoints.
-            "current_waypoint":      (self.wp_idx + 1) if self.waypoints and self.wp_idx < len(self.waypoints) else None,
             # Simulation-specific extras (read by frontend overlay)
             "sim_phase":             self.phase.value,
             "sim_progress":          self.wp_idx / len(self.waypoints) if self.waypoints else 0.0,
             "sim_waypoint_idx":      self.wp_idx,
             "sim_waypoint_count":    len(self.waypoints),
-            "distance_to_destination_m": self.distance_to_destination_m,
             "collision_avoidance_active": self._avoiding,
             "home_lat":              self._home_lat,
             "home_lon":              self._home_lon,
@@ -948,45 +788,6 @@ class _SimulatedFlight:
         mavlink_broadcaster.send(self.drone_id, self.mavlink_system_id, state)
 
         await self._check_geofence()
-        await self._check_battery_rtl()
-
-    async def _check_battery_rtl(self):
-        """
-        Battery-based auto-RTL:
-
-            battery %, home position, distance-to-launch, consumption rate,
-            groundspeed  →  estimate battery required to fly home
-                          →  add safety reserve
-                          →  if current battery < required → trigger RTL
-
-        Only applies while actively flying a mission — RTL/landing/idle phases
-        don't need to re-check whether they can still get home.
-        """
-        if self.drone_id is None or self._sm is None:
-            return
-        if self.phase not in (SimPhase.FLYING, SimPhase.GUIDED, SimPhase.PAUSED):
-            return
-        if self.consumption_rate_pct_s <= 1e-9 or self.groundspeed <= 1e-9:
-            return  # not enough data yet to estimate an RTL cost
-
-        dist_to_home_m = _haversine_m(self.lat, self.lon, self._home_lat, self._home_lon)
-        time_to_home_s = dist_to_home_m / self.groundspeed
-        required_pct = time_to_home_s * self.consumption_rate_pct_s
-        required_pct_with_reserve = required_pct + self.RTL_SAFETY_RESERVE_PCT
-
-        if self.battery_pct < required_pct_with_reserve:
-            log.warning(
-                "Auto-RTL triggered — battery insufficient for return",
-                drone_id=self.drone_id,
-                battery_pct=self.battery_pct,
-                required_pct=required_pct_with_reserve,
-                dist_to_home_m=dist_to_home_m,
-            )
-            await self._sm.update(self.drone_id, {
-                "battery_rtl_triggered": True,
-                "battery_rtl_required_pct": required_pct_with_reserve,
-            })
-            self._enter_rtl(shortest_path=True)
 
     async def _check_geofence(self):
         """
@@ -1021,10 +822,8 @@ class _SimulatedFlight:
                 "breach_lon":      self.lon,
             })
             await emit_geofence_breach(self.drone_id, self.lat, self.lon)
-            # Auto-RTL: transition the simulated drone back to home.
-            # Skipped when the operator disabled Government airspace enforcement
-            # for this mission — the drone must keep following its waypoints.
-            if self.enforce_airspace and self.phase == SimPhase.FLYING:
+            # Auto-RTL: transition the simulated drone back to home
+            if self.phase == SimPhase.FLYING:
                 self.phase = SimPhase.RTL
                 log.warning("Auto-RTL triggered — sim geofence breach", drone_id=self.drone_id)
 
@@ -1051,19 +850,17 @@ class SimulationManager:
     def active_drone_ids(self) -> list[int]:
         return [did for did, f in self._flights.items() if f.active]
 
-    def get_positions(self, exclude_drone_id: Optional[int] = None, include_grounded: bool = False) -> list[dict]:
+    def get_positions(self, exclude_drone_id: Optional[int] = None) -> list[dict]:
         """
-        Current lat/lon/altitude of every other simulated drone, used by
-        _SimulatedFlight to detect and avoid conflicts. By default drones on the
-        ground (idle/armed/landed) are excluded — only airborne traffic matters
-        for in-flight avoidance. Pass include_grounded=True (e.g. for landing-pad
-        clearance checks) to also see drones parked on the ground.
+        Current lat/lon/altitude of every other actively-flying simulated drone,
+        used by _SimulatedFlight to detect and avoid mid-air conflicts. Drones on
+        the ground (idle/armed/landed) are excluded — only airborne traffic matters.
         """
         grounded = (SimPhase.IDLE, SimPhase.ARMED, SimPhase.LANDED)
         return [
             {"drone_id": did, "lat": f.lat, "lon": f.lon, "alt_msl": f.alt + f.HOME_MSL}
             for did, f in self._flights.items()
-            if did != exclude_drone_id and f.active and (include_grounded or f.phase not in grounded)
+            if did != exclude_drone_id and f.active and f.phase not in grounded
         ]
 
     def get_status(self, drone_id: Optional[int] = None):
@@ -1084,7 +881,6 @@ class SimulationManager:
         state_mgr=None,
         mavlink_system_id: int = 1,
         mission_id: Optional[int] = None,
-        enforce_airspace: bool = True,
     ):
         existing = self._flights.get(drone_id)
         if existing and existing.active:
@@ -1098,7 +894,6 @@ class SimulationManager:
             mavlink_system_id=mavlink_system_id,
             mission_id=mission_id,
             manager=self,
-            enforce_airspace=enforce_airspace,
         )
 
     async def command(self, drone_id: int, action: str, params: dict = {}):

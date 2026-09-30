@@ -2,10 +2,11 @@
 Full auth.py — adds /register and /users endpoints
 to the existing login + /me routes.
 """
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -20,11 +21,9 @@ from app.models.user import User, AccessRequest
 from app.schemas.user import (
     TokenOut, UserOut, UserCreate,
     AccessRequestCreate, AccessRequestOut, AcceptBody, RejectBody,
-    ForgotPasswordRequest, ResetPasswordRequest,
-    RefreshRequest, RefreshOut,
 )
 from app.core.security import PasswordPolicy, AuditLogger
-from app.core.email import send_approval_email, send_password_reset_email, send_forgot_password_email
+from app.core.email import send_approval_email, send_password_reset_email
 from pydantic import BaseModel
 
 cfg = get_settings()
@@ -55,21 +54,10 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(payload, cfg.secret_key, algorithm=cfg.algorithm)
 
 
-def create_refresh_token(data: dict) -> str:
-    payload = data.copy()
-    payload["type"] = "refresh"
-    payload["exp"] = datetime.now(timezone.utc) + timedelta(
-        days=cfg.refresh_token_expire_days
-    )
-    return jwt.encode(payload, cfg.secret_key, algorithm=cfg.algorithm)
-
-
-async def get_current_user_from_token(token: str, db: AsyncSession) -> User:
-    """
-    Same validation as get_current_user, but takes the token as a plain
-    string. Used for WebSocket routes, where the browser can't set an
-    Authorization header — the token is passed as a query parameter instead.
-    """
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> User:
     exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -90,13 +78,6 @@ async def get_current_user_from_token(token: str, db: AsyncSession) -> User:
     return user
 
 
-async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> User:
-    return await get_current_user_from_token(token, db)
-
-
 # ── Routes ────────────────────────────────────────────────────────
 
 @router.post("/token", response_model=TokenOut)
@@ -111,40 +92,13 @@ async def login(
         raise HTTPException(status_code=401, detail="Incorrect username or password")
 
     token = create_access_token({"sub": str(user.id), "role": user.role})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
     await AuditLogger(db).login_success(user.id, "unknown")
     return TokenOut(
         access_token=token,
-        refresh_token=refresh_token,
         token_type="bearer",
         role=user.role,
         must_change_password=user.must_change_password,
     )
-
-
-@router.post("/refresh", response_model=RefreshOut)
-async def refresh_access_token(
-    body: RefreshRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    exc = HTTPException(status_code=401, detail="Invalid or expired refresh token")
-    try:
-        payload = jwt.decode(body.refresh_token, cfg.secret_key, algorithms=[cfg.algorithm])
-        if payload.get("type") != "refresh":
-            raise exc
-        user_id: str = payload.get("sub")
-        if not user_id:
-            raise exc
-    except JWTError:
-        raise exc
-
-    result = await db.execute(select(User).where(User.id == int(user_id)))
-    user = result.scalar_one_or_none()
-    if not user or not user.is_active:
-        raise exc
-
-    new_access_token = create_access_token({"sub": str(user.id), "role": user.role})
-    return RefreshOut(access_token=new_access_token)
 
 
 @router.get("/me", response_model=UserOut)
@@ -220,7 +174,6 @@ async def reset_user_password(
     user_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[User, Depends(get_current_user)],
-    background_tasks: BackgroundTasks,
 ):
     if current.role != "admin":
         raise HTTPException(status_code=403, detail="Admin role required")
@@ -241,75 +194,15 @@ async def reset_user_password(
     db.add(user)
     await db.commit()
 
-    background_tasks.add_task(
-        send_password_reset_email,
-        to_email=user.email,
-        full_name=user.full_name or user.username,
-        username=user.username,
-        temp_password=temp_pwd,
+    asyncio.create_task(
+        send_password_reset_email(
+            to_email=user.email,
+            full_name=user.full_name or user.username,
+            username=user.username,
+            temp_password=temp_pwd,
+        )
     )
     return {"message": f"Password reset email queued for {user.email}"}
-
-
-@router.post("/forgot-password", status_code=200)
-async def forgot_password(
-    body: ForgotPasswordRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    background_tasks: BackgroundTasks,
-):
-    """Public endpoint — request a password-reset email for the given address."""
-    generic_response = {"message": "If that email is registered, a reset link has been sent."}
-
-    result = await db.execute(select(User).where(User.email == body.email))
-    user = result.scalar_one_or_none()
-    if not user or not user.is_active or not cfg.smtp_enabled:
-        return generic_response
-
-    token = secrets.token_urlsafe(32)
-    user.reset_token = token
-    user.reset_token_expires = datetime.now(timezone.utc) + timedelta(minutes=30)
-    db.add(user)
-    await db.commit()
-
-    reset_url = f"http://localhost:3000/reset-password?token={token}"
-    background_tasks.add_task(
-        send_forgot_password_email,
-        to_email=user.email,
-        full_name=user.full_name or user.username,
-        reset_url=reset_url,
-    )
-    return generic_response
-
-
-@router.post("/reset-password", status_code=200)
-async def reset_password(
-    body: ResetPasswordRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Public endpoint — consume a reset token and set a new password."""
-    result = await db.execute(select(User).where(User.reset_token == body.token))
-    user = result.scalar_one_or_none()
-    expires_at = user.reset_token_expires if user else None
-    if expires_at is not None and expires_at.tzinfo is None:
-        # SQLite (used in tests) does not preserve tz-awareness on DateTime(timezone=True)
-        # columns, unlike PostgreSQL — normalize so the comparison below is always tz-aware.
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if (
-        not user
-        or not expires_at
-        or expires_at < datetime.now(timezone.utc)
-    ):
-        raise HTTPException(status_code=400, detail="Reset link is invalid or has expired")
-
-    PasswordPolicy.enforce(body.new_password)
-    user.hashed_password = hash_password(body.new_password)
-    user.must_change_password = False
-    user.reset_token = None
-    user.reset_token_expires = None
-    db.add(user)
-    await db.commit()
-    await AuditLogger(db).user_password_changed(user.id)
-    return {"message": "Password updated. You can now sign in."}
 
 
 # ── Access Requests ───────────────────────────────────────────────
@@ -364,7 +257,6 @@ async def accept_access_request(
     body: AcceptBody,
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[User, Depends(get_current_user)],
-    background_tasks: BackgroundTasks,
 ):
     """Admin only — create user account and mark request approved."""
     if current.role != "admin":
@@ -410,13 +302,14 @@ async def accept_access_request(
     await AuditLogger(db).user_created(current.id, user.id, role)
 
     # Fire approval email — failure is logged but never raises
-    background_tasks.add_task(
-        send_approval_email,
-        to_email=req.email,
-        full_name=req.full_name,
-        username=req.username,
-        temp_password=temp_pwd,
-        role=role,
+    asyncio.create_task(
+        send_approval_email(
+            to_email=req.email,
+            full_name=req.full_name,
+            username=req.username,
+            temp_password=temp_pwd,
+            role=role,
+        )
     )
 
     return req
@@ -427,7 +320,6 @@ async def resend_approval_email(
     req_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current: Annotated[User, Depends(get_current_user)],
-    background_tasks: BackgroundTasks,
 ):
     """Admin only — re-send the approval email for an approved request."""
     if current.role != "admin":
@@ -441,13 +333,14 @@ async def resend_approval_email(
     if not req.temp_password:
         raise HTTPException(status_code=409, detail="No temporary password on record for this request")
 
-    background_tasks.add_task(
-        send_approval_email,
-        to_email=req.email,
-        full_name=req.full_name,
-        username=req.username,
-        temp_password=req.temp_password,
-        role=req.requested_role,
+    asyncio.create_task(
+        send_approval_email(
+            to_email=req.email,
+            full_name=req.full_name,
+            username=req.username,
+            temp_password=req.temp_password,
+            role=req.requested_role,
+        )
     )
     return {"message": f"Approval email queued for {req.email}"}
 

@@ -440,7 +440,8 @@ textarea:focus-visible {
 
 .da-login-story-copy {
   max-width: 590px;
-  margin-bottom: 4vh;
+  margin-top: auto;
+  margin-bottom: 1vh;
   color: white;
 }
 

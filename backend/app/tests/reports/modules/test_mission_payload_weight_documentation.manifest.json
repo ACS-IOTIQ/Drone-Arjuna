@@ -1,5 +1,5 @@
 {
-  "fingerprint": "068386627c561385031d530c843625dda5b77047563787d02af2be591aff08b5",
+  "fingerprint": "f15120adc0b8863598cab88608182431927e50efbe5f30e4de61358e8b6b068d",
   "nodeids": [
     "app/tests/test_mission_payload_weight.py::test_create_mission_without_drone_422",
     "app/tests/test_mission_payload_weight.py::test_mission_summary_no_waypoints_400",
@@ -18,7 +18,7 @@
     "app/tests/test_mission_payload_weight.py::test_simulate_mission_no_waypoints_400",
     "app/tests/test_mission_payload_weight.py::test_simulate_mission_returns_frames",
     "app/tests/test_mission_payload_weight.py::test_survey_grid_generates_waypoints",
-    "app/tests/test_mission_payload_weight.py::test_survey_grid_missing_polygon_400",
+    "app/tests/test_mission_payload_weight.py::test_survey_grid_missing_polygon_422",
     "app/tests/test_mission_payload_weight.py::test_upload_mission_no_drone_400",
     "app/tests/test_mission_payload_weight.py::test_upload_mission_not_found_404",
     "app/tests/test_mission_payload_weight.py::test_upload_mission_viewer_403"

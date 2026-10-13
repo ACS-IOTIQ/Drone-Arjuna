@@ -42,6 +42,7 @@ Scenarios covered:
   AR-21  Non-existent request id on reject → 404
 """
 import pytest
+from app.tests.conftest import LAST_EMAILED
 from httpx import AsyncClient
 
 from app.tests.helpers import access_request_payload, auth_headers
@@ -87,7 +88,7 @@ async def test_ar01_accept_returns_200(
 async def test_ar02_accept_response_contains_temp_password(
     client: AsyncClient, admin_user, make_token, pending
 ):
-    """AR-02: Response must include a non-empty temp_password for the frontend to display."""
+    """AR-02: Response must NOT contain the temp password (emailed only)."""
     hdrs = auth_headers(admin_user, make_token)
     resp = await client.post(
         f"/api/auth/access-requests/{pending['id']}/accept",
@@ -95,9 +96,8 @@ async def test_ar02_accept_response_contains_temp_password(
         headers=hdrs,
     )
     data = resp.json()
-    assert "temp_password" in data
-    assert data["temp_password"] is not None
-    assert len(data["temp_password"]) >= 10
+    assert "temp_password" not in data   # never returned by the API
+    assert len(LAST_EMAILED["temp_password"]) >= 16
 
 
 async def test_ar03_accept_response_shape_for_frontend_state_merge(
@@ -153,7 +153,7 @@ async def test_ar05_role_override_applied(
     # Verify the created account carries the overridden role
     login = await client.post(
         "/api/auth/token",
-        data={"username": body["username"], "password": accept.json()["temp_password"]},
+        data={"username": body["username"], "password": LAST_EMAILED["temp_password"]},
     )
     assert login.status_code == 200
     assert login.json()["role"] == "mission_commander"

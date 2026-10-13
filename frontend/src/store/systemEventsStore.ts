@@ -4,20 +4,30 @@
 // after detected data loss). Opened once at app start; drives toasts and
 // tells other stores to refetch so the UI reflects restored data.
 // ═══════════════════════════════════════════
+import { makeSystemEventsUrl } from '../api/client'
 import { notify } from './notificationStore'
 import { useFleetStore } from './fleetStore'
 import { useMissionStore } from './missionStore'
 import { useVesselStore } from './vesselStore'
 
 let socket: WebSocket | null = null
+let pendingConnect = false
 
 function connect() {
+  if (pendingConnect) return
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return
 
-  const token = localStorage.getItem('da_token') ?? ''
-  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const host = window.location.host
-  socket = new WebSocket(`${proto}//${host}/api/system/events?token=${token}`)
+  // Guard against duplicate sockets while the single-use ticket is fetched.
+  pendingConnect = true
+  makeSystemEventsUrl().then(open).catch(() => {
+    pendingConnect = false
+    setTimeout(connect, 3000)
+  })
+}
+
+function open(url: string) {
+  pendingConnect = false
+  socket = new WebSocket(url)
 
   socket.onmessage = (event) => {
     let data: { type?: string; message?: string } = {}
@@ -35,6 +45,9 @@ function connect() {
       useFleetStore.getState().fetchConnections()
       useMissionStore.getState().fetchMissions()
       useVesselStore.getState().fetchVessels()
+      // Screens that load their own data on mount (Settings: drone types, payloads,
+      // users, ...) listen for this and reload so they don't keep showing stale rows.
+      window.dispatchEvent(new CustomEvent('da:data-restored'))
     } else if (data.type === 'BACKUP_MISSING') {
       notify.danger('Backup Unavailable', data.message ?? 'No backup dump is available to restore from.')
     }

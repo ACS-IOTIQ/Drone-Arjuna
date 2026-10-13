@@ -14,6 +14,9 @@ Live drone positions come from mavlink_manager.state (an in-memory hot
 cache), not the DB, so tests seed it directly rather than going through
 a real MAVLink connection.
 """
+import importlib.util
+
+import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 
@@ -128,6 +131,10 @@ async def test_assign_fleet_drone_filter(
 # Quantum solver (opt-in, QAOA on Qiskit Aer)
 # ══════════════════════════════════════════════════════════════════════
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("qiskit") is None or importlib.util.find_spec("qiskit_aer") is None,
+    reason="qiskit/qiskit-aer not installed (optional; see requirements.txt)",
+)
 async def test_assign_fleet_quantum_200(
     client: AsyncClient, flight_controller_user, two_connected_drones, make_token
 ):

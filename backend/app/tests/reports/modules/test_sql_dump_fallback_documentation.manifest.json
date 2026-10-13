@@ -1,0 +1,17 @@
+{
+  "fingerprint": "8e8fc2226fcdec19d87a1f3216c713d1554962e1c1d94c1dd61bc86b22b3941f",
+  "nodeids": [
+    "app/tests/test_sql_dump_fallback.py::TestLoadBest::test_applied_dump_is_not_offered_again",
+    "app/tests/test_sql_dump_fallback.py::TestLoadBest::test_missing_directory_is_fine",
+    "app/tests/test_sql_dump_fallback.py::TestLoadBest::test_oversized_dump_is_skipped",
+    "app/tests/test_sql_dump_fallback.py::TestLoadBest::test_picks_dump_with_most_rows",
+    "app/tests/test_sql_dump_fallback.py::TestLoadBest::test_telemetry_and_main_use_separate_files",
+    "app/tests/test_sql_dump_fallback.py::TestLoadBest::test_unparseable_file_is_skipped",
+    "app/tests/test_sql_dump_fallback.py::TestParse::test_drops_columns_the_model_no_longer_has",
+    "app/tests/test_sql_dump_fallback.py::TestParse::test_ignores_unknown_tables",
+    "app/tests/test_sql_dump_fallback.py::TestParse::test_parses_rows_nulls_and_escapes",
+    "app/tests/test_sql_dump_fallback.py::TestRestoreFallback::test_not_used_when_data_tables_still_have_rows",
+    "app/tests/test_sql_dump_fallback.py::TestRestoreFallback::test_restores_from_sql_when_no_json_dump_exists",
+    "app/tests/test_sql_dump_fallback.py::TestRestoreFallback::test_still_reports_missing_when_no_sql_dump_either"
+  ]
+}

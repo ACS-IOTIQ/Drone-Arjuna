@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
-from jose import jwt
+import jwt
 
 from app.config import get_settings
 
@@ -222,7 +222,7 @@ async def test_reset_password_expired_token_400(client: AsyncClient, admin_user)
     async with _TestSession() as session:
         result = await session.execute(select(User).where(User.id == admin_user.id))
         u = result.scalar_one()
-        u.reset_token = "expired-token-123"
+        u.reset_token = __import__("hashlib").sha256(b"expired-token-123").hexdigest()
         u.reset_token_expires = datetime.now(timezone.utc) - timedelta(minutes=1)
         await session.commit()
 
@@ -241,7 +241,7 @@ async def test_reset_password_happy_path_updates_credentials(client: AsyncClient
     async with _TestSession() as session:
         result = await session.execute(select(User).where(User.id == admin_user.id))
         u = result.scalar_one()
-        u.reset_token = "valid-token-123"
+        u.reset_token = __import__("hashlib").sha256(b"valid-token-123").hexdigest()
         u.reset_token_expires = datetime.now(timezone.utc) + timedelta(minutes=30)
         await session.commit()
 

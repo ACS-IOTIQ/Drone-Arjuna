@@ -39,7 +39,10 @@ os.environ["TIMESCALE_URL"] = "postgresql+asyncpg://da:da@localhost/da_ts_test"
 os.environ["SECRET_KEY"] = (
     "da_test_secret_key_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 )
+os.environ["MINIO_USER"] = "test_minio_user"
+os.environ["MINIO_PASSWORD"] = "test_minio_password_x9"
 os.environ["REDIS_URL"] = "redis://localhost:6379"
+os.environ["AUDIT_MUTATIONS"] = "false"   # no Postgres in tests; middleware is tested with record_mutation patched
 os.environ["RABBITMQ_URL"] = "amqp://guest:guest@localhost:5672/"
 # Never let tests reach the real SMTP server configured in .env (Gmail) —
 # approval/reject flows fire send_approval_email() as a background task via
@@ -54,7 +57,7 @@ get_settings.cache_clear()
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import AsyncClient, ASGITransport  # noqa: E402
-from jose import jwt  # noqa: E402
+import jwt  # noqa: E402
 from sqlalchemy import select, text  # noqa: E402
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
@@ -145,6 +148,12 @@ async def _reset_mavlink_state():
 # ── TimescaleDB suppression ───────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
+def _no_sql_dump_fallback(monkeypatch, tmp_path):
+    """Keep tests off the real database_dumps/ folder (mounted at /project in Docker)."""
+    monkeypatch.setattr(get_settings(), "backup_sql_dump_dir", str(tmp_path / "no_sql_dumps"))
+
+
+@pytest.fixture(autouse=True)
 def _mock_ts_session():
     """
     Replace TSSessionLocal in the analyst service with a null async context
@@ -196,12 +205,15 @@ def _mock_audit_logger():
     Replace AuditLogger with a no-op so auth routes don't try to INSERT into
     the audit_logs table (which is created by a raw-SQL migration, not ORM).
     """
-    with patch("app.core.auth.AuditLogger") as mock_cls:
+    with patch("app.core.auth.AuditLogger") as mock_cls,          patch("app.modules.drone_control.router.AuditLogger") as router_cls:
+        router_cls.return_value.command_sent = AsyncMock()
         inst = mock_cls.return_value
         inst.login_success = AsyncMock()
         inst.login_failed = AsyncMock()
         inst.user_created = AsyncMock()
         inst.user_password_changed = AsyncMock()
+        inst.log = AsyncMock()
+        inst.logout = AsyncMock()
         yield
 
 
@@ -400,6 +412,8 @@ def make_token():
         payload = {
             "sub": str(user_id),
             "role": role,
+            "type": "access", "jti": __import__("uuid").uuid4().hex,
+            "iat": int(datetime.now(timezone.utc).timestamp()),
             "exp": datetime.now(timezone.utc) + timedelta(minutes=expire_minutes),
         }
         return jwt.encode(payload, cfg.secret_key, algorithm=cfg.algorithm)
@@ -414,8 +428,64 @@ def make_expired_token():
         payload = {
             "sub": str(user_id),
             "role": role,
+            "type": "access", "jti": __import__("uuid").uuid4().hex,
             "exp": datetime.now(timezone.utc) - timedelta(minutes=5),
         }
         return jwt.encode(payload, cfg.secret_key, algorithm=cfg.algorithm)
 
     return _inner
+
+
+# ── In-memory Redis fake (no real Redis needed; keeps auth tests fast) ────────
+
+class _FakeRedis:
+    def __init__(self):
+        self.d = {}
+
+    async def get(self, k): return self.d.get(k)
+    async def getdel(self, k): return self.d.pop(k, None)
+    async def setex(self, k, ttl, v): self.d[k] = str(v)
+    async def exists(self, k): return 1 if k in self.d else 0
+    async def incr(self, k):
+        self.d[k] = str(int(self.d.get(k, 0)) + 1)
+        return int(self.d[k])
+    async def expire(self, k, ttl): return True
+    async def ttl(self, k): return 60
+    async def delete(self, k): self.d.pop(k, None)
+
+    def pipeline(self):
+        outer = self
+
+        class _P:
+            def zremrangebyscore(self, *a): pass
+            def zcard(self, *a): pass
+            def zadd(self, *a): pass
+            def expire(self, *a): pass
+            async def execute(self): return [0, 0, 1, True]
+        return _P()
+
+
+@pytest.fixture(autouse=True)
+def _fake_redis():
+    fake = _FakeRedis()
+    with patch("app.core.security.get_redis", return_value=fake), \
+         patch("app.core.auth.get_redis", return_value=fake):
+        yield fake
+
+
+# ── Capture the emailed temporary password (never returned by the API) ───────
+
+LAST_EMAILED = {}
+
+
+@pytest.fixture(autouse=True)
+def _capture_temp_password():
+    async def _noop():
+        return None
+
+    def _fake(**kw):
+        LAST_EMAILED["temp_password"] = kw.get("temp_password")
+        return _noop()
+
+    with patch("app.core.auth.send_approval_email", _fake):
+        yield LAST_EMAILED

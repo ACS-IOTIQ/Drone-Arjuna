@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, Pagination
 from app.core.rbac import require_min_role, Role
 from app.models.user import User
+from app.schemas.ops import DroneStatusUpdate, PayloadAssign
 from app.schemas.drone import (
     DroneTypeCreate, DroneTypeUpdate, DroneTypeOut,
     DroneInstanceCreate, DroneInstanceUpdate, DroneInstanceOut,
@@ -82,10 +83,10 @@ async def update_drone(did: int, body: DroneInstanceUpdate, db: DbDep, _: AdminD
 
 @router.patch("/drones/{did}/status")
 async def set_drone_status(
-    did: int, body: dict, db: DbDep,
+    did: int, body: DroneStatusUpdate, db: DbDep,
     _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
 ):
-    inst = await DroneInstanceService(db).update_status(did, body.get("status", ""))
+    inst = await DroneInstanceService(db).update_status(did, body.status)
     return {"detail": "Status updated", "status": inst.status}
 
 
@@ -104,7 +105,7 @@ async def remove_stale_drone(did: int, db: DbDep, _: AdminDep):
 
 @router.post("/drones/{did}/payload", response_model=DroneInstanceOut)
 async def assign_payload_to_drone(
-    did: int, body: dict, db: DbDep,
+    did: int, body: PayloadAssign, db: DbDep,
     _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
 ):
     """
@@ -112,8 +113,7 @@ async def assign_payload_to_drone(
     Body: {"payload_type_id": <int>} to assign, {"payload_type_id": null} to clear.
     Requires FLIGHT_CONTROLLER or above.
     """
-    payload_type_id = body.get("payload_type_id")
-    return await DroneInstanceService(db).assign_payload(did, payload_type_id)
+    return await DroneInstanceService(db).assign_payload(did, body.payload_type_id)
 
 
 @router.get("/drones/{did}/type-spec", response_model=DroneTypeOut)

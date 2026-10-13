@@ -249,3 +249,26 @@ async def send_approval_email(
     except Exception as exc:
         # Email failure must never block the approve workflow
         log.error("approval_email_failed", to=to_email, error=str(exc))
+
+
+async def send_reset_link_email(to_email: str, full_name: str, username: str, token: str) -> None:
+    """Send a single-use password reset link. No-op when SMTP is disabled."""
+    cfg = get_settings()
+    if not cfg.smtp_enabled:
+        log.warning("reset_link_email_skipped", reason="SMTP_ENABLED=false")
+        return
+    link = f"{cfg.frontend_base_url.rstrip('/')}/reset-password?token={token}"
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "DroneArjuna GCS - Password reset"
+    msg["From"] = cfg.smtp_from
+    msg["To"] = to_email
+    msg.attach(MIMEText(
+        f"Hello {full_name},\n\nUse this single-use link within 30 minutes to set a new password:\n"
+        f"{link}\n\nIf you did not request this, ignore this email.\n", "plain"))
+    kwargs: dict = {"hostname": cfg.smtp_host, "port": cfg.smtp_port}
+    if cfg.smtp_user and cfg.smtp_password:
+        kwargs.update(username=cfg.smtp_user, password=cfg.smtp_password, start_tls=True)
+    try:
+        await aiosmtplib.send(msg, **kwargs)
+    except Exception as exc:
+        log.error("reset_link_email_failed", error=str(exc))

@@ -112,17 +112,17 @@ async def test_create_job_default_job_type(
     assert resp.json()["job_type"] == "telemetry_report"
 
 
-async def test_create_job_invalid_type_400(
+async def test_create_job_invalid_type_422(
     client: AsyncClient, mission_commander_user, make_token
 ):
-    """Unknown job_type must return 400."""
+    """Unknown job_type is rejected by schema validation (422)."""
     token = make_token(mission_commander_user.id, mission_commander_user.role)
     resp  = await client.post(
         "/api/analyst/jobs",
         json={"job_type": "invalid_type"},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 422
 
 
 async def test_create_job_invalid_model_404(

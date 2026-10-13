@@ -182,7 +182,8 @@ export async function measureLatency(endpoint: string): Promise<number> {
  */
 export class RobustWebSocket {
   private url: string
-  private urlFactory: (() => string) | null = null
+  private urlFactory: (() => string | Promise<string>) | null = null
+  private resolvingUrl = false
   private ws: WebSocket | null = null
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
@@ -196,7 +197,7 @@ export class RobustWebSocket {
   private shouldReconnect = true
   private channelId: string
 
-  constructor(url: string, channelId: string, urlFactory?: () => string) {
+  constructor(url: string, channelId: string, urlFactory?: () => string | Promise<string>) {
     this.url = url
     this.urlFactory = urlFactory ?? null
     this.channelId = channelId
@@ -204,11 +205,28 @@ export class RobustWebSocket {
   }
 
   connect() {
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return
+    if (this.resolvingUrl) return
+    this.shouldReconnect = true
+    useConnectionHealthStore.getState().updateChannelStatus(this.channelId, 'connecting')
+    this.resolvingUrl = true
+    // The factory may fetch a fresh single-use ticket on every (re)connect.
+    Promise.resolve(this.urlFactory ? this.urlFactory() : this.url)
+      .then(url => {
+        this.resolvingUrl = false
+        if (!this.shouldReconnect) return
+        this.url = url
+        this.open()
+      })
+      .catch(() => {
+        this.resolvingUrl = false
+        useConnectionHealthStore.getState().updateChannelStatus(this.channelId, 'error')
+        if (this.shouldReconnect) this.attemptReconnect()
+      })
+  }
+
+  private open() {
     try {
-      if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return
-      this.shouldReconnect = true
-      if (this.urlFactory) this.url = this.urlFactory()
-      useConnectionHealthStore.getState().updateChannelStatus(this.channelId, 'connecting')
       this.ws = new WebSocket(this.url)
 
       this.ws.onopen = () => {

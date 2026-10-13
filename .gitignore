@@ -60,3 +60,13 @@ Thumbs.db
 backend_log_tmp*.txt
 backend_check_final.txt
 *_check.txt
+
+# Browser profiles / dev artefacts (contain credentials & cookies)
+.tmp-chrome-profile*/
+bridge.*.log
+database_dumps/
+*.sql.gz
+.claude/settings.local.json
+
+# TLS material
+certs/

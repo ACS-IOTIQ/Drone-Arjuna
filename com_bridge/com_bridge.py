@@ -2,7 +2,17 @@
 
 Usage: python com_bridge.py [COM_PORT|auto] [BAUD] [TCP_PORT]
 Default: auto, 115200, 5762
+
+Security (the MAVLink stream carries no authentication of its own):
+  BRIDGE_BIND_ADDR       interface to listen on (default 0.0.0.0 so the Docker
+                         backend can reach host.docker.internal; set to a specific
+                         interface IP to narrow it)
+  BRIDGE_ALLOWED_CLIENTS comma-separated IPs/CIDRs allowed to connect to BOTH the
+                         MAVLink port and the discovery port. Default: loopback and
+                         private ranges only. Set it to the backend host's address
+                         for a tight policy.
 """
+import ipaddress
 import json
 import os
 import socket
@@ -20,6 +30,25 @@ BAUD = int(sys.argv[2]) if len(sys.argv) > 2 else 115200
 TCP_PORT = int(sys.argv[3]) if len(sys.argv) > 3 else 5762
 DISCOVERY_PORT = 5761
 TCP_PORT_CANDIDATES = [TCP_PORT, 5764, 5770, 5760, 0]
+
+BIND_ADDR = os.environ.get("BRIDGE_BIND_ADDR", "0.0.0.0")
+_DEFAULT_ALLOWED = "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16"
+ALLOWED_CLIENTS = [
+    ipaddress.ip_network(part.strip(), strict=False)
+    for part in os.environ.get("BRIDGE_ALLOWED_CLIENTS", _DEFAULT_ALLOWED).split(",")
+    if part.strip()
+]
+
+
+def client_allowed(host) -> bool:
+    """True if `host` is within BRIDGE_ALLOWED_CLIENTS. Unparseable addresses are refused."""
+    try:
+        addr = ipaddress.ip_address(str(host).split("%")[0])    # drop IPv6 zone id
+    except ValueError:
+        return False
+    if addr.version == 6 and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    return any(addr in net for net in ALLOWED_CLIENTS)
 
 _LOCK_FILE = None
 
@@ -127,6 +156,9 @@ device = SerialDevice()
 
 class DiscoveryHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if not client_allowed(self.client_address[0]):
+            self.send_error(403)
+            return
         if self.path != "/ports":
             self.send_error(404)
             return
@@ -173,6 +205,11 @@ def pipe_tcp_to_serial(sock, ser, stop):
 
 
 def handle_client(conn, addr):
+    if not client_allowed(addr[0]):
+        print(f"[bridge] rejected {addr}: address not in BRIDGE_ALLOWED_CLIENTS")
+        conn.close()
+        return
+
     with device.client_lock:
         if device.active_client:
             print(f"[bridge] rejected {addr}: another MAVLink client is already connected")
@@ -205,7 +242,7 @@ def handle_client(conn, addr):
 def main():
     acquire_single_instance_lock()
     threading.Thread(target=device.connect_forever, daemon=True).start()
-    discovery = ThreadingHTTPServer(("0.0.0.0", DISCOVERY_PORT), DiscoveryHandler)
+    discovery = ThreadingHTTPServer((BIND_ADDR, DISCOVERY_PORT), DiscoveryHandler)
     threading.Thread(target=discovery.serve_forever, daemon=True).start()
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -214,7 +251,7 @@ def main():
     tcp_port = None
     for candidate in TCP_PORT_CANDIDATES:
         try:
-            server.bind(("0.0.0.0", candidate))
+            server.bind((BIND_ADDR, candidate))
             tcp_port = server.getsockname()[1]
             break
         except OSError as exc:
@@ -228,6 +265,10 @@ def main():
         device.tcp_port = tcp_port
 
     server.listen(1)
+    if BIND_ADDR == "0.0.0.0":
+        print("[bridge] WARNING: listening on all interfaces; clients limited to "
+              + ", ".join(str(n) for n in ALLOWED_CLIENTS)
+              + " (set BRIDGE_ALLOWED_CLIENTS / BRIDGE_BIND_ADDR to tighten)")
     print(f"[bridge] MAVLink TCP:{tcp_port}; discovery http://localhost:{DISCOVERY_PORT}/ports")
     print(f"[bridge] DroneArjuna: TCP host.docker.internal:{tcp_port}")
 

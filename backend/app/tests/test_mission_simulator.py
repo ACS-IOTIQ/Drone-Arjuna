@@ -433,3 +433,36 @@ def test_flight_get_status_defaults():
     assert status["drone_id"] is None
     assert status["waypoint_count"] == 0
     assert status["progress"] == 0.0
+
+
+@pytest.mark.parametrize("speed_mult", [1.0, 2.0, 5.0, 10.0, 20.0])
+def test_flight_reaches_every_waypoint_at_any_sim_speed(speed_mult):
+    """Time compression must not change the path. At 10x the drone used to orbit a
+    waypoint: its speed scaled but its turn rate stayed fixed, so waypoints closer
+    together than the (speed-dependent) turning circle could never be reached."""
+    flight = make_flight()
+    flight.speed_mult = speed_mult
+    step = 0.0018                      # ~200 m legs with 90 degree turns
+    flight.waypoints = [
+        {"latitude": 12.9716 + step, "longitude": 77.5946,        "altitude_m": 30.0, "speed_ms": 10.0},
+        {"latitude": 12.9716 + step, "longitude": 77.5946 + step, "altitude_m": 30.0, "speed_ms": 10.0},
+        {"latitude": 12.9716,        "longitude": 77.5946 + step, "altitude_m": 30.0, "speed_ms": 10.0},
+        {"latitude": 12.9716,        "longitude": 77.5946,        "altitude_m": 30.0, "speed_ms": 10.0},
+    ]
+    flight.wp_idx = 0
+    flight.alt = 30.0
+    flight._target_alt = 30.0
+    flight.heading = 0.0              # facing the first waypoint
+    flight.phase = SimPhase.FLYING
+
+    dt = 1.0 / flight.TICK_HZ
+    farthest = 0.0
+    for _ in range(20000):
+        flight._tick(dt)
+        farthest = max(farthest, _haversine_m(flight.lat, flight.lon, 12.9716, 77.5946))
+        if flight.phase != SimPhase.FLYING:
+            break
+
+    assert flight.wp_idx == len(flight.waypoints), f"orbiting: stuck at waypoint {flight.wp_idx}"
+    assert flight.phase == SimPhase.PAUSED
+    assert farthest < 600.0           # the whole route fits in ~220 m; far more means it looped wide

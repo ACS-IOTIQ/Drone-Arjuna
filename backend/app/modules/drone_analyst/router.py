@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -5,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db
 from app.core.rbac import require_min_role, Role
 from app.models.user import User
+from app.schemas.ops import AnalysisJobCreate
 from app.modules.drone_analyst.service import AnalystService
 
 router = APIRouter()
@@ -25,7 +27,7 @@ async def analyst_status(db: DbDep, _: ViewerDep):
 
 @router.post("/jobs", status_code=201)
 async def create_job(
-    body: dict,
+    body: AnalysisJobCreate,
     db: DbDep,
     user: AnalystDep,
 ):
@@ -41,11 +43,11 @@ async def create_job(
       params      — job-specific parameters dict
     """
     return await AnalystService(db).create_job(
-        job_type     = body.get("job_type", "telemetry_report"),
-        mission_id   = body.get("mission_id"),
-        drone_id     = body.get("drone_id"),
-        model_id     = body.get("model_id"),
-        params       = body.get("params", {}),
+        job_type     = body.job_type,
+        mission_id   = body.mission_id,
+        drone_id     = body.drone_id,
+        model_id     = body.model_id,
+        params       = body.params,
         submitted_by = user.id,
     )
 
@@ -70,6 +72,27 @@ async def get_job(job_id: str, db: DbDep, _: ViewerDep):
     return await AnalystService(db).get_job(job_id)
 
 
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+
+
+def _sniff_content_type(b: bytes) -> str | None:
+    if b.startswith(bytes.fromhex("ffd8ff")):
+        return "image/jpeg"
+    if b.startswith(bytes.fromhex("89504e470d0a1a0a")):
+        return "image/png"
+    if b[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        return "image/webp"
+    if b.startswith(b"%PDF-"):
+        return "application/pdf"
+    if b[4:8] == b"ftyp":
+        return "video/mp4"
+    if b.startswith(bytes.fromhex("1a45dfa3")):
+        return "video/webm"
+    return None
+
+
 @router.post("/jobs/{job_id}/artifacts", status_code=201)
 async def upload_artifact(
     job_id: str,
@@ -82,12 +105,19 @@ async def upload_artifact(
     a generated PDF report. Stored in MinIO; only image/*, video/*, and
     application/pdf content types are accepted.
     """
-    content = await file.read()
+    # Bounded read (memory-exhaustion guard) + magic-byte check; the declared
+    # Content-Type is never trusted on its own.
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large")
+    detected = _sniff_content_type(content)
+    if detected is None:
+        raise HTTPException(status_code=400, detail="Unsupported or unrecognised file type")
     return await AnalystService(db).upload_artifact(
         job_id=job_id,
         filename=file.filename or "upload.bin",
         content=content,
-        content_type=file.content_type or "application/octet-stream",
+        content_type=detected,
         uploaded_by=user.id,
     )
 

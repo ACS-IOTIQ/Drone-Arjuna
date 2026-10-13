@@ -35,6 +35,7 @@ import structlog
 from pymavlink import mavutil
 
 from app.config import get_settings
+from app.utils.mavlink_utils import apply_signing
 
 log = structlog.get_logger()
 
@@ -82,6 +83,7 @@ class MAVLinkBroadcaster:
             link = mavutil.mavlink_connection(
                 f"udpout:{self._target}", source_system=sys_id, source_component=1,
             )
+            apply_signing(link)
             self._links[drone_id] = link
             log.info("MAVLink broadcaster link opened", drone_id=drone_id,
                      sys_id=sys_id, target=self._target)

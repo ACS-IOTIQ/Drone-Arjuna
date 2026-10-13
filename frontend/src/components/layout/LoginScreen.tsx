@@ -23,11 +23,12 @@ const EMPTY_REQUEST = {
 }
 
 export default function LoginScreen() {
-  const { login, isLoading, error } = useAuthStore()
+  const { login, verifyMfa, cancelMfa, mfaToken, isLoading, error } = useAuthStore()
   const [mode, setMode] = useState<Mode>('signin')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [mfaCode, setMfaCode] = useState('')
   const [request, setRequest] = useState(EMPTY_REQUEST)
   const [submitted, setSubmitted] = useState<AccessRequest | null>(null)
   const [requestError, setRequestError] = useState('')
@@ -40,6 +41,13 @@ export default function LoginScreen() {
     event?.preventDefault()
     if (!username.trim() || !password || isLoading) return
     login(username.trim(), password)
+  }
+
+  const submitMfa = async (event?: React.FormEvent) => {
+    event?.preventDefault()
+    if (!mfaCode.trim() || isLoading) return
+    await verifyMfa(mfaCode)
+    setMfaCode('')
   }
 
   const submitRequest = async (event?: React.FormEvent) => {
@@ -155,10 +163,12 @@ export default function LoginScreen() {
           <div className="mb-5">
             <span className="da-login-mobile-brand">DroneArjuna</span>
             <h2 className="da-login-card-title text-2xl font-bold leading-tight">
-              {mode === 'signin' ? 'Welcome back' : mode === 'request' ? 'Request access' : 'Reset your password'}
+              {mfaToken ? 'Two-step verification' : mode === 'signin' ? 'Welcome back' : mode === 'request' ? 'Request access' : 'Reset your password'}
             </h2>
             <p className="da-login-card-subtitle mt-1 text-sm">
-              {mode === 'signin'
+              {mfaToken
+                ? 'Enter the 6-digit code from your authenticator app, or one of your recovery codes.'
+                : mode === 'signin'
                 ? 'Sign in to continue to the operations console.'
                 : mode === 'request'
                   ? 'Send your details to an administrator for review.'
@@ -166,7 +176,7 @@ export default function LoginScreen() {
             </p>
           </div>
 
-          {mode !== 'forgot' && (
+          {mode !== 'forgot' && !mfaToken && (
             <div className="da-login-tabs" role="tablist" aria-label="Authentication options">
               <button
                 type="button"
@@ -187,7 +197,41 @@ export default function LoginScreen() {
             </div>
           )}
 
-          {mode === 'signin' ? (
+          {mfaToken ? (
+            <form onSubmit={submitMfa} className="flex flex-col gap-4">
+              <label className="da-field">
+                <span className="da-field-label">Authentication code</span>
+                <span className="da-input-shell">
+                  <span className="da-input-icon"><ShieldCheck size={16} /></span>
+                  <input
+                    className="da-input da-input-embedded tracking-widest"
+                    value={mfaCode}
+                    onChange={event => setMfaCode(event.target.value)}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={32}
+                    autoFocus
+                    required
+                  />
+                </span>
+              </label>
+
+              {error && <p className="da-form-error" role="alert">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={isLoading || !mfaCode.trim()}
+                className="da-btn da-btn-primary h-11 justify-center text-sm font-semibold">
+                {isLoading ? 'Verifying...' : <>Verify <ArrowRight size={15} /></>}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMfaCode(''); cancelMfa() }}
+                className="da-link self-center text-xs font-semibold">
+                <ArrowLeft size={12} className="inline" /> Back to sign in
+              </button>
+            </form>
+          ) : mode === 'signin' ? (
             <form onSubmit={submitLogin} className="flex flex-col gap-4">
               <label className="da-field">
                 <span className="da-field-label">Username</span>

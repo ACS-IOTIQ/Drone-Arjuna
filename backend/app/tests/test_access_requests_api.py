@@ -31,6 +31,7 @@ Tests cover the four endpoints added for the "Request Access" feature:
        - non-admin → 403
 """
 import pytest
+from app.tests.conftest import LAST_EMAILED
 from httpx import AsyncClient
 
 from app.tests.helpers import access_request_payload, auth_headers
@@ -111,14 +112,14 @@ async def test_submit_request_defaults_role_to_viewer(client: AsyncClient, admin
     assert record["requested_role"] == "viewer"
 
 
-async def test_duplicate_pending_username_is_409(client: AsyncClient, pending_request):
+async def test_duplicate_pending_username_is_generic(client: AsyncClient, pending_request):
     """
     Submitting a second request with the same username while the first is
     still pending must return HTTP 409.
     """
     body = access_request_payload(username=pending_request["body"]["username"])
     resp = await client.post("/api/auth/request-access", json=body)
-    assert resp.status_code == 409
+    assert resp.status_code == 201   # generic response; no enumeration
 
 
 async def test_missing_username_is_422(client: AsyncClient):
@@ -247,8 +248,8 @@ async def test_accept_creates_user_account(
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "approved"
-    assert data["temp_password"] is not None
-    assert len(data["temp_password"]) >= 10
+    assert "temp_password" not in data   # never returned by the API
+    assert len(LAST_EMAILED["temp_password"]) >= 16
 
 
 async def test_accepted_user_can_login(
@@ -265,7 +266,7 @@ async def test_accepted_user_can_login(
         headers=hdrs,
     )
     assert accept.status_code == 200
-    temp_pwd = accept.json()["temp_password"]
+    temp_pwd = LAST_EMAILED["temp_password"]
     username = pending_request["body"]["username"]
 
     login = await client.post(
@@ -299,7 +300,7 @@ async def test_accept_uses_role_override(
     username = body["username"]
     login = await client.post(
         "/api/auth/token",
-        data={"username": username, "password": accept.json()["temp_password"]},
+        data={"username": username, "password": LAST_EMAILED["temp_password"]},
     )
     token_data = login.json()
     assert token_data["role"] == "flight_controller"

@@ -14,6 +14,7 @@ Covers (per spec section 9.1):
 All Redis operations degrade gracefully if Redis is unavailable so the
 application can still run in a reduced-security dev mode.
 """
+import json
 import re
 import html
 import time
@@ -42,7 +43,8 @@ class PasswordPolicy:
     Enforces password strength rules before hashing.
     Called by auth.py /register and any password-change endpoint.
     """
-    MIN_LENGTH       = 10
+    MIN_LENGTH       = 12
+    MAX_LENGTH       = 128
     REQUIRE_UPPER    = True
     REQUIRE_LOWER    = True
     REQUIRE_DIGIT    = True
@@ -68,6 +70,9 @@ class PasswordPolicy:
             errors.append(
                 f"Password must be at least {cls.MIN_LENGTH} characters long"
             )
+
+        if len(password) > cls.MAX_LENGTH:
+            errors.append(f"Password must be at most {cls.MAX_LENGTH} characters long")
 
         if cls.REQUIRE_UPPER and not re.search(r"[A-Z]", password):
             errors.append("Password must contain at least one uppercase letter")
@@ -148,7 +153,7 @@ class TokenBlacklist:
         Key: blacklist:user:<user_id>
         """
         try:
-            ttl = cfg.access_token_expire_minutes * 60
+            ttl = cfg.refresh_token_expire_days * 86400
             await self._r.setex(
                 f"blacklist:user:{user_id}",
                 ttl,
@@ -235,6 +240,78 @@ class RateLimiter:
                         action=action, error=str(e))
 
 
+# ── Shared Redis client, client IP, login lockout ─────────────────
+
+_redis_client: Optional[aioredis.Redis] = None
+
+
+def get_redis() -> aioredis.Redis:
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = aioredis.from_url(
+            cfg.redis_url, decode_responses=True,
+            socket_connect_timeout=1, socket_timeout=1,
+        )
+    return _redis_client
+
+
+def client_ip(request) -> str:
+    """Real client IP. X-Forwarded-For is honoured only when TRUST_PROXY_HEADERS is set."""
+    if cfg.trust_proxy_headers:
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            return xff.split(",")[0].strip()[:45]
+    return request.client.host if request.client else "unknown"
+
+
+class LoginLockout:
+    """Per-username failure counter with temporary lockout (best-effort if Redis is down)."""
+
+    @staticmethod
+    def _key(username: str) -> str:
+        return f"lockout:{hashlib.sha256(username.lower().encode()).hexdigest()[:32]}"
+
+    @classmethod
+    async def check(cls, username: str) -> None:
+        try:
+            n = await get_redis().get(cls._key(username))
+            ttl = await get_redis().ttl(cls._key(username)) if n else 0
+        except Exception as e:
+            log.warning("Lockout check unavailable", error=str(e))
+            return
+        if n and int(n) >= cfg.login_max_failures:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many failed attempts. Try again later.",
+                headers={"Retry-After": str(max(ttl, 1))},
+            )
+
+    @classmethod
+    async def fail(cls, username: str) -> None:
+        try:
+            r = get_redis()
+            k = cls._key(username)
+            n = await r.incr(k)
+            if n == 1 or n >= cfg.login_max_failures:
+                await r.expire(k, cfg.login_lockout_seconds)
+        except Exception as e:
+            log.warning("Lockout write failed", error=str(e))
+
+    @classmethod
+    async def clear(cls, username: str) -> None:
+        try:
+            await get_redis().delete(cls._key(username))
+        except Exception:
+            pass
+
+
+def rate_limit(action: str, limit: int, window_seconds: int):
+    """FastAPI dependency: per-IP sliding-window limit."""
+    async def _dep(request: Request):
+        await RateLimiter(get_redis()).check(action, client_ip(request), limit, window_seconds)
+    return _dep
+
+
 # ── Preset rate-limit rules ───────────────────────────────────────
 # Use these as FastAPI dependency factories in routers.
 
@@ -258,6 +335,53 @@ def command_rate_limit(redis: aioredis.Redis):
 # Audit Logger
 # ══════════════════════════════════════════════════════════════════
 
+# ── Tamper-evident hash chain ─────────────────────────────────────
+# Every audit row stores prev_hash (the previous row's row_hash) and
+# row_hash = SHA-256(prev_hash | canonical record). Editing, removing or
+# re-ordering a row breaks the chain from that point on.
+
+AUDIT_GENESIS = "GENESIS"
+_AUDIT_LOCK_KEY = 4242001   # pg advisory lock serialising chain appends
+
+
+def audit_canonical(ts: datetime, category: str, action: str, user_id, drone_id,
+                    mission_id, ip, detail_json: Optional[str], severity: str) -> str:
+    detail = json.loads(detail_json) if detail_json else None
+    return json.dumps(
+        {"ts": ts.astimezone(timezone.utc).isoformat(), "cat": category, "act": action,
+         "uid": user_id, "did": drone_id, "mid": mission_id, "ip": ip,
+         "det": detail, "sev": severity},
+        sort_keys=True, separators=(",", ":"), default=str,
+    )
+
+
+def audit_row_hash(prev_hash: str, canonical: str) -> str:
+    return hashlib.sha256(f"{prev_hash}|{canonical}".encode()).hexdigest()
+
+
+def verify_audit_chain(rows) -> Optional[int]:
+    """
+    rows: iterable of dicts in id order with the audit columns plus
+    prev_hash / row_hash. Returns the id of the first row that fails
+    verification, or None when the chain is intact. Legacy rows written
+    before chaining (row_hash NULL) are skipped.
+    """
+    expected_prev: Optional[str] = None
+    for r in rows:
+        if r.get("row_hash") is None:
+            continue
+        if expected_prev is not None and r["prev_hash"] != expected_prev:
+            return r["id"]
+        detail_json = json.dumps(r["detail"]) if isinstance(r.get("detail"), (dict, list)) else None
+        canon = audit_canonical(r["timestamp"], r["category"], r["action"], r["user_id"],
+                                r["drone_id"], r["mission_id"], r["ip_address"],
+                                detail_json, r["severity"])
+        if audit_row_hash(r["prev_hash"], canon) != r["row_hash"]:
+            return r["id"]
+        expected_prev = r["row_hash"]
+    return None
+
+
 class AuditLogger:
     """
     Writes security and operational events to the audit_log table.
@@ -267,9 +391,9 @@ class AuditLogger:
       - Tamper-evident logs
       - 7-year retention (regulatory compliance)
 
-    V1: Writes to PostgreSQL via raw SQL.
-        The audit_log table is append-only — no UPDATE or DELETE
-        is ever issued against it.
+    Writes to PostgreSQL via raw SQL. The table is append-only: a trigger
+    (migration 016) rejects UPDATE/DELETE/TRUNCATE, and each row is part of a
+    SHA-256 hash chain verifiable with verify_audit_chain().
     V2: Will also ship events to the ELK stack for SIEM integration.
     """
 
@@ -300,27 +424,39 @@ class AuditLogger:
         Never raises — audit failure must not block the main operation.
         """
         try:
+            ts = datetime.now(timezone.utc)
+            det = _safe_json(detail)
+            # Serialise appends so the chain has a single, gap-free order.
+            # The advisory lock is released by the commit below.
+            await self._db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _AUDIT_LOCK_KEY})
+            prev = (await self._db.execute(text(
+                "SELECT row_hash FROM audit_log WHERE row_hash IS NOT NULL "
+                "ORDER BY id DESC LIMIT 1"))).scalar() or AUDIT_GENESIS
+            row_hash = audit_row_hash(prev, audit_canonical(
+                ts, category, action, user_id, drone_id, mission_id, ip_address, det, severity))
             await self._db.execute(
                 text("""
                     INSERT INTO audit_log
                         (timestamp, category, action, user_id,
                          drone_id, mission_id, ip_address,
-                         detail, severity)
+                         detail, severity, prev_hash, row_hash)
                     VALUES
                         (:ts, :cat, :act, :uid,
                          :did, :mid, :ip,
-                         CAST(:det AS jsonb), :sev)
+                         CAST(:det AS jsonb), :sev, :prev, :rh)
                 """),
                 {
-                    "ts":  datetime.now(timezone.utc),
+                    "ts":  ts,
                     "cat": category,
                     "act": action,
                     "uid": user_id,
                     "did": drone_id,
                     "mid": mission_id,
                     "ip":  ip_address,
-                    "det": _safe_json(detail),
+                    "det": det,
                     "sev": severity,
+                    "prev": prev,
+                    "rh":  row_hash,
                 },
             )
             await self._db.commit()
@@ -336,7 +472,7 @@ class AuditLogger:
 
     async def login_failed(self, username: str, ip: str):
         await self.log(self.AUTH, "login_failed",
-                       ip_address=ip, detail={"username": username},
+                       ip_address=ip, detail={"username": _CTRL.sub("", username)[:64]},
                        severity="WARNING")
 
     async def logout(self, user_id: int, ip: str):
@@ -471,7 +607,8 @@ class InputSanitiser:
 
 # ── Internal helpers ──────────────────────────────────────────────
 
-import json
+
+_CTRL = re.compile(r"[\x00-\x1f\x7f]")
 
 def _safe_json(data: Optional[dict]) -> Optional[str]:
     """Serialise dict to JSON string, return None on failure."""

@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from pymavlink import mavutil
 
-from app.utils.mavlink_utils import build_connection_string
+from app.utils.mavlink_utils import build_connection_string, apply_signing
 from app.utils.geofence import geofence_store
 from app.utils.mavlink_executor import mavlink_executor
 from app.modules.drone_control.telemetry_processor import TelemetryProcessor
@@ -138,10 +138,12 @@ class MAVLinkManager:
         try:
             # pymavlink connection — runs synchronously but we offload to executor
             loop = asyncio.get_event_loop()
-            conn.mav = await loop.run_in_executor(
-                mavlink_executor,
-                lambda: mavutil.mavlink_connection(conn_str, source_system=255)
-            )
+            def _open_link():
+                link = mavutil.mavlink_connection(conn_str, source_system=255)
+                apply_signing(link)
+                return link
+
+            conn.mav = await loop.run_in_executor(mavlink_executor, _open_link)
             # Wait for first heartbeat — HF uses a much longer timeout
             await asyncio.wait_for(
                 loop.run_in_executor(mavlink_executor, conn.mav.wait_heartbeat),

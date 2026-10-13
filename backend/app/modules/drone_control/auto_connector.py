@@ -92,8 +92,6 @@ _FALLBACK_CANDIDATES = [
      "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,  "label": "udp:14550"},
     {"transport": "udp", "host": "0.0.0.0", "port": 14551,
      "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,  "label": "udp:14551"},
-    {"transport": "udp", "host": "0.0.0.0", "port": 14560,
-     "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,  "label": "udp:14560"},
 ]
 
 

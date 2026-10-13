@@ -64,7 +64,16 @@ async def _create_job(client: AsyncClient, token: str) -> str:
     return resp.json()["id"]
 
 
+_MAGIC = {
+    "image/jpeg": bytes.fromhex("ffd8ff"),
+    "image/png": bytes.fromhex("89504e470d0a1a0a"),
+    "video/mp4": bytes.fromhex("00000018") + b"ftypmp42",
+    "application/pdf": b"%PDF-",
+}
+
+
 async def _upload(client, job_id, token, filename, content, content_type):
+    content = _MAGIC.get(content_type, b"") + content
     ensure_p, upload_p, _, _ = _patch_storage()
     with ensure_p, upload_p:
         return await client.post(
@@ -91,7 +100,7 @@ async def test_upload_image_classified_correctly(
     assert body["job_id"] == job_id
     assert body["filename"] == "frame001.png"
     assert body["content_type"] == "image/png"
-    assert body["size_bytes"] == len(b"pngbytes")
+    assert body["size_bytes"] == len(_MAGIC["image/png"] + b"pngbytes")
     assert body["object_key"].startswith(f"jobs/{job_id}/")
     assert body["uploaded_by"] == mission_commander_user.id
 
@@ -131,7 +140,7 @@ async def test_upload_calls_storage_with_correct_args(
         resp = await client.post(
             f"/api/analyst/jobs/{job_id}/artifacts",
             headers={"Authorization": f"Bearer {token}"},
-            files={"file": ("scene.jpg", b"jpgdata", "image/jpeg")},
+            files={"file": ("scene.jpg", _MAGIC["image/jpeg"] + b"jpgdata", "image/jpeg")},
         )
     assert resp.status_code == 201
     mock_ensure.assert_awaited_once()
@@ -139,7 +148,7 @@ async def test_upload_calls_storage_with_correct_args(
     key, data, content_type = mock_upload.call_args.args
     assert key.startswith(f"jobs/{job_id}/")
     assert key.endswith("_scene.jpg")
-    assert data == b"jpgdata"
+    assert data == _MAGIC["image/jpeg"] + b"jpgdata"
     assert content_type == "image/jpeg"
 
 

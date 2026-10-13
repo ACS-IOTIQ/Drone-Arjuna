@@ -1,0 +1,23 @@
+{
+  "fingerprint": "acc2d66433e9106a8e54d7f1dd0ba0bf17909b920a1a3e3e3657637e9e4e0633",
+  "nodeids": [
+    "app/tests/test_backup_list_api.py::test_list_database_without_dumps_is_an_empty_list",
+    "app/tests/test_backup_list_api.py::test_list_dumps_empty_bucket",
+    "app/tests/test_backup_list_api.py::test_list_dumps_falls_back_to_local_disk_when_minio_is_down",
+    "app/tests/test_backup_list_api.py::test_list_dumps_from_minio_is_newest_first_with_all_fields",
+    "app/tests/test_backup_list_api.py::test_list_dumps_local_fallback_ignores_files_that_are_not_dumps",
+    "app/tests/test_backup_list_api.py::test_list_dumps_minio_down_and_directory_missing_is_empty",
+    "app/tests/test_backup_list_api.py::test_list_dumps_minio_down_and_no_local_dumps_is_empty",
+    "app/tests/test_backup_list_api.py::test_list_dumps_ordering_follows_the_timestamp_in_the_name",
+    "app/tests/test_backup_list_api.py::test_list_entries_have_the_fields_the_ui_renders",
+    "app/tests/test_backup_list_api.py::test_list_forbidden_for_flight_controller",
+    "app/tests/test_backup_list_api.py::test_list_forbidden_for_mission_commander",
+    "app/tests/test_backup_list_api.py::test_list_forbidden_for_viewer",
+    "app/tests/test_backup_list_api.py::test_list_includes_the_real_targets_by_default",
+    "app/tests/test_backup_list_api.py::test_list_queries_each_databases_own_bucket",
+    "app/tests/test_backup_list_api.py::test_list_rejects_non_get_methods",
+    "app/tests/test_backup_list_api.py::test_list_returns_one_list_per_database",
+    "app/tests/test_backup_list_api.py::test_list_unauthenticated_401",
+    "app/tests/test_backup_list_api.py::test_list_works_from_local_disk_when_minio_is_down"
+  ]
+}

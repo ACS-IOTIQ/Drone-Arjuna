@@ -151,8 +151,11 @@ def test_build_candidates_bridge_none_no_bridge_entry():
 
     # None of the candidates should be the bridge-derived tcp entry (label prefix "bridge:")
     assert all(not c["label"].startswith("bridge:") for c in candidates)
-    # Static fallback list (2x tcp + 3x udp) must still be present
-    assert len(candidates) == 5
+    # Static fallback list (2x tcp + 2x inbound udp) must still be present.
+    # UDP 14560 is reserved for simulator -> external GCS broadcast and must
+    # stay free for Mission Planner/QGC to bind on the host.
+    assert len(candidates) == 4
+    assert all(c["label"] != "udp:14560" for c in candidates)
 
 
 def test_build_candidates_bridge_present_but_not_connected_no_bridge_entry():
@@ -164,7 +167,8 @@ def test_build_candidates_bridge_present_but_not_connected_no_bridge_entry():
         candidates = ac._build_candidates(bridge)
 
     assert all(not c["label"].startswith("bridge:") for c in candidates)
-    assert len(candidates) == 5
+    assert len(candidates) == 4
+    assert all(c["label"] != "udp:14560" for c in candidates)
 
 
 def test_build_candidates_includes_serial_scan_results():
@@ -177,8 +181,8 @@ def test_build_candidates_includes_serial_scan_results():
 
     serial_candidates = [c for c in candidates if c["transport"] == "serial"]
     assert len(serial_candidates) == 3
-    # static tcp/udp fallback list (5 entries) + 3 serial = 8
-    assert len(candidates) == 8
+    # static tcp/udp fallback list (4 entries) + 3 serial = 7
+    assert len(candidates) == 7
 
 
 # ══════════════════════════════════════════════════════════════════════

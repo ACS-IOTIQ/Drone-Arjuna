@@ -1,5 +1,5 @@
 {
-  "fingerprint": "dbf43a94c170cb92d1f91db62e0f9a2258619fd0cbbaca5418faf712c74b0bdf",
+  "fingerprint": "49f19fd5c425fadf50d37d083f513e2638ebb03438fcfc31e357e506de24745f",
   "nodeids": [
     "app/tests/test_analyst_api.py::test_cancel_already_cancelled_409",
     "app/tests/test_analyst_api.py::test_cancel_job_status_persisted",
@@ -9,7 +9,7 @@
     "app/tests/test_analyst_api.py::test_create_job_201_all_fields",
     "app/tests/test_analyst_api.py::test_create_job_default_job_type",
     "app/tests/test_analyst_api.py::test_create_job_invalid_model_404",
-    "app/tests/test_analyst_api.py::test_create_job_invalid_type_400",
+    "app/tests/test_analyst_api.py::test_create_job_invalid_type_422",
     "app/tests/test_analyst_api.py::test_create_job_publishes_to_queue",
     "app/tests/test_analyst_api.py::test_create_job_unauthenticated_401",
     "app/tests/test_analyst_api.py::test_create_job_viewer_403",

@@ -4,6 +4,8 @@ import DroneInstanceManager from "./DroneInstanceManager";
 import PayloadManager from "./PayloadManager";
 import VesselManager from "./VesselManager";
 import UserManager from "./UserManager";
+import SecuritySettings from "./SecuritySettings";
+import BackupManager from "./BackupManager";
 import SystemLogViewer from "@/components/common/SystemLogViewer";
 import {
   Database,
@@ -13,6 +15,8 @@ import {
   Anchor,
   Package,
   BookOpen,
+  ShieldCheck,
+  HardDrive,
 } from "lucide-react";
 import { api } from "@/api/client";
 
@@ -22,6 +26,8 @@ type Tab =
   | "payloads"
   | "vessels"
   | "users"
+  | "security"
+  | "backups"
   | "logs"
   | "about";
 
@@ -56,6 +62,8 @@ const TABS: {
     group: "NAVAL OPS",
   },
   { id: "users", label: "Users", icon: <Users size={15} />, group: "SYSTEM" },
+  { id: "security", label: "Security", icon: <ShieldCheck size={15} />, group: "SYSTEM" },
+  { id: "backups", label: "Backups", icon: <HardDrive size={15} />, group: "SYSTEM" },
   {
     id: "logs",
     label: "Event Logs",
@@ -68,6 +76,15 @@ const TABS: {
 export default function SettingsWorkspace() {
   const [tab, setTab] = useState<Tab>("types");
   const [pendingRequests, setPendingRequests] = useState(0);
+  // Bumped when the backend auto-restores the database from backup; used as a
+  // key below so the open tab remounts and reloads its data.
+  const [restoreTick, setRestoreTick] = useState(0);
+
+  useEffect(() => {
+    const onRestored = () => setRestoreTick((n) => n + 1);
+    window.addEventListener("da:data-restored", onRestored);
+    return () => window.removeEventListener("da:data-restored", onRestored);
+  }, []);
 
   useEffect(() => {
     api
@@ -79,7 +96,7 @@ export default function SettingsWorkspace() {
         setPendingRequests(count);
       })
       .catch(() => setPendingRequests(0));
-  }, [tab]); // re-check whenever the user switches tabs
+  }, [tab, restoreTick]); // re-check whenever the user switches tabs or data is restored
 
   const groups = [...new Set(TABS.map((t) => t.group!))];
 
@@ -113,12 +130,14 @@ export default function SettingsWorkspace() {
 
       {/* Content — the 480px floor lives on `.da-settings-content` so the
           scroll container itself can still shrink and produce a scrollbar. */}
-      <div className="da-settings-content min-w-0 flex-1 overflow-auto p-6">
+      <div key={restoreTick} className="da-settings-content min-w-0 flex-1 overflow-auto p-6">
         {tab === "types" && <DroneTypeManager />}
         {tab === "instances" && <DroneInstanceManager />}
         {tab === "payloads" && <PayloadManager />}
         {tab === "vessels" && <VesselManager />}
         {tab === "users" && <UserManager />}
+        {tab === "security" && <SecuritySettings />}
+        {tab === "backups" && <BackupManager />}
         {tab === "logs" && <SystemLogViewer />}
         {tab === "about" && <AboutPanel />}
       </div>

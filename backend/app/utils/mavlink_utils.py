@@ -57,6 +57,42 @@ def build_connection_string(
 
 
 # ══════════════════════════════════════════════════════════════════
+# MAVLink 2 message signing
+# ══════════════════════════════════════════════════════════════════
+
+# Messages still accepted unsigned when signing is on (standard practice —
+# radio firmware emits these itself and cannot sign them).
+_UNSIGNED_ALLOWED_MSG_IDS = {mavutil.mavlink.MAVLINK_MSG_ID_RADIO_STATUS}
+
+
+def _allow_unsigned(_mav, msg_id: int) -> bool:
+    return msg_id in _UNSIGNED_ALLOWED_MSG_IDS
+
+
+def signing_enabled() -> bool:
+    from app.config import get_settings
+    return bool(get_settings().mavlink_signing_key.strip())
+
+
+def apply_signing(link) -> bool:
+    """
+    Enable MAVLink 2 signing on a pymavlink connection when MAVLINK_SIGNING_KEY
+    is configured: outgoing frames are signed and unsigned/forged incoming
+    frames are discarded. Returns True when signing was enabled.
+    """
+    from app.config import get_settings
+    key = get_settings().mavlink_signing_key.strip()
+    if not key:
+        return False
+    link.setup_signing(
+        bytes.fromhex(key),
+        sign_outgoing=True,
+        allow_unsigned_callback=_allow_unsigned,
+    )
+    return True
+
+
+# ══════════════════════════════════════════════════════════════════
 # Flight mode maps
 # ══════════════════════════════════════════════════════════════════
 

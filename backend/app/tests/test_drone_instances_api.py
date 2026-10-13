@@ -209,17 +209,17 @@ async def test_patch_drone_status_200(
     assert resp.json()["status"] == "maintenance"
 
 
-async def test_patch_drone_status_invalid_400(
+async def test_patch_drone_status_invalid_422(
     client: AsyncClient, flight_controller_user, drone_instance, make_token
 ):
-    """Invalid status value must return 400."""
+    """Invalid status value is rejected by schema validation (422)."""
     token = make_token(flight_controller_user.id, flight_controller_user.role)
     resp  = await client.patch(
         f"/api/master/drones/{drone_instance['id']}/status",
         json={"status": "destroyed"},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 422
 
 
 async def test_patch_drone_status_viewer_403(

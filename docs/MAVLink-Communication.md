@@ -191,7 +191,9 @@ lifespan) that connects drones automatically as their hardware link appears:
 - **Candidate probing** — builds an ordered candidate list per cycle: the
   `com_bridge` TCP candidate first (most reliable), then any serial ports
   visible in the container, then a fixed fallback list (`tcp:5762`,
-  `tcp:5760`, `udp:14550/14551/14560`). All candidates for a drone are probed
+  `tcp:5760`, `udp:14550/14551`). UDP `14560` is reserved for simulator
+  broadcast to external GCS software, so Mission Planner/QGroundControl can
+  bind that port on the host. All candidates for a drone are probed
   **concurrently** (`_connect_drone`) and the first to get a real heartbeat
   wins; `MAVLinkManager.connect()`'s own per-`drone_id` lock resolves the race
   so only one candidate actually commits.

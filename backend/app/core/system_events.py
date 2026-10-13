@@ -15,7 +15,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
 from app.database import AsyncSessionLocal
-from app.core.auth import get_current_user_from_token
+from app.core.auth import authenticate_ws
 
 log = structlog.get_logger()
 router = APIRouter()
@@ -51,7 +51,7 @@ async def broadcast_system_event(event_type: str, message: str, **extra):
 
 
 @router.websocket("/events")
-async def system_events_stream(ws: WebSocket, token: str = Query(...)):
+async def system_events_stream(ws: WebSocket):
     """
     Browsers can't attach an Authorization header to a WebSocket handshake,
     so the access token is passed as a query parameter instead and validated
@@ -60,7 +60,7 @@ async def system_events_stream(ws: WebSocket, token: str = Query(...)):
     """
     async with AsyncSessionLocal() as db:
         try:
-            await get_current_user_from_token(token, db)
+            await authenticate_ws(ws, db, min_role="viewer")
         except HTTPException:
             await ws.close(code=4401)
             return

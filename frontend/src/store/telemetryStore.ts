@@ -377,8 +377,7 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
       return
     }
 
-    const url = makeTelemetryUrl(droneId)
-    const rws = new RobustWebSocket(url, `telemetry-${droneId}`, () => makeTelemetryUrl(droneId))
+    const rws = new RobustWebSocket('', `telemetry-${droneId}`, () => makeTelemetryUrl(droneId))
 
     rws.onOpen(() => console.log('[Telemetry] RobustWebSocket OPEN drone', droneId))
     rws.onError((e) => console.error('[Telemetry] RobustWebSocket ERROR drone', droneId, e))

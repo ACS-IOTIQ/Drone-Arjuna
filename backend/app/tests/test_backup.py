@@ -10,6 +10,7 @@ the repo's real backups/ directories, or a network MinIO endpoint.
 import asyncio
 import json
 from datetime import datetime, timezone
+from sqlalchemy import table as _sa_table
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -129,17 +130,17 @@ class TestUploadToMinio:
 
 
 class TestRotateOldDumps:
-    def test_keeps_dumps_within_retention_count(self, tmp_path, monkeypatch, fake_s3):
+    async def test_keeps_dumps_within_retention_count(self, tmp_path, monkeypatch, fake_s3):
         monkeypatch.setattr(backup.cfg, "backup_retention_count", 2)
         target = _fake_target(tmp_path)
         target.backup_dir.mkdir(parents=True)
         for i in range(2):
             (target.backup_dir / f"dump_2026010{i}T000000Z.json").write_text("{}")
 
-        backup._rotate_old_dumps(target)
+        await backup._rotate_old_dumps(target)
         assert len(list(target.backup_dir.glob("dump_*.json"))) == 2
 
-    def test_deletes_oldest_beyond_retention_count(self, tmp_path, monkeypatch, fake_s3):
+    async def test_deletes_oldest_beyond_retention_count(self, tmp_path, monkeypatch, fake_s3):
         monkeypatch.setattr(backup.cfg, "backup_retention_count", 1)
         target = _fake_target(tmp_path)
         target.backup_dir.mkdir(parents=True)
@@ -148,13 +149,13 @@ class TestRotateOldDumps:
         newest = target.backup_dir / "dump_20260102T000000Z.json"
         newest.write_text("{}")
 
-        backup._rotate_old_dumps(target)
+        await backup._rotate_old_dumps(target)
 
         remaining = list(target.backup_dir.glob("dump_*.json"))
         assert remaining == [newest]
         assert not oldest.exists()
 
-    def test_also_rotates_old_dumps_in_minio(self, tmp_path, monkeypatch, fake_s3):
+    async def test_also_rotates_old_dumps_in_minio(self, tmp_path, monkeypatch, fake_s3):
         monkeypatch.setattr(backup.cfg, "backup_retention_count", 1)
         target = _fake_target(tmp_path)
         target.backup_dir.mkdir(parents=True)
@@ -163,7 +164,7 @@ class TestRotateOldDumps:
             "dump_20260102T000000Z.json": b"{}",
         }
 
-        backup._rotate_old_dumps(target)
+        await backup._rotate_old_dumps(target)
 
         remaining_keys = set(fake_s3.buckets[target.minio_bucket])
         assert remaining_keys == {"dump_20260102T000000Z.json"}
@@ -238,12 +239,12 @@ class TestCreateDump:
         dump_path = await backup.create_dump(target)
 
         assert dump_path.exists()
-        data = json.loads(dump_path.read_text())
+        data = backup._read_dump(dump_path)
         assert data == {"users": [{"id": 1, "username": "admin"}]}
 
         # Confirms the dump actually reached MinIO, not just local disk.
         assert dump_path.name in fake_s3.buckets[target.minio_bucket]
-        uploaded = json.loads(fake_s3.buckets[target.minio_bucket][dump_path.name])
+        uploaded = backup._unpack_dump(fake_s3.buckets[target.minio_bucket][dump_path.name].decode())
         assert uploaded == data
 
     async def test_incremental_dump_carries_forward_untouched_tables(self, tmp_path, fake_s3):
@@ -264,7 +265,7 @@ class TestCreateDump:
         # Re-read no tables — everything should carry over from `previous`.
         dump_path = await backup.create_dump(target, tables=set())
 
-        data = json.loads(dump_path.read_text())
+        data = backup._read_dump(dump_path)
         assert data == {"users": [{"id": 1, "username": "old"}]}
 
     async def test_rotates_after_creating(self, tmp_path, fake_s3):
@@ -390,7 +391,7 @@ class TestTablesWithExpectedDataAreEmpty:
         assert result is False
 
     async def test_all_tables_empty_returns_true(self, tmp_path, fake_s3):
-        target = _fake_target(tmp_path, tables=[])
+        target = _fake_target(tmp_path, tables=[_sa_table("users"), _sa_table("missions")])
         target.backup_dir.mkdir(parents=True)
         fake_s3.buckets[target.minio_bucket] = {
             "dump_20260101T000000Z.json": json.dumps({"users": [{"id": 1}]}).encode(),
@@ -404,7 +405,7 @@ class TestTablesWithExpectedDataAreEmpty:
         assert result is True
 
     async def test_any_table_with_rows_returns_false(self, tmp_path, fake_s3):
-        target = _fake_target(tmp_path, tables=[])
+        target = _fake_target(tmp_path, tables=[_sa_table("users"), _sa_table("missions")])
         target.backup_dir.mkdir(parents=True)
         fake_s3.buckets[target.minio_bucket] = {
             "dump_20260101T000000Z.json": json.dumps(

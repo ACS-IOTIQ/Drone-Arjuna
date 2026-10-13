@@ -612,8 +612,8 @@ async def test_simulate_stop_scoped_to_one_drone(
 # WebSocket telemetry stream
 # ══════════════════════════════════════════════════════════════════════
 
-def test_ws_stream_accepts_connection():
-    """WebSocket stream accepts a connection for any drone_id (no auth required)."""
+def test_ws_stream_rejects_unauthenticated():
+    """WebSocket stream must reject connections without a valid token/ticket (C-02)."""
     from contextlib import asynccontextmanager
     from starlette.testclient import TestClient
     from app.main import app
@@ -626,9 +626,12 @@ def test_ws_stream_accepts_connection():
     app.router.lifespan_context = _noop_lifespan
     try:
         with TestClient(app, raise_server_exceptions=False) as tc:
-            with tc.websocket_connect("/api/drone-control/stream/9999") as ws:
-                # drone 9999 has no active telemetry; queue idles — connection accepted
-                pass
+            from starlette.websockets import WebSocketDisconnect
+            import pytest
+            with pytest.raises(WebSocketDisconnect) as exc:
+                with tc.websocket_connect("/api/drone-control/stream/9999"):
+                    pass
+            assert exc.value.code == 4401
     finally:
         app.router.lifespan_context = original_lifespan
 

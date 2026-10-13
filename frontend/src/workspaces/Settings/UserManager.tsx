@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Mail, Phone, Plus, Save, UserCheck, UserX, X } from 'lucide-react'
+import { Mail, Phone, Plus, Save, ShieldOff, UserCheck, UserX, X } from 'lucide-react'
 import { api } from '@/api/client'
 import {
   requestMailto,
@@ -29,6 +29,7 @@ interface UserRecord {
   full_name: string
   role: string
   is_active: boolean
+  totp_enabled?: boolean
   password?: string
 }
 
@@ -122,6 +123,18 @@ export function UserManager() {
       notify.success('Email sent', `Password reset email queued for ${user.email}`)
     } catch (e: any) {
       notify.danger('Email failed', e?.response?.data?.detail ?? 'Could not send password reset email')
+    }
+  }
+
+  const resetUserMfa = async (user: UserRecord) => {
+    if (!user.id) return
+    if (!window.confirm(`Remove two-step verification for ${user.username}? Their sessions will be signed out.`)) return
+    try {
+      await api.post(`/api/auth/users/${user.id}/mfa/reset`)
+      notify.success('MFA reset', `${user.username} must set up two-step verification again.`)
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, totp_enabled: false } : u))
+    } catch (e: any) {
+      notify.danger('MFA reset failed', e?.response?.data?.detail ?? 'Could not reset MFA')
     }
   }
 
@@ -280,6 +293,16 @@ export function UserManager() {
                   >
                     <Mail size={13} /> Email
                   </button>
+                  {user.totp_enabled && (
+                    <button
+                      type="button"
+                      className="da-btn da-btn-ghost text-xs"
+                      title="Remove this user's two-step verification (lost device)"
+                      onClick={() => resetUserMfa(user)}
+                    >
+                      <ShieldOff size={13} /> Reset MFA
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

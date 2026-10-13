@@ -242,11 +242,12 @@ def test_connect_forever_already_connected_skips_rescan(com_bridge, fresh_device
 # DiscoveryHandler.do_GET
 # ══════════════════════════════════════════════════════════════════════
 
-def _make_handler(com_bridge, path):
+def _make_handler(com_bridge, path, client_ip="127.0.0.1"):
     """Build a DiscoveryHandler instance without running BaseHTTPRequestHandler's
     socket-driven __init__ (there's no real connection here)."""
     handler = com_bridge.DiscoveryHandler.__new__(com_bridge.DiscoveryHandler)
     handler.path = path
+    handler.client_address = (client_ip, 50000)
     handler.send_response = MagicMock()
     handler.send_header = MagicMock()
     handler.end_headers = MagicMock()
@@ -410,5 +411,56 @@ def test_handle_client_starts_pipe_threads_and_releases_lock_on_disconnect(com_b
         com_bridge.handle_client(conn, ("127.0.0.1", 5000))
 
     assert len(started_threads) == 2
+    conn.close.assert_called_once()
+    assert com_bridge.device.active_client is False
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Client allow-list (BRIDGE_ALLOWED_CLIENTS)
+# ══════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def restricted(com_bridge):
+    import ipaddress
+    old = com_bridge.ALLOWED_CLIENTS
+    com_bridge.ALLOWED_CLIENTS = [ipaddress.ip_network("192.168.65.0/24"),
+                                  ipaddress.ip_network("127.0.0.0/8")]
+    yield
+    com_bridge.ALLOWED_CLIENTS = old
+
+
+def test_default_allow_list_is_private_and_loopback_only(com_bridge):
+    assert com_bridge.client_allowed("127.0.0.1")
+    assert com_bridge.client_allowed("192.168.1.20")
+    assert com_bridge.client_allowed("172.17.0.2")
+    assert not com_bridge.client_allowed("8.8.8.8")
+    assert not com_bridge.client_allowed("203.0.113.5")
+
+
+def test_unparseable_address_is_refused(com_bridge):
+    assert not com_bridge.client_allowed("not-an-ip")
+    assert not com_bridge.client_allowed("")
+
+
+def test_allow_list_can_be_narrowed(com_bridge, restricted):
+    assert com_bridge.client_allowed("192.168.65.3")
+    assert not com_bridge.client_allowed("192.168.1.20")
+
+
+def test_ipv4_mapped_ipv6_uses_the_ipv4_rule(com_bridge, restricted):
+    assert com_bridge.client_allowed("::ffff:192.168.65.3")
+    assert not com_bridge.client_allowed("::ffff:10.1.1.1")
+
+
+def test_discovery_refuses_disallowed_client_without_leaking_ports(com_bridge, restricted):
+    handler = _make_handler(com_bridge, "/ports", client_ip="10.9.9.9")
+    handler.do_GET()
+    handler.send_error.assert_called_once_with(403)
+    handler.wfile.write.assert_not_called()
+
+
+def test_mavlink_port_closes_connection_from_disallowed_client(com_bridge, restricted):
+    conn = MagicMock()
+    com_bridge.handle_client(conn, ("10.9.9.9", 41000))
     conn.close.assert_called_once()
     assert com_bridge.device.active_client is False

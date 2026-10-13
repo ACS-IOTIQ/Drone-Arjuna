@@ -6,6 +6,7 @@ from sqlalchemy import select, delete, func
 from app.database import get_db
 from app.core.rbac import require_min_role, Role
 from app.models.user import User
+from app.schemas.ops import SurveyGridRequest
 from app.models.mission import Mission, Waypoint
 from app.schemas.mission import (
     MissionCreate, MissionOut, MissionSummary,
@@ -353,19 +354,13 @@ async def assign_fleet(body: FleetAssignRequest, _: PilotDep):
 
 
 @router.post("/survey-grid")
-async def generate_survey_grid(body: dict, _: PilotDep):
+async def generate_survey_grid(body: SurveyGridRequest, _: PilotDep):
     """
     Generates lawnmower survey waypoints from a polygon.
     Body: { polygon: [[lat,lon],...], altitude_m, spacing_m, speed_ms }
     Returns waypoint list ready to insert into a mission.
     """
-    try:
-        polygon  = [tuple(p) for p in body["polygon"]]
-        altitude = float(body["altitude_m"])
-        spacing  = float(body.get("spacing_m", 50.0))
-        speed    = body.get("speed_ms")
-    except (KeyError, TypeError, ValueError) as e:
-        raise HTTPException(400, f"Invalid body: {e}")
-
-    waypoints = MissionPlanner.generate_survey_grid(polygon, altitude, spacing, speed_ms=speed)
+    waypoints = MissionPlanner.generate_survey_grid(
+        [tuple(p) for p in body.polygon], body.altitude_m, body.spacing_m, speed_ms=body.speed_ms,
+    )
     return {"waypoints": waypoints, "count": len(waypoints)}

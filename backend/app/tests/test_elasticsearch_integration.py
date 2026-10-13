@@ -15,6 +15,7 @@ Test sequence (all in one test to guarantee ordering):
   6. Confirm it no longer appears in search results
 """
 import asyncio
+import os
 import pytest
 import pytest_asyncio
 from elasticsearch import AsyncElasticsearch, NotFoundError
@@ -25,7 +26,9 @@ pytestmark = pytest.mark.asyncio
 # Constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-ES_URL        = "http://elasticsearch:9200"
+# The container's ELASTICSEARCH_URL carries the elastic user's credentials
+# (security is enabled in docker-compose.yml); fall back to the bare URL.
+ES_URL        = os.environ.get("ELASTICSEARCH_URL", "http://elasticsearch:9200")
 INDEX_DRONE   = "da_drone_types"
 TEST_DOC_ID   = 99999          # sentinel ID unlikely to collide with real data
 TEST_DOC_NAME = "ArjunaTestDrone-X1"

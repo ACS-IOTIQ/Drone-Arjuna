@@ -7,6 +7,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Video, VideoOff, Volume2, VolumeX, X, GripHorizontal, RefreshCw, Lock } from 'lucide-react'
 import { makeCameraStreamWS } from '../../api/client'
+import {
+  TRACK_MAX_DIM, cropGray, toGray, trackStep,
+  type Gray, type TrackState,
+} from '@/utils/localTracker'
 
 const DEFAULT_TOP       = 110    // px from top of viewport
 const DEFAULT_RIGHT     = 20     // px from right
@@ -64,6 +68,17 @@ export function CameraWindow({ visible, onClose }: Props) {
   const frozenFrameRef = useRef<ImageBitmap | null>(null)
   const boxRef = useRef<{ cx: number; cy: number; halfW: number; halfH: number; name: string } | null>(null)
 
+  // ── local-webcam tracking after "unlock" ──────────────────────────
+  // A local webcam's frames never reach the backend, so the server-side OpenCV
+  // tracker can't follow the object. Instead, on unlock the boxed patch is kept
+  // as a template and followed in the browser (see utils/localTracker.ts); the
+  // box and its name stay on screen, drawn on an overlay canvas above the video.
+  type TrackedBox = { cx: number; cy: number; halfW: number; halfH: number; name: string }
+  const overlayRef = useRef<HTMLCanvasElement>(null)
+  const trackCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const localTrackRef = useRef<{ tpl: Gray; scale: number; name: string; state: TrackState } | null>(null)
+  const [localTracking, setLocalTracking] = useState(false)
+
   const BOX_HALF_SIZE = 45   // px, in raw canvas/frame pixel coordinates
   const BOX_MIN_HALF_SIZE = 12
   const BOX_MAX_HALF_SIZE = 400
@@ -88,6 +103,24 @@ export function CameraWindow({ visible, onClose }: Props) {
     }
   }
 
+  // Hand the drawn box to the server-side OpenCV tracker (remote feeds only —
+  // a local webcam never reaches the backend). The tracker keeps following the
+  // object on the live frames while the display is frozen, so on "U" the box
+  // is already where the object has moved to.
+  const lockTracker = useCallback(() => {
+    const canvas = canvasRef.current
+    const box = boxRef.current
+    if (isLocalWebcamRef.current || !canvas || !box || !canvas.width || !canvas.height) return
+    sendCmd({
+      cmd: 'lock',
+      x: box.cx / canvas.width,
+      y: box.cy / canvas.height,
+      hw: box.halfW / canvas.width,
+      hh: box.halfH / canvas.height,
+      name: box.name,   // a re-lock (zoom) replaces the tracker, so resend the label
+    })
+  }, [])
+
   const redrawFrozenFrame = useCallback(() => {
     const canvas = canvasRef.current
     const base = frozenFrameRef.current
@@ -98,16 +131,17 @@ export function CameraWindow({ visible, onClose }: Props) {
     ctx.drawImage(base, 0, 0, canvas.width, canvas.height)
   }, [])
 
-  const drawBox = useCallback(() => {
-    const canvas = canvasRef.current
-    const box = boxRef.current
-    if (!canvas || !box) return
+  // Draws the amber lock box (and its name chip) onto `canvas`. `lost` paints
+  // it red with a TARGET LOST note, mirroring the server-side tracker's overlay.
+  const paintBox = useCallback((canvas: HTMLCanvasElement, box: TrackedBox, lost = false, clear = false) => {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    if (clear) ctx.clearRect(0, 0, canvas.width, canvas.height)
     const { cx, cy, halfW, halfH, name } = box
     const lineScale = canvas.width / (canvas.getBoundingClientRect().width || canvas.width)
+    const color = lost ? '#ef4444' : '#f59e0b'
     ctx.save()
-    ctx.strokeStyle = '#f59e0b'
+    ctx.strokeStyle = color
     ctx.lineWidth = Math.max(2, 2 * lineScale)
     ctx.strokeRect(cx - halfW, cy - halfH, halfW * 2, halfH * 2)
     const armLen = Math.min(halfW, halfH) * 0.3
@@ -122,15 +156,29 @@ export function CameraWindow({ visible, onClose }: Props) {
       const textW = ctx.measureText(name).width
       const padX = 4 * lineScale, padY = 3 * lineScale
       const labelX = cx - halfW
-      const labelY = cy - halfH - fontSize - padY * 2 - 2 * lineScale
-      ctx.fillStyle = 'rgba(245,158,11,0.92)'
+      let labelY = cy - halfH - fontSize - padY * 2 - 2 * lineScale
+      if (labelY < 0) labelY = cy - halfH + 2 * lineScale   // box at the top edge → label inside
+      ctx.fillStyle = lost ? 'rgba(239,68,68,0.92)' : 'rgba(245,158,11,0.92)'
       ctx.fillRect(labelX, labelY, textW + padX * 2, fontSize + padY * 2)
       ctx.fillStyle = '#0a0a0a'
       ctx.textBaseline = 'top'
       ctx.fillText(name, labelX + padX, labelY + padY)
     }
+    if (lost) {
+      ctx.fillStyle = '#ef4444'
+      ctx.font = `600 ${Math.max(12, 13 * lineScale)}px sans-serif`
+      ctx.textBaseline = 'top'
+      ctx.fillText('TARGET LOST', 10 * lineScale, 10 * lineScale)
+    }
     ctx.restore()
   }, [])
+
+  const drawBox = useCallback(() => {
+    const canvas = canvasRef.current
+    const box = boxRef.current
+    if (!canvas || !box) return
+    paintBox(canvas, box)
+  }, [paintBox])
 
   const redrawWithBox = useCallback(() => {
     redrawFrozenFrame()
@@ -147,6 +195,8 @@ export function CameraWindow({ visible, onClose }: Props) {
     if (boxRef.current) {
       boxRef.current = { ...boxRef.current, name: nameDraft.trim() }
       redrawWithBox()
+      // Server-side tracker draws the label on the moving box after "U".
+      if (!isLocalWebcamRef.current) sendCmd({ cmd: 'name', name: boxRef.current.name })
     }
     setNamingOpen(false)
   }, [nameDraft, redrawWithBox])
@@ -171,7 +221,8 @@ export function CameraWindow({ visible, onClose }: Props) {
     setNameDraft('')
     setNamingOpen(false)
     redrawWithBox()
-  }, [redrawWithBox])
+    lockTracker()
+  }, [redrawWithBox, lockTracker])
 
   const zoomBox = useCallback((factor: number) => {
     const box = boxRef.current
@@ -180,16 +231,88 @@ export function CameraWindow({ visible, onClose }: Props) {
     const halfH = Math.min(BOX_MAX_HALF_SIZE, Math.max(BOX_MIN_HALF_SIZE, box.halfH * factor))
     boxRef.current = { ...box, halfW, halfH }
     redrawWithBox()
-  }, [redrawWithBox])
+    lockTracker()
+  }, [redrawWithBox, lockTracker])
 
   const zoomIn  = useCallback(() => zoomBox(BOX_ZOOM_STEP), [zoomBox])
   const zoomOut = useCallback(() => zoomBox(1 / BOX_ZOOM_STEP), [zoomBox])
+
+  const grabGray = useCallback((src: CanvasImageSource, w: number, h: number, scale: number): Gray | null => {
+    const tw = Math.max(1, Math.round(w * scale))
+    const th = Math.max(1, Math.round(h * scale))
+    const c = (trackCanvasRef.current ??= document.createElement('canvas'))
+    if (c.width !== tw || c.height !== th) { c.width = tw; c.height = th }
+    const ctx = c.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+    ctx.drawImage(src, 0, 0, tw, th)
+    return toGray(ctx.getImageData(0, 0, tw, th).data, tw, th)
+  }, [])
+
+  const trackedBoxOf = (t: { tpl: Gray; scale: number; name: string; state: TrackState }): TrackedBox => ({
+    cx: (t.state.x + t.tpl.w / 2) / t.scale,
+    cy: (t.state.y + t.tpl.h / 2) / t.scale,
+    halfW: t.tpl.w / 2 / t.scale,
+    halfH: t.tpl.h / 2 / t.scale,
+    name: t.name,
+  })
+
+  const stopLocalTracking = useCallback(() => {
+    localTrackRef.current = null
+    setLocalTracking(false)
+    const overlay = overlayRef.current
+    overlay?.getContext('2d')?.clearRect(0, 0, overlay.width, overlay.height)
+  }, [])
+
+  // Called on unlock (local webcam): keep the box + name and start following it.
+  const startLocalTracking = useCallback(() => {
+    const box = boxRef.current
+    const base = frozenFrameRef.current
+    const canvas = canvasRef.current
+    if (!box || !base || !canvas || !canvas.width || !canvas.height) return
+    const scale = Math.min(1, TRACK_MAX_DIM / Math.max(canvas.width, canvas.height))
+    const gray = grabGray(base, canvas.width, canvas.height, scale)
+    if (!gray) return
+    const x0 = (box.cx - box.halfW) * scale
+    const y0 = (box.cy - box.halfH) * scale
+    const tpl = cropGray(gray, x0, y0, box.halfW * 2 * scale, box.halfH * 2 * scale)
+    localTrackRef.current = {
+      tpl, scale, name: box.name,
+      state: {
+        x: Math.max(0, Math.min(gray.w - 1, Math.round(x0))),
+        y: Math.max(0, Math.min(gray.h - 1, Math.round(y0))),
+        lost: false,
+        wide: true,   // video was paused while boxing — re-find the target anywhere
+      },
+    }
+    setLocalTracking(true)
+  }, [grabGray])
+
+  // Follow the target on the live video ~15x per second and repaint the overlay.
+  useEffect(() => {
+    if (!localTracking) return
+    const id = window.setInterval(() => {
+      const t = localTrackRef.current
+      const video = videoRef.current
+      const overlay = overlayRef.current
+      if (!t || !video || !overlay || !video.videoWidth) return
+      const w = video.videoWidth, h = video.videoHeight
+      if (overlay.width !== w || overlay.height !== h) { overlay.width = w; overlay.height = h }
+      const gray = grabGray(video, w, h, t.scale)
+      if (gray && gray.w >= t.tpl.w && gray.h >= t.tpl.h) t.state = trackStep(gray, t.tpl, t.state)
+      paintBox(overlay, trackedBoxOf(t), t.state.lost, true)
+    }, 66)
+    return () => window.clearInterval(id)
+  }, [localTracking, grabGray, paintBox])
 
   const freeze = useCallback(async () => {
     if (feedStateRef.current !== 'live') return
     const canvas = canvasRef.current
     const video = videoRef.current
-    boxRef.current = null   // start each freeze with no box yet
+    // A box being followed after unlock stays with the frozen picture (so its
+    // name never disappears); otherwise each freeze starts with no box yet.
+    const carried = localTrackRef.current ? trackedBoxOf(localTrackRef.current) : null
+    stopLocalTracking()
+    boxRef.current = null
     setNamingOpen(false)
 
     if (isLocalWebcamRef.current && video && canvas) {
@@ -211,20 +334,28 @@ export function CameraWindow({ visible, onClose }: Props) {
         frozenFrameRef.current = null   // best-effort — zoom just won't be available
       }
     }
+    if (carried) {
+      boxRef.current = carried
+      redrawWithBox()
+    }
     setLocked(true)
-  }, [])
+  }, [stopLocalTracking, redrawWithBox])
 
   const resume = useCallback(() => {
     if (isLocalWebcamRef.current) {
       videoRef.current?.play().catch(() => {})
-    } else {
+      // Keep the box and its name on screen and follow the object (see above).
+      startLocalTracking()
+    } else if (!boxRef.current) {
+      // No box drawn → nothing to follow. With a box, keep the server-side
+      // lock so the burned-in tracking box moves with the object.
       sendCmd({ cmd: 'unlock' })
     }
     frozenFrameRef.current = null
     boxRef.current = null
     setNamingOpen(false)
     setLocked(false)
-  }, [])
+  }, [startLocalTracking])
 
   const onFeedClick = useCallback((e: React.MouseEvent<HTMLElement>) => {
     if (feedStateRef.current !== 'live') return
@@ -365,7 +496,7 @@ export function CameraWindow({ visible, onClose }: Props) {
     }
   }
 
-  const connect = () => {
+  const connect = async () => {
     const raw = inputUrl.trim()
     if (!raw) return
 
@@ -384,7 +515,14 @@ export function CameraWindow({ visible, onClose }: Props) {
     const source = raw
     let gotFirstFrame = false
 
-    const ws = makeCameraStreamWS(source)
+    let ws: WebSocket
+    try {
+      ws = await makeCameraStreamWS(source)
+    } catch {
+      setFeedState('error')
+      setErrorMsg('Could not authorize the camera stream. Please sign in again.')
+      return
+    }
     wsRef.current = ws
 
     ws.onopen = () => {
@@ -455,6 +593,7 @@ export function CameraWindow({ visible, onClose }: Props) {
     setErrorMsg('')
     setLocked(false)
     setNamingOpen(false)
+    stopLocalTracking()
     frozenFrameRef.current = null
     boxRef.current = null
     const ctx = canvasRef.current?.getContext('2d')
@@ -595,6 +734,15 @@ export function CameraWindow({ visible, onClose }: Props) {
             transition: 'filter 0.25s',
             cursor: feedState === 'live' ? 'pointer' : 'default',
           }}
+        />
+
+        {/* Tracking overlay — local webcam only. After "unlock" the box and its
+            name are drawn here, above the live <video>, and follow the object.
+            Same object-cover geometry as the video so coordinates line up. */}
+        <canvas
+          ref={overlayRef}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          style={{ display: feedState === 'live' && isLocalWebcam && localTracking && !locked ? 'block' : 'none' }}
         />
 
         {/* Canvas: for a remote feed it's always the live render surface

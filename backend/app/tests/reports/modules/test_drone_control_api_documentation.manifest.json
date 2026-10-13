@@ -1,5 +1,5 @@
 {
-  "fingerprint": "a3ee48fca9097f7b784bd2e909f3de9bdf631e0db720a03b825597c19dbce98a",
+  "fingerprint": "33ace3f708754cb2c3ee4eae09f27c6c5a88bccb0a2be1bdeecbb65e2fd2442b",
   "nodeids": [
     "app/tests/test_drone_control_api.py::test_autoconnect_already_connected_409",
     "app/tests/test_drone_control_api.py::test_autoconnect_drone_not_found_404",
@@ -42,6 +42,6 @@
     "app/tests/test_drone_control_api.py::test_simulate_two_drones_concurrently",
     "app/tests/test_drone_control_api.py::test_telemetry_not_connected_404",
     "app/tests/test_drone_control_api.py::test_telemetry_unauthenticated_401",
-    "app/tests/test_drone_control_api.py::test_ws_stream_accepts_connection"
+    "app/tests/test_drone_control_api.py::test_ws_stream_rejects_unauthenticated"
   ]
 }

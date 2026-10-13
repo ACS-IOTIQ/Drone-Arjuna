@@ -130,7 +130,7 @@ async def home_point_updater(drone_id: int, mav, redis) -> None:
 
             pos = json.loads(raw)
             lat: float = pos["lat"]
-            lon: float = pos["lon"]
+            lon: float = pos["lon"] if "lon" in pos else pos["lng"]
 
             def _send_set_home(m, lat, lon):
                 m.mav.command_long_send(

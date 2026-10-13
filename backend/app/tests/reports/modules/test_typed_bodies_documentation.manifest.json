@@ -1,0 +1,27 @@
+{
+  "fingerprint": "728a0b3532c48c46a69baf02f9003b3d845e1ef79f88eaa6e9bfd9046af57bcc",
+  "nodeids": [
+    "app/tests/test_typed_bodies.py::test_analyst_job_rejects_invalid_body[body0]",
+    "app/tests/test_typed_bodies.py::test_analyst_job_rejects_invalid_body[body1]",
+    "app/tests/test_typed_bodies.py::test_analyst_job_rejects_invalid_body[body2]",
+    "app/tests/test_typed_bodies.py::test_analyst_job_rejects_invalid_body[body3]",
+    "app/tests/test_typed_bodies.py::test_analyst_job_rejects_invalid_body[body4]",
+    "app/tests/test_typed_bodies.py::test_drone_status_rejects_invalid_body[body0]",
+    "app/tests/test_typed_bodies.py::test_drone_status_rejects_invalid_body[body1]",
+    "app/tests/test_typed_bodies.py::test_drone_status_rejects_invalid_body[body2]",
+    "app/tests/test_typed_bodies.py::test_drone_status_rejects_invalid_body[body3]",
+    "app/tests/test_typed_bodies.py::test_payload_assign_rejects_invalid_body[body0]",
+    "app/tests/test_typed_bodies.py::test_payload_assign_rejects_invalid_body[body1]",
+    "app/tests/test_typed_bodies.py::test_payload_assign_rejects_invalid_body[body2]",
+    "app/tests/test_typed_bodies.py::test_survey_grid_area_cap_blocks_resource_exhaustion",
+    "app/tests/test_typed_bodies.py::test_survey_grid_rejects_bad_input[patch0]",
+    "app/tests/test_typed_bodies.py::test_survey_grid_rejects_bad_input[patch1]",
+    "app/tests/test_typed_bodies.py::test_survey_grid_rejects_bad_input[patch2]",
+    "app/tests/test_typed_bodies.py::test_survey_grid_rejects_bad_input[patch3]",
+    "app/tests/test_typed_bodies.py::test_survey_grid_rejects_bad_input[patch4]",
+    "app/tests/test_typed_bodies.py::test_survey_grid_rejects_bad_input[patch5]",
+    "app/tests/test_typed_bodies.py::test_survey_grid_rejects_bad_input[patch6]",
+    "app/tests/test_typed_bodies.py::test_survey_grid_rejects_bad_input[patch7]",
+    "app/tests/test_typed_bodies.py::test_survey_grid_valid_request_ok"
+  ]
+}

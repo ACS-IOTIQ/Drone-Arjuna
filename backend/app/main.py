@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from app.core.audit_middleware import audit_mutations
 
 from app.config import get_settings
 from app.database import engine, ts_engine, Base, AsyncSessionLocal
@@ -13,7 +14,7 @@ from app.models.telemetry import TSBase
 from app.core.events import init_rabbitmq, close_rabbitmq
 from app.core.search import bulk_index_all, close_client as close_es
 from app.core.auth import ensure_default_admin
-from app.core.hf_feed import HFFeedListener
+from app.core.hf_feed import HFFeedListener, parse_allowed_sources
 from app.core.backup import (
     run_backup_scheduler, run_integrity_monitor, restore_all,
     MAIN_TARGET, TELEMETRY_TARGET,
@@ -21,6 +22,7 @@ from app.core.backup import (
 
 # Module routers
 from app.core.system_events import router as system_events_router
+from app.core.backup_router import router as backup_router
 from app.modules.drone_control.router import router as control_router
 from app.modules.drone_master.router import router as master_router
 from app.modules.drone_inventory.router import router as inventory_router
@@ -40,7 +42,12 @@ if sys.platform != "win32":
 
 cfg = get_settings()
 log = structlog.get_logger()
-hf_feed = HFFeedListener(cfg.redis_url, cfg.hf_feed_host, cfg.hf_feed_port)
+hf_feed = HFFeedListener(
+    cfg.redis_url, cfg.hf_feed_host, cfg.hf_feed_port,
+    allowed_sources=parse_allowed_sources(cfg.hf_feed_allowed_sources_str),
+    max_msgs_per_sec=cfg.hf_feed_max_msgs_per_sec,
+    max_speed_ms=cfg.hf_feed_max_speed_ms,
+)
 
 
 @asynccontextmanager
@@ -145,9 +152,9 @@ app = FastAPI(
     title=cfg.app_name,
     version=cfg.app_version,
     description="Military Drone Ground Control System — REST + WebSocket API",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    docs_url="/api/docs" if cfg.enable_api_docs else None,
+    redoc_url="/api/redoc" if cfg.enable_api_docs else None,
+    openapi_url="/api/openapi.json" if cfg.enable_api_docs else None,
     lifespan=lifespan,
 )
 
@@ -156,13 +163,32 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cfg.allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    resp = await call_next(request)
+    h = resp.headers
+    h.setdefault("X-Content-Type-Options", "nosniff")
+    h.setdefault("X-Frame-Options", "DENY")
+    h.setdefault("Referrer-Policy", "no-referrer")
+    h.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    h.setdefault("Content-Security-Policy",
+                 "default-src 'none'; frame-ancestors 'none'" if not cfg.enable_api_docs
+                 else "default-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net data:")
+    h.setdefault("Cache-Control", "no-store")
+    if request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https":
+        h.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return resp
+app.middleware("http")(audit_mutations)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # ── Routers ───────────────────────────────────────────────────────
 app.include_router(system_events_router, prefix="/api/system",  tags=["System"])
+app.include_router(backup_router,        prefix="/api/system",  tags=["System"])
 app.include_router(auth_router,      prefix="/api/auth",      tags=["Auth"])
 app.include_router(control_router,   prefix="/api/drone-control", tags=["Drone Control"])
 app.include_router(master_router,    prefix="/api/master",    tags=["Drone Master"])

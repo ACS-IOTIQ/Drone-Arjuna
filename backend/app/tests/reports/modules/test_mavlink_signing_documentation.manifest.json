@@ -1,0 +1,15 @@
+{
+  "fingerprint": "aed9d31e0bef3f8ec638e2f145381d5d73b69cc807a0a181896d85f94966a9b8",
+  "nodeids": [
+    "app/tests/test_mavlink_signing.py::test_app_forces_mavlink2",
+    "app/tests/test_mavlink_signing.py::test_apply_signing_enables_with_key",
+    "app/tests/test_mavlink_signing.py::test_apply_signing_noop_without_key",
+    "app/tests/test_mavlink_signing.py::test_config_rejects_malformed_signing_key[111111111111111111111111111111111111111111111111111111111111111111]",
+    "app/tests/test_mavlink_signing.py::test_config_rejects_malformed_signing_key[11111111111111111111111111111111]",
+    "app/tests/test_mavlink_signing.py::test_config_rejects_malformed_signing_key[zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz]",
+    "app/tests/test_mavlink_signing.py::test_radio_status_allowed_unsigned_but_not_other_messages",
+    "app/tests/test_mavlink_signing.py::test_signed_frames_accepted",
+    "app/tests/test_mavlink_signing.py::test_unsigned_frames_rejected_when_signing_on",
+    "app/tests/test_mavlink_signing.py::test_wrong_key_rejected"
+  ]
+}

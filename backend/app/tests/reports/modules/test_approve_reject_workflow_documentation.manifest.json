@@ -1,5 +1,5 @@
 {
-  "fingerprint": "a51e3c367ff2f2694fd088264453b3adf98526082053509ba75d92b01b18806d",
+  "fingerprint": "d97d04329f03773723a5a8ef61c6dad709b108028bdc314b9f225c441a92d66f",
   "nodeids": [
     "app/tests/test_approve_reject_workflow.py::test_ar01_accept_returns_200",
     "app/tests/test_approve_reject_workflow.py::test_ar02_accept_response_contains_temp_password",

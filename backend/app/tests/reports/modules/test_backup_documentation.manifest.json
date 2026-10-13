@@ -1,5 +1,5 @@
 {
-  "fingerprint": "4096a0cf1eb96667b129be7be7ba1ac4c5f0002ced0a99d534202e7e9d06a965",
+  "fingerprint": "d451a8d4aaad3001c56505b69f33bf17f35cbbb263e04740851a706abd19301f",
   "nodeids": [
     "app/tests/test_backup.py::TestCreateDump::test_incremental_dump_carries_forward_untouched_tables",
     "app/tests/test_backup.py::TestCreateDump::test_rotates_after_creating",

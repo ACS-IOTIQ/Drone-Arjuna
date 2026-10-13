@@ -519,14 +519,14 @@ async def test_survey_grid_generates_waypoints(
     assert body["count"] == len(body["waypoints"])
 
 
-async def test_survey_grid_missing_polygon_400(
+async def test_survey_grid_missing_polygon_422(
     client: AsyncClient, flight_controller_user, make_token
 ):
-    """POST survey-grid without polygon key returns 400."""
+    """POST survey-grid without polygon key is rejected by schema validation (422)."""
     token = make_token(flight_controller_user.id, flight_controller_user.role)
     resp  = await client.post(
         "/api/flight/survey-grid",
         json={"altitude_m": 100.0},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 422

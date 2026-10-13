@@ -3,7 +3,7 @@
 # ═══════════════════════════════════════════
 from datetime import datetime, timezone
 from typing import Optional
-from sqlalchemy import String, Boolean, DateTime, Text
+from sqlalchemy import BigInteger, String, Boolean, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -19,6 +19,11 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(32), default="viewer")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    # TOTP multi-factor auth (see app/core/totp.py)
+    totp_secret_enc: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    totp_last_step: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    recovery_codes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)   # JSON list of SHA-256 hashes
     reset_token: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
     reset_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

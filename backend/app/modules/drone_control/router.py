@@ -4,13 +4,14 @@ import structlog
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 import serial.tools.list_ports
 from urllib.request import urlopen
 
 from app.core.rbac import require_min_role, Role
+from app.core.security import AuditLogger, client_ip
 from app.database import get_db, get_ts_db, AsyncSessionLocal
 from app.models.user import User
 from app.models.mission import Mission, Waypoint
@@ -20,17 +21,20 @@ from app.utils.geofence import geofence_store
 from app.utils.geo_utils import all_points_in_geofence
 from app.modules.drone_control.mavlink_manager import mavlink_manager
 from app.modules.drone_control.mission_simulator import mission_simulator
-from app.modules.drone_control.payload_camera import payload_camera_manager
+from app.modules.drone_control.payload_camera import payload_camera_manager, validate_camera_source
 from app.modules.drone_master.service import DroneInstanceService
-from app.core.auth import get_current_user_from_token
+from app.core.auth import get_current_user_from_token, authenticate_ws
 
 log = structlog.get_logger()
 router = APIRouter()
 _port_executor = ThreadPoolExecutor(max_workers=1)
 
 MISSION_PLANNER_HELP = (
-    "No MAVLink heartbeat received. In Mission Planner, forward MAVLink UDP "
-    "to 127.0.0.1:14550, then select Mission Planner UDP 14550 in this app."
+    "No MAVLink heartbeat received. Configure Mission Planner to forward MAVLink "
+    "to this computer over UDP port 14550 (use 127.0.0.1 when both apps run on "
+    "this computer). In DroneArjuna, connect the drone with transport UDP and "
+    "port 14550. For a remote Mission Planner, set RADIO_BIND_ADDR to this "
+    "computer's reachable network address and allow inbound UDP 14550."
 )
 
 
@@ -359,7 +363,10 @@ async def connect_drone(
         hf_modem_type=req.hf_modem_type,
     )
     if not ok:
-        raise HTTPException(status_code=503, detail="Connection failed or heartbeat timed out")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Connection failed or heartbeat timed out. {MISSION_PLANNER_HELP}",
+        )
     await _apply_ui_home_on_connect(req.drone_instance_id, db)
     await DroneInstanceService(db).mark_used(req.drone_instance_id)
     return {"detail": "Connected", "drone_id": req.drone_instance_id}
@@ -410,7 +417,9 @@ async def set_drone_geofence(
 @router.post("/command")
 async def send_command(
     req: CommandRequest,
-    _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
+    request: Request,
+    user: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Send a flight command. Commands that affect safety (arm, disarm, rtl)
@@ -418,6 +427,11 @@ async def send_command(
     """
     from app.modules.drone_control.command_controller import CommandResult
     rec = await mavlink_manager.send_command(req.drone_id, req.command, req.params)
+    await AuditLogger(db).command_sent(
+        user.id, req.drone_id, req.command,
+        "failed" if rec.result == CommandResult.FAILED else "accepted",
+        client_ip(request),
+    )
     if rec.result == CommandResult.FAILED:
         raise HTTPException(
             status_code=503,
@@ -756,6 +770,12 @@ async def telemetry_stream(drone_id: int, ws: WebSocket):
     Uses a producer/consumer queue so only the sender task ever calls
     ws.send_text(), avoiding concurrent-send crashes in Starlette.
     """
+    async with AsyncSessionLocal() as db:
+        try:
+            ws_user = await authenticate_ws(ws, db, min_role="viewer")
+        except HTTPException:
+            await ws.close(code=4401)
+            return
     await ws.accept()
     queue = ws_manager.subscribe(drone_id)
 
@@ -807,9 +827,9 @@ async def telemetry_stream(drone_id: int, ws: WebSocket):
 # ── Payload camera stream (OpenCV) ─────────────────────────────────
 
 @router.websocket("/camera-stream")
-async def payload_camera_stream(ws: WebSocket, source: str = Query(...), token: str = Query(...)):
+async def payload_camera_stream(ws: WebSocket, source: str = Query(...)):
     """
-    WS /api/drone-control/camera-stream?source=<ip-or-url-or-index>&token=<jwt>
+    WS /api/drone-control/camera-stream?source=<ip-or-url-or-index>&ticket=<single-use ticket>
 
     Opens `source` with OpenCV and streams JPEG frames as binary WebSocket
     messages. A bare integer ("0", "1", ...) selects a local webcam index;
@@ -819,15 +839,21 @@ async def payload_camera_stream(ws: WebSocket, source: str = Query(...), token: 
     through as-is.
 
     Browsers can't attach an Authorization header to a WebSocket handshake,
-    so the access token is passed as a query parameter instead and validated
-    the same way as the Bearer token on REST routes.
+    so a single-use ticket (POST /api/auth/ws-ticket) is passed as a query
+    parameter instead.
     """
     async with AsyncSessionLocal() as db:
         try:
-            await get_current_user_from_token(token, db)
-        except HTTPException:
-            await ws.close(code=4401)
+            await authenticate_ws(ws, db, min_role="flight_controller")
+        except HTTPException as exc:
+            await ws.close(code=4403 if exc.status_code == 403 else 4401)
             return
+
+    try:
+        validate_camera_source(source)
+    except ValueError:
+        await ws.close(code=4400)
+        return
 
     await ws.accept()
     loop = asyncio.get_event_loop()
@@ -845,7 +871,8 @@ async def payload_camera_stream(ws: WebSocket, source: str = Query(...), token: 
         """
         Text messages from the client are lock/unlock commands for the
         server-side OpenCV object tracker (see payload_camera.py):
-          {"cmd": "lock", "x": 0..1, "y": 0..1}  — normalized image coords
+          {"cmd": "lock", "x": 0..1, "y": 0..1[, "hw": 0..0.5, "hh": 0..0.5]}
+              — normalized image coords; hw/hh = optional box half-size
           {"cmd": "unlock"}
         Malformed messages are ignored — this channel carries no other
         traffic today.
@@ -861,7 +888,15 @@ async def payload_camera_stream(ws: WebSocket, source: str = Query(...), token: 
                 if cmd == "lock":
                     x, y = msg.get("x"), msg.get("y")
                     if isinstance(x, (int, float)) and isinstance(y, (int, float)):
-                        payload_camera_manager.lock_object(key, queue, float(x), float(y))
+                        hw, hh = msg.get("hw"), msg.get("hh")
+                        payload_camera_manager.lock_object(
+                            key, queue, float(x), float(y),
+                            float(hw) if isinstance(hw, (int, float)) and 0 < hw <= 0.5 else None,
+                            float(hh) if isinstance(hh, (int, float)) and 0 < hh <= 0.5 else None,
+                            msg.get("name") or "",
+                        )
+                elif cmd == "name":
+                    payload_camera_manager.name_object(key, queue, msg.get("name") or "")
                 elif cmd == "unlock":
                     payload_camera_manager.unlock_object(key, queue)
         except (WebSocketDisconnect, Exception):

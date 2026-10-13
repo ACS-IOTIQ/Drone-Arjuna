@@ -1,5 +1,5 @@
 {
-  "fingerprint": "ffab4ebdfdffca0d839f305e4b21e799449ca6fd6279f3ec4e862735a083befb",
+  "fingerprint": "5dae24efe83134f517f78d289bff4ddd77b8d0a5f7ce911c63a963536b8e6ada",
   "nodeids": [
     "app/tests/test_fleet_assign_api.py::test_assign_fleet_classical_200",
     "app/tests/test_fleet_assign_api.py::test_assign_fleet_drone_filter",

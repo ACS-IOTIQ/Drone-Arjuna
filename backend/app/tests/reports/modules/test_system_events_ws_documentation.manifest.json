@@ -1,0 +1,24 @@
+{
+  "fingerprint": "e0d4f6af93b87261131808cff8c88f56e265ae69eed802f46228a4415c5a9f41",
+  "nodeids": [
+    "app/tests/test_system_events_ws.py::test_a_client_only_sees_events_broadcast_after_it_connected",
+    "app/tests/test_system_events_ws.py::test_a_stale_subscriber_is_closed_so_the_browser_reconnects",
+    "app/tests/test_system_events_ws.py::test_any_auth_failure_closes_with_4401[401]",
+    "app/tests/test_system_events_ws.py::test_any_auth_failure_closes_with_4401[403]",
+    "app/tests/test_system_events_ws.py::test_broadcast_after_everyone_left_is_harmless",
+    "app/tests/test_system_events_ws.py::test_broadcast_reaches_a_connected_client_as_json_text",
+    "app/tests/test_system_events_ws.py::test_client_messages_are_ignored_and_the_stream_stays_open",
+    "app/tests/test_system_events_ws.py::test_connection_without_a_ticket_is_closed_4401",
+    "app/tests/test_system_events_ws.py::test_events_arrive_in_the_order_they_were_broadcast",
+    "app/tests/test_system_events_ws.py::test_every_connected_client_gets_the_event",
+    "app/tests/test_system_events_ws.py::test_full_queue_flags_its_subscriber_as_stale",
+    "app/tests/test_system_events_ws.py::test_full_queue_without_a_stale_entry_does_not_raise",
+    "app/tests/test_system_events_ws.py::test_healthy_queue_is_not_flagged_stale",
+    "app/tests/test_system_events_ws.py::test_idle_connection_is_dropped_after_the_receive_timeout",
+    "app/tests/test_system_events_ws.py::test_jwt_in_the_query_string_is_not_accepted",
+    "app/tests/test_system_events_ws.py::test_one_clients_disconnect_does_not_affect_the_other",
+    "app/tests/test_system_events_ws.py::test_only_the_slow_subscriber_is_flagged",
+    "app/tests/test_system_events_ws.py::test_subscriber_is_registered_while_connected_and_removed_after",
+    "app/tests/test_system_events_ws.py::test_viewer_role_is_enough_to_listen"
+  ]
+}

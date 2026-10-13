@@ -1,0 +1,7 @@
+{
+  "fingerprint": "9d63dcc879c58bd6ef228de026eba3ef9dc6a3040e9243bc71acd868be4639ae",
+  "nodeids": [
+    "app/tests/test_backup_sql_safety.py::test_hostile_table_name_in_legacy_dump_is_never_queried",
+    "app/tests/test_backup_sql_safety.py::test_row_count_uses_a_sqlalchemy_construct_not_a_string"
+  ]
+}

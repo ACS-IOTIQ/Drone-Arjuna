@@ -12,9 +12,11 @@ function readResetTokenFromUrl(): string | null {
 
 export default function App() {
   const {
-    token,
+    authenticated,
+    ready,
     hydrate,
     logout,
+    expireSession,
     setupPending,
     pendingUsername,
     pendingTempPassword,
@@ -24,17 +26,17 @@ export default function App() {
   } = useAuthStore()
   const [resetToken, setResetToken] = useState<string | null>(readResetTokenFromUrl)
 
-  useEffect(() => {
-    if (token) {
-      hydrate()
-      initSystemEventsStream()
-    }
-  }, [token, hydrate])
+  // Ask the server whether the HttpOnly session cookie is still valid.
+  useEffect(() => { hydrate() }, [hydrate])
 
   useEffect(() => {
-    window.addEventListener('da_auth_expired', logout)
-    return () => window.removeEventListener('da_auth_expired', logout)
-  }, [logout])
+    if (authenticated) initSystemEventsStream()
+  }, [authenticated])
+
+  useEffect(() => {
+    window.addEventListener('da_auth_expired', expireSession)
+    return () => window.removeEventListener('da_auth_expired', expireSession)
+  }, [expireSession])
 
   const clearResetToken = () => {
     setResetToken(null)
@@ -42,7 +44,8 @@ export default function App() {
   }
 
   if (resetToken) return <ResetPasswordScreen token={resetToken} onDone={clearResetToken} />
-  if (!token) return <LoginScreen />
+  if (!ready) return null
+  if (!authenticated) return <LoginScreen />
   if (setupPending && pendingUsername && pendingTempPassword) {
     return (
       <PasswordSetupScreen

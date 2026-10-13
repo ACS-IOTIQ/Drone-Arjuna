@@ -212,6 +212,7 @@ class _SimulatedFlight:
         mavlink_system_id: int = 1,
         mission_id: Optional[int] = None,
         manager=None,
+        enforce_airspace: bool = True,
     ):
         if self.active:
             await self.stop()
@@ -225,6 +226,7 @@ class _SimulatedFlight:
 
         self.drone_id   = drone_id
         self.mission_id = mission_id
+        self.enforce_airspace = enforce_airspace
         self.mavlink_system_id = mavlink_system_id
         self.call_sign  = call_sign
         self.waypoints  = waypoints
@@ -555,9 +557,13 @@ class _SimulatedFlight:
             dist = _haversine_m(self.lat, self.lon, t_lat, t_lon)
             tgt_hdg = _bearing_deg(self.lat, self.lon, t_lat, t_lon) if dist > 0.5 else self.heading
 
-            # Smooth heading — max 25°/s
+            # Smooth heading — max 25°/s of sim time. The turn rate scales with the
+            # simulation speed just like ground speed does: at a fixed 25°/s a 10x
+            # drone (100 m/s) can't turn tightly enough to reach the waypoint and
+            # ends up orbiting it, so time compression must not change the path.
             hdg_err  = ((tgt_hdg - self.heading + 180) % 360) - 180
-            turn     = max(min(hdg_err, 25.0 * dt), -25.0 * dt)
+            max_turn = 25.0 * self.speed_mult * dt
+            turn     = max(min(hdg_err, max_turn), -max_turn)
             self.heading = (self.heading + turn) % 360
 
             if dist > 1.0:
@@ -579,7 +585,9 @@ class _SimulatedFlight:
             self.throttle    = 60.0 + (15.0 if alt_err > 2.0 else 0.0)
             self.battery_pct = max(0.0, self.battery_pct - self.BATT_DRAIN * dt)
 
-            if dist < self.WP_RADIUS_M and abs(alt_err) < 3.0:
+            # Acceptance radius is never smaller than one tick's travel, otherwise a
+            # fast (time-compressed) drone can step straight past the waypoint.
+            if dist < max(self.WP_RADIUS_M, spd * dt) and abs(alt_err) < 3.0:
                 self.wp_idx += 1
                 if self.wp_idx >= len(self.waypoints):
                     # Hold at destination instead of auto-landing — see FLYING branch above.
@@ -822,8 +830,10 @@ class _SimulatedFlight:
                 "breach_lon":      self.lon,
             })
             await emit_geofence_breach(self.drone_id, self.lat, self.lon)
-            # Auto-RTL: transition the simulated drone back to home
-            if self.phase == SimPhase.FLYING:
+            # Auto-RTL: transition the simulated drone back to home — skipped when
+            # the operator disabled airspace enforcement for this mission (the
+            # breach is still reported; the drone keeps its planned route).
+            if self.phase == SimPhase.FLYING and self.enforce_airspace:
                 self.phase = SimPhase.RTL
                 log.warning("Auto-RTL triggered — sim geofence breach", drone_id=self.drone_id)
 
@@ -881,6 +891,7 @@ class SimulationManager:
         state_mgr=None,
         mavlink_system_id: int = 1,
         mission_id: Optional[int] = None,
+        enforce_airspace: bool = True,
     ):
         existing = self._flights.get(drone_id)
         if existing and existing.active:
@@ -894,6 +905,7 @@ class SimulationManager:
             mavlink_system_id=mavlink_system_id,
             mission_id=mission_id,
             manager=self,
+            enforce_airspace=enforce_airspace,
         )
 
     async def command(self, drone_id: int, action: str, params: dict = {}):

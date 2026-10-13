@@ -117,7 +117,7 @@ async def test_me_wrong_signature_is_401(client: AsyncClient, admin_user):
     payload itself would be structurally valid.
     """
     from datetime import datetime, timedelta, timezone
-    from jose import jwt as jose_jwt
+    import jwt as jose_jwt
 
     payload = {
         "sub": str(admin_user.id),
@@ -133,7 +133,7 @@ async def test_me_wrong_signature_is_401(client: AsyncClient, admin_user):
     assert resp.status_code == 401
 
 
-async def test_inactive_user_token_is_401_on_me(client: AsyncClient):
+async def test_inactive_user_token_is_401_on_me(client: AsyncClient, make_token):
     """
     The login endpoint does not check is_active (by design — the token is
     still issued). However, get_current_user rejects tokens for inactive
@@ -161,13 +161,13 @@ async def test_inactive_user_token_is_401_on_me(client: AsyncClient):
         uid = inactive.id
 
     try:
-        # Login still works (login route doesn't check is_active)
+        # Inactive accounts are rejected at login
         login = await client.post(
             "/api/auth/token",
             data={"username": "inactive_da", "password": "Active@Pass99"},
         )
-        assert login.status_code == 200, "Login should succeed even for inactive user"
-        token = login.json()["access_token"]
+        assert login.status_code == 401, "Inactive users must not be able to log in"
+        token = make_token(uid, "viewer")
 
         # But /me must reject the token
         me = await client.get(

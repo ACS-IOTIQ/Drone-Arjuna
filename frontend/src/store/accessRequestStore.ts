@@ -15,14 +15,9 @@ export interface AccessRequest {
   temp_password?: string
 }
 
-const KEY = 'da_access_requests'
 const PW_SETUP_KEY = 'da_password_setup_pending'
 
 export const REQUEST_ROLES = ['viewer', 'flight_controller', 'mission_commander', 'admin']
-
-function uid() {
-  return `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-}
 
 interface PasswordSetupState {
   username: string
@@ -31,76 +26,30 @@ interface PasswordSetupState {
   mobile?: string
 }
 
+// Held in memory only — a temporary password must never be written to
+// localStorage. A page reload simply sends the user back to the login screen.
+let passwordSetupState: PasswordSetupState | null = null
+
 export function getPasswordSetupState(): PasswordSetupState | null {
-  try {
-    const raw = localStorage.getItem(PW_SETUP_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    if (parsed?.username && parsed?.tempPassword) return parsed
-  } catch {
-    // ignore invalid cache
-  }
-  return null
+  return passwordSetupState
 }
 
 export function setPasswordSetupState(state: PasswordSetupState) {
-  localStorage.setItem(PW_SETUP_KEY, JSON.stringify(state))
+  passwordSetupState = state
+}
+
+/** Remove secrets that older builds left in localStorage. */
+export function purgeLegacyAuthStorage() {
+  try {
+    for (const k of [PW_SETUP_KEY, 'da_access_requests', 'da_token', 'da_refresh_token']) {
+      localStorage.removeItem(k)
+    }
+  } catch { /* ignore */ }
 }
 
 export function clearPasswordSetupState() {
-  localStorage.removeItem(PW_SETUP_KEY)
-}
-
-export function findApprovedAccessRequest(username: string, password: string) {
-  const normalized = username.trim().toLowerCase()
-  return listAccessRequests().find(req =>
-    req.username.toLowerCase() === normalized &&
-    req.status === 'approved' &&
-    req.temp_password === password,
-  ) ?? null
-}
-
-export function isTempPasswordLogin(username: string, password: string) {
-  return Boolean(findApprovedAccessRequest(username, password))
-}
-
-export function listAccessRequests(): AccessRequest[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(KEY) || '[]')
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-export function createAccessRequest(input: Omit<AccessRequest, 'id' | 'status' | 'created_at'>) {
-  const request: AccessRequest = {
-    ...input,
-    id: uid(),
-    status: 'pending',
-    created_at: new Date().toISOString(),
-  }
-  const next = [request, ...listAccessRequests()]
-  localStorage.setItem(KEY, JSON.stringify(next))
-  window.dispatchEvent(new Event('da_access_requests_changed'))
-  return request
-}
-
-export function updateAccessRequest(id: string, patch: Partial<AccessRequest>) {
-  const next = listAccessRequests().map(req => req.id === id ? { ...req, ...patch } : req)
-  localStorage.setItem(KEY, JSON.stringify(next))
-  window.dispatchEvent(new Event('da_access_requests_changed'))
-  return next.find(req => req.id === id) ?? null
-}
-
-export function pendingAccessRequestCount() {
-  return listAccessRequests().filter(req => req.status === 'pending').length
-}
-
-export function makeTempPassword(username: string) {
-  const suffix = Math.random().toString(36).slice(2, 8)
-  const base = username.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'Operator'
-  return `${base}@${suffix}1`
+  passwordSetupState = null
+  purgeLegacyAuthStorage()
 }
 
 export function requestMailto(req: AccessRequest, subjectPrefix = 'DroneArjuna access request') {

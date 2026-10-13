@@ -8,11 +8,11 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-dronearjuna}
       POSTGRES_USER: ${POSTGRES_USER:-da_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "15432:5432"
+      - "127.0.0.1:15432:5432"
     networks:
       - da_network
     healthcheck:
@@ -33,11 +33,11 @@ services:
     environment:
       POSTGRES_DB: ${TIMESCALE_DB:-da_telemetry}
       POSTGRES_USER: ${POSTGRES_USER:-da_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:
       - timescale_data:/home/postgres/pgdata/data
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     networks:
       - da_network
     healthcheck:
@@ -53,16 +53,17 @@ services:
     # spins forever instead of completing. 8.14 runs a stable Python 3.12.
     image: dpage/pgadmin4:8.14
     container_name: da_pgadmin
+    profiles: ["dev"]
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@dronearjuna.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-changeme}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?set PGADMIN_DEFAULT_PASSWORD in .env}
       PGADMIN_REPLACE_SERVERS_ON_STARTUP: "True"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
       - ./docs/pgadmin-servers.json:/pgadmin4/servers.json:ro
     ports:
-      - "5050:80"
+      - "127.0.0.1:5050:80"
     networks:
       - da_network
     depends_on:
@@ -76,15 +77,17 @@ services:
     image: redis:7-alpine
     container_name: da_redis
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD:-changeme}
+    command: redis-server --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}   # read by the healthcheck below (the command line alone is not enough)
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     networks:
       - da_network
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD:-changeme}\" ping | grep -q PONG"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}\" ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -97,12 +100,12 @@ services:
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-da_mq}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-changeme}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"   # Management UI
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"   # Management UI
     networks:
       - da_network
     healthcheck:
@@ -120,12 +123,12 @@ services:
     command: minio server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_USER:-da_minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-changeme123}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:?set MINIO_PASSWORD in .env}
     volumes:
       - minio_data:/data
     ports:
-      - "9000:9000"
-      - "9001:9001"   # Console UI
+      - "127.0.0.1:9002:9000"   # host 9000 is taken by guardian-vault-minio
+      - "127.0.0.1:9003:9001"   # Console UI
     networks:
       - da_network
     healthcheck:
@@ -144,28 +147,30 @@ services:
     restart: unless-stopped
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?set ELASTIC_PASSWORD in .env}
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     volumes:
       - es_data:/usr/share/elasticsearch/data
     ports:
-      - "9200:9200"
+      - "127.0.0.1:9200:9200"
     networks:
       - da_network
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      test: ["CMD-SHELL", "curl -s -u elastic:$${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
       interval: 20s
       timeout: 10s
       retries: 10
 
   # ── Mailhog (dev email inbox) ─────────────────────────────────────
   mailhog:
-    image: mailhog/mailhog:latest
+    image: mailhog/mailhog:v1.0.1
     container_name: da_mailhog
+    profiles: ["dev"]
     restart: unless-stopped
     ports:
-      - "1025:1025"   # SMTP — backend sends here
-      - "8025:8025"   # Web UI — open http://localhost:8025 to read emails
+      - "127.0.0.1:1025:1025"   # SMTP — backend sends here
+      - "127.0.0.1:8025:8025"   # Web UI — open http://localhost:8025 to read emails
     networks:
       - da_network
 
@@ -178,21 +183,21 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-da_admin}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-dronearjuna}
-      TIMESCALE_URL: postgresql+asyncpg://${POSTGRES_USER:-da_admin}:${POSTGRES_PASSWORD:-changeme}@timescale:5432/${TIMESCALE_DB:-da_telemetry}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-da_mq}:${RABBITMQ_PASSWORD:-changeme}@rabbitmq:5672/
-      SECRET_KEY: ${SECRET_KEY:-please-change-this-secret-key-in-production}
-      ELASTICSEARCH_URL: http://elasticsearch:9200
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-da_admin}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-dronearjuna}
+      TIMESCALE_URL: postgresql+asyncpg://${POSTGRES_USER:-da_admin}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@timescale:5432/${TIMESCALE_DB:-da_telemetry}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-da_mq}:${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}@rabbitmq:5672/
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      ELASTICSEARCH_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
       MINIO_ENDPOINT: minio:9000
-      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-localhost:9000}
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-localhost:9002}
       MINIO_USER: ${MINIO_USER:-da_minio}
-      MINIO_PASSWORD: ${MINIO_PASSWORD:-changeme123}
+      MINIO_PASSWORD: ${MINIO_PASSWORD:?set MINIO_PASSWORD in .env}
+      HF_FEED_HOST: 0.0.0.0     # inside the container; the host side is limited by RADIO_BIND_ADDR
     ports:
-      - "8000:8000"
-      - "14550:14550/udp"   # ArduPilot SITL / MAVLink UDP inbound
-      - "14560:14560/udp"   # Simulated-drone MAVLink broadcast outbound to external GCS
-      - "10110:10110/udp"   # Vessel NMEA GGA feed
+      - "127.0.0.1:8000:8000"
+      - "${RADIO_BIND_ADDR:-127.0.0.1}:14550:14550/udp"   # ArduPilot SITL / MAVLink UDP inbound
+      - "${RADIO_BIND_ADDR:-127.0.0.1}:10110:10110/udp"   # Vessel NMEA GGA feed
     extra_hosts:
       - "host.docker.internal:host-gateway"   # reach Windows host from container (SITL TCP)
     depends_on:
@@ -211,8 +216,14 @@ services:
     volumes:
       - ./backend:/app   # Hot reload in dev
       - .:/project:ro    # project root (read-only) for infra tests
-      - db_backups:/app/backups   # persisted DB dumps (survive container recreation)
-    privileged: true   # allows access to USB serial devices passed in via usbipd-win
+      # DB dumps live on the HOST (./backend/backups), not in a named volume, so they
+      # survive `docker compose down -v` and Docker Desktop resets — the wiped DB is
+      # then reloaded from them automatically at the next startup (core/backup.py).
+      - ./backend/backups:/app/backups
+    # No privileged mode: grant only serial device cgroup access (ttyUSB/ttyACM).
+    device_cgroup_rules:
+      - "c 188:* rmw"
+      - "c 166:* rmw"
     networks:
       - da_network
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
@@ -225,7 +236,7 @@ services:
     container_name: da_frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - backend
     volumes:
@@ -248,7 +259,6 @@ volumes:
   rabbitmq_data:
   minio_data:
   es_data:
-  db_backups:
 
 networks:
   da_network:

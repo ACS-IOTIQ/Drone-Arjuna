@@ -23,6 +23,8 @@ being wiped). Restore prefers the newest object in MinIO and falls back to
 the newest local file if MinIO is unreachable.
 """
 import asyncio
+import hashlib
+import hmac
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -33,12 +35,13 @@ import boto3
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import BotoCoreError, ClientError
 import structlog
-from sqlalchemy import Date, DateTime, MetaData, event, select, text
+from sqlalchemy import Date, DateTime, MetaData, event, func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import Base, AsyncSessionLocal, engine, TSSessionLocal, ts_engine
+from app.core import sql_dump_loader
 from app.core.system_events import broadcast_system_event
 from app.models.telemetry import TSBase, TelemetryFrame, TelemetryGauge
 import app.models  # noqa: F401 — registers every table on Base.metadata before we dump it
@@ -95,6 +98,83 @@ def _restore_rows(table, rows: list[dict]) -> list[dict]:
 RESTORE_HISTORY_DEPTH = 10
 
 
+class BackupIntegrityError(Exception):
+    """A dump failed its signature check, or could not be decrypted."""
+
+
+_SIG_KEY = "__sig__"
+
+
+def _signing_key() -> bytes:
+    base = (cfg.backup_signing_key or cfg.secret_key).encode()
+    return hmac.new(base, b"dronearjuna-backup-signing-v1", hashlib.sha256).digest()
+
+
+def _fernet():
+    key = cfg.backup_encryption_key.strip()
+    if not key:
+        return None
+    from cryptography.fernet import Fernet
+    return Fernet(key.encode())
+
+
+def _canonical(data: dict) -> bytes:
+    return json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
+
+
+def _pack_dump(data: dict) -> str:
+    """Serialise, sign (HMAC-SHA256 over the canonical form) and optionally encrypt."""
+    plain = json.loads(json.dumps(data, default=_json_default))     # normalise types first
+    plain.pop(_SIG_KEY, None)
+    plain[_SIG_KEY] = hmac.new(_signing_key(), _canonical({k: v for k, v in plain.items()
+                                                           if k != _SIG_KEY}),
+                               hashlib.sha256).hexdigest()
+    text_ = json.dumps(plain, indent=2)
+    f = _fernet()
+    return f.encrypt(text_.encode()).decode() if f else text_
+
+
+def _unpack_dump(text_: str, name: str = "dump") -> dict:
+    """Decrypt (if needed), verify the signature and return the table data."""
+    if not text_.lstrip().startswith("{"):
+        f = _fernet()
+        if f is None:
+            raise BackupIntegrityError(f"{name} is encrypted but BACKUP_ENCRYPTION_KEY is not set")
+        try:
+            text_ = f.decrypt(text_.encode()).decode()
+        except Exception as e:                                       # InvalidToken etc.
+            raise BackupIntegrityError(f"{name} failed decryption/authentication") from e
+    try:
+        obj = json.loads(text_)
+    except ValueError as e:
+        raise BackupIntegrityError(f"{name} is not valid JSON") from e
+    sig = obj.pop(_SIG_KEY, None)
+    if sig is None:
+        if cfg.backup_require_signature:
+            raise BackupIntegrityError(f"{name} is unsigned and BACKUP_REQUIRE_SIGNATURE is set")
+        log.warning("Dump has no signature (pre-upgrade dump) — restoring unverified", dump=name)
+        return obj
+    expected = hmac.new(_signing_key(), _canonical(obj), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected):
+        raise BackupIntegrityError(f"{name} signature mismatch — dump was modified or signed with another key")
+    return obj
+
+
+def _read_dump(path: Path) -> dict:
+    return _unpack_dump(path.read_text(), path.name)
+
+
+def _read_dumps_skipping_invalid(fetched: list[tuple[Path, str]]) -> list[tuple[str, dict]]:
+    """Load dumps newest-first; a tampered/unreadable one is skipped, never restored."""
+    out = []
+    for path, name in fetched:
+        try:
+            out.append((name, _read_dump(path)))
+        except BackupIntegrityError as e:
+            log.error("Backup integrity check FAILED — dump skipped", dump=name, error=str(e))
+    return out
+
+
 @dataclass
 class DumpTarget:
     """Everything backup/restore needs for one database (main or telemetry)."""
@@ -133,6 +213,10 @@ TELEMETRY_TARGET = DumpTarget(
 )
 
 ALL_TARGETS = (MAIN_TARGET, TELEMETRY_TARGET)
+
+# Tables that refill by themselves right after a wipe (bootstrap admin, login
+# audit trail), so they say nothing about whether the real data was lost.
+_SELF_REFILLING_TABLES = {"users", "audit_log", "access_requests"}
 
 
 def _ensure_bucket(client, bucket: str):
@@ -184,8 +268,13 @@ async def create_dump(target: DumpTarget = MAIN_TARGET, tables: set[str] | None 
     if tables is not None:
         previous = _latest_dump(target)
         if previous is not None:
-            base_data = json.loads(previous.read_text())
-            tables_to_read = tables
+            try:
+                base_data = _read_dump(previous)
+                tables_to_read = tables
+            except BackupIntegrityError as e:
+                # Never carry forward from a dump that fails verification: re-read everything.
+                log.error("Previous dump failed integrity check — taking a full dump", error=str(e))
+                base_data = {}
 
     data = dict(base_data)
     async with target.session_factory() as db:
@@ -196,7 +285,7 @@ async def create_dump(target: DumpTarget = MAIN_TARGET, tables: set[str] | None 
             rows = [dict(row._mapping) for row in result.fetchall()]
             data[table.name] = rows
 
-    dump_path.write_text(json.dumps(data, default=_json_default, indent=2))
+    dump_path.write_text(_pack_dump(data))
     log.info(
         "Database dump created", db=target.name, path=str(dump_path),
         tables=len(data), tables_read=len(tables_to_read),
@@ -296,16 +385,41 @@ def _fetch_recent_dumps(target: DumpTarget, limit: int) -> list[tuple[Path, str]
     return [(p, p.name) for p in _recent_local_dumps(target, limit)]
 
 
-async def restore_latest_dump(target: DumpTarget = MAIN_TARGET) -> bool:
+async def restore_latest_dump(target: DumpTarget = MAIN_TARGET, *, automatic: bool = False) -> bool:
     """
     Restore every currently-empty table, using the newest available dump that
     still has rows for that table. A single dump taken right after partial
     data loss (e.g. one table truncated) only has empty arrays for the lost
     table, so the latest dump alone isn't enough — this walks back through
     recent dumps (newest first) per table until it finds one with data.
+
+    `automatic=True` marks restores triggered by loss detection rather than an
+    operator; those are held back when BACKUP_AUTO_RESTORE=false so a person
+    must confirm (POST /api/system/backup/restore).
     """
+    if automatic and not cfg.backup_auto_restore:
+        log.warning("Restore needed but automatic restore is disabled", db=target.name)
+        await broadcast_system_event(
+            "RESTORE_REQUIRED",
+            f"Data loss detected in the {target.name} database. Automatic restore is "
+            "disabled — an administrator must confirm the restore.",
+            db=target.name,
+        )
+        return False
     fetched = await asyncio.to_thread(_fetch_recent_dumps, target, RESTORE_HISTORY_DEPTH)
-    if not fetched:
+    dumps = await asyncio.to_thread(_read_dumps_skipping_invalid, fetched) if fetched else []
+
+    # Last resort, consulted after every JSON dump: a pg_dump .sql file from
+    # database_dumps/ (used once per backup volume — see sql_dump_loader).
+    sql_tables = {t.name: t for t in target.sorted_tables()} if target.metadata is not None else {}
+    sql_fallback = (
+        await asyncio.to_thread(sql_dump_loader.load_best, target.name, target.backup_dir, sql_tables)
+        if sql_tables else None
+    )
+    if sql_fallback:
+        dumps.append(sql_fallback)
+
+    if not fetched and not sql_fallback:
         log.warning("Restore requested but no dump exists in MinIO or on disk", db=target.name)
         await broadcast_system_event(
             "BACKUP_MISSING",
@@ -313,21 +427,36 @@ async def restore_latest_dump(target: DumpTarget = MAIN_TARGET) -> bool:
             "available in MinIO or on disk to restore from.",
         )
         return False
-
-    dumps = await asyncio.to_thread(
-        lambda: [(name, json.loads(path.read_text())) for path, name in fetched]
-    )
+    if not dumps:
+        log.error("No dump passed integrity verification — nothing restored", db=target.name)
+        await broadcast_system_event(
+            "BACKUP_MISSING",
+            f"Backups exist for the {target.name} database but none passed integrity "
+            "verification, so nothing was restored.",
+        )
+        return False
 
     restored_tables: set[str] = set()
     restored_from: set[str] = set()
     async with target.session_factory() as db:
+        # The .sql fallback is stale by nature, so it only fires when the whole
+        # database looks wiped — every table it has rows for (apart from the ones
+        # that refill on their own right after a wipe: bootstrap admin, audit log)
+        # is empty. Deleting one record must never pull old rows back in.
+        fallback_name = sql_fallback[0] if sql_fallback else None
+        fallback_allowed = False
+        if sql_fallback:
+            fallback_allowed = all([
+                await _row_count(db, sql_tables[name]) == 0
+                for name, rows in sql_fallback[1].items()
+                if rows and name in sql_tables and name not in _SELF_REFILLING_TABLES
+            ])
         for table in target.sorted_tables():
-            count = (await db.execute(
-                text(f'SELECT COUNT(*) FROM "{table.name}"')
-            )).scalar_one()
-            if count > 0:
+            if await _row_count(db, table) > 0:
                 continue
             for dump_name, data in dumps:
+                if dump_name == fallback_name and not fallback_allowed:
+                    continue
                 rows = data.get(table.name) or []
                 if not rows:
                     continue
@@ -341,6 +470,9 @@ async def restore_latest_dump(target: DumpTarget = MAIN_TARGET) -> bool:
                 break
         await _reset_id_sequences(db, target, restored_tables)
         await db.commit()
+
+    if sql_fallback and sql_fallback[0] in restored_from:
+        await asyncio.to_thread(sql_dump_loader.mark_applied, target.backup_dir, sql_fallback[0])
 
     if not restored_tables:
         log.info("Restore check found nothing to restore", db=target.name)
@@ -360,7 +492,11 @@ async def restore_latest_dump(target: DumpTarget = MAIN_TARGET) -> bool:
 async def restore_all() -> None:
     """Run restore for every backed-up database (main + telemetry)."""
     for target in ALL_TARGETS:
-        await restore_latest_dump(target)
+        await restore_latest_dump(target, automatic=True)
+
+
+async def _row_count(db, table) -> int:
+    return (await db.execute(select(func.count()).select_from(table))).scalar_one()
 
 
 async def _tables_with_expected_data_are_empty(db, target: DumpTarget) -> bool:
@@ -379,17 +515,20 @@ async def _tables_with_expected_data_are_empty(db, target: DumpTarget) -> bool:
         return False
 
     tables_with_known_data: set[str] = set()
-    for path, _name in fetched:
-        data = json.loads(path.read_text())
+    for _name, data in await asyncio.to_thread(_read_dumps_skipping_invalid, fetched):
         for table_name, rows in data.items():
             if rows:
                 tables_with_known_data.add(table_name)
 
+    # Only names that are real tables of this target are ever queried — a table
+    # name read from a dump file is data, not SQL.
+    known = {t.name: t for t in target.sorted_tables()}
     for table_name in tables_with_known_data:
-        count = (await db.execute(
-            text(f'SELECT COUNT(*) FROM "{table_name}"')
-        )).scalar_one()
-        if count == 0:
+        table = known.get(table_name)
+        if table is None:
+            log.warning("Dump references unknown table — ignored", db=target.name, table=table_name)
+            continue
+        if await _row_count(db, table) == 0:
             return True
     return False
 
@@ -407,7 +546,7 @@ async def check_and_restore_if_lost(target: DumpTarget = MAIN_TARGET) -> bool:
                 "latest backup...",
                 db=target.name,
             )
-            await restore_latest_dump(target)
+            await restore_latest_dump(target, automatic=True)
             return True
     except Exception as e:
         log.error("Integrity check failed", db=target.name, error=str(e))

@@ -1,5 +1,5 @@
 {
-  "fingerprint": "3343d03ed35b314e75664c561310dc1f53a40d6556a9e4a013e5a429f2f0ea82",
+  "fingerprint": "e5ad367dea4edde7fce3f9f51082cad9e91e40bb8e8f4566d991f33cc5a4b6a5",
   "nodeids": [
     "app/tests/test_access_requests_api.py::test_accept_already_approved_request_is_409",
     "app/tests/test_access_requests_api.py::test_accept_conflict_when_username_already_registered",
@@ -10,7 +10,7 @@
     "app/tests/test_access_requests_api.py::test_accept_uses_role_override",
     "app/tests/test_access_requests_api.py::test_accepted_user_can_login",
     "app/tests/test_access_requests_api.py::test_admin_can_list_access_requests",
-    "app/tests/test_access_requests_api.py::test_duplicate_pending_username_is_409",
+    "app/tests/test_access_requests_api.py::test_duplicate_pending_username_is_generic",
     "app/tests/test_access_requests_api.py::test_invalid_email_format_is_422",
     "app/tests/test_access_requests_api.py::test_list_requests_empty_when_none_submitted",
     "app/tests/test_access_requests_api.py::test_missing_email_is_422",

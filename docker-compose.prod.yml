@@ -1,0 +1,32 @@
+# Production overlay - use together with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# * Frontend is the static build served by nginx over TLS (no Vite dev server).
+# * Backend is reachable only through nginx (port 8000 is not published).
+# * No source bind-mounts / hot reload; API docs stay disabled.
+# Requires TLS certificate files in ./certs (tls.crt, tls.key) - see docs/TLS.md.
+services:
+  backend:
+    ports: !override
+      - "${RADIO_BIND_ADDR:-127.0.0.1}:14550:14550/udp"
+      - "${RADIO_BIND_ADDR:-127.0.0.1}:14560:14560/udp"
+      - "${RADIO_BIND_ADDR:-127.0.0.1}:10110:10110/udp"
+    volumes: !override
+      - db_backups:/app/backups
+    environment:
+      TRUST_PROXY_HEADERS: "true"      # client IP comes from nginx's X-Forwarded-For
+      ENABLE_API_DOCS: "false"
+      ALLOWED_ORIGINS_STR: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN in .env (e.g. https://gcs.example.mil)}
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    ports: !override
+      - "${PUBLIC_BIND_ADDR:-0.0.0.0}:443:443"
+      - "${PUBLIC_BIND_ADDR:-0.0.0.0}:80:80"
+    volumes: !override
+      - ./certs/tls.crt:/etc/nginx/certs/tls.crt:ro
+      - ./certs/tls.key:/etc/nginx/certs/tls.key:ro
+    environment: !reset {}

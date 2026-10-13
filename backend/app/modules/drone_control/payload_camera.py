@@ -46,6 +46,50 @@ os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
 _IP_OR_IP_PORT_RE = re.compile(r"^(\d{1,3}(?:\.\d{1,3}){3})(?::(\d{1,5}))?$")
 
 
+_ALLOWED_SCHEMES = {"rtsp", "http", "https"}
+
+
+def validate_camera_source(raw: str) -> None:
+    """
+    SSRF guard. Accepts a webcam index, a bare IP[:port], or an
+    rtsp/http/https URL. Rejects other schemes (file:, etc.) and hosts that
+    resolve to loopback, link-local, private, reserved or multicast ranges
+    unless the host is listed in CAMERA_ALLOWED_HOSTS_STR. Raises ValueError.
+    """
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+    from app.config import get_settings
+
+    raw = raw.strip()
+    if not raw or len(raw) > 512 or any(c in raw for c in "\r\n\x00"):
+        raise ValueError("invalid camera source")
+    if raw.isdigit():
+        return
+    if "://" in raw:
+        parsed = urlparse(raw)
+        if parsed.scheme.lower() not in _ALLOWED_SCHEMES or not parsed.hostname:
+            raise ValueError("unsupported camera URL scheme")
+        host = parsed.hostname
+    else:
+        m = _IP_OR_IP_PORT_RE.match(raw)
+        if not m:
+            raise ValueError("unsupported camera source")
+        host = m.group(1)
+
+    if host.lower() in get_settings().camera_allowed_hosts:
+        return
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        raise ValueError("camera host does not resolve")
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (ip.is_loopback or ip.is_link_local or ip.is_private or ip.is_reserved
+                or ip.is_multicast or ip.is_unspecified):
+            raise ValueError("camera host not permitted")
+
+
 def _candidate_urls(ip: str, port: str | None) -> list[str]:
     """
     Bare "IP" or "IP:port" input, expanded into the stream URL conventions
@@ -96,6 +140,29 @@ TRACKER_BOX_HALF_SIZE = 40    # px — half-width/height of the initial lock box
 TRACKER_BOX_COLOR = (0, 165, 255)   # BGR amber — matches the frontend's lock-marker colour
 
 
+MAX_LABEL_LEN = 40
+
+
+def _clean_label(name: object) -> str:
+    """cv2.putText only renders printable ASCII — drop anything else."""
+    if not isinstance(name, str):
+        return ""
+    return "".join(c for c in name if 32 <= ord(c) < 127).strip()[:MAX_LABEL_LEN]
+
+
+def _draw_label(img, text: str, x0: int, y0: int) -> None:
+    """Amber label chip sitting on the top-left of the tracked box."""
+    font, scale, thick = cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1
+    (tw, th), base = cv2.getTextSize(text, font, scale, thick)
+    pad = 4
+    top = y0 - th - base - pad * 2
+    if top < 0:                     # box at the top edge → put the label inside
+        top = y0
+    cv2.rectangle(img, (x0, top), (x0 + tw + pad * 2, top + th + base + pad * 2),
+                  TRACKER_BOX_COLOR, -1)
+    cv2.putText(img, text, (x0 + pad, top + th + pad), font, scale, (10, 10, 10), thick, cv2.LINE_AA)
+
+
 def _new_tracker():
     # cv2.TrackerCSRT lives under the legacy namespace in opencv-contrib
     # builds >= 4.5.1; fall back to the top-level name for older builds.
@@ -111,8 +178,13 @@ class _LockState:
     """Per-subscriber object lock — each viewer tracks independently so one
     operator locking onto a target doesn't affect any other viewer of the
     same camera source."""
-    tracker: object
+    # None = the tracker could not be started (e.g. OpenCV built without the
+    # contrib "tracking" module). The operator's box and name are then held
+    # fixed on screen rather than dropped.
+    tracker: object | None
     lost: bool = False
+    name: str = ""   # operator-assigned label, drawn above the tracked box
+    last_box: tuple[int, int, int, int] | None = None   # last confident (x, y, w, h)
 
 
 @dataclass
@@ -170,7 +242,10 @@ class PayloadCameraManager:
                 session.stop_flag.set()
                 del self._sessions[key]
 
-    def lock_object(self, key: str, queue: asyncio.Queue, x: float, y: float) -> bool:
+    def lock_object(
+        self, key: str, queue: asyncio.Queue, x: float, y: float,
+        hw: float | None = None, hh: float | None = None, name: str = "",
+    ) -> bool:
         """
         Initialize a CSRT tracker for this subscriber, centred on the given
         point (normalized 0..1 image coordinates) in the most recent frame.
@@ -178,6 +253,10 @@ class PayloadCameraManager:
         races with the capture loop reading/writing the frame concurrently.
         Returns False if no frame is available yet (feed not live) or the
         tracker library is missing.
+
+        `hw`/`hh` are optional half-width/half-height of the box as fractions
+        of the frame size, so the tracked box matches the one the operator drew
+        (and resized); they default to TRACKER_BOX_HALF_SIZE pixels.
         """
         with self._lock:
             session = self._sessions.get(key)
@@ -187,10 +266,12 @@ class PayloadCameraManager:
         frame = session.last_frame
         h, w = frame.shape[:2]
         cx, cy = int(x * w), int(y * h)
-        x0 = max(0, cx - TRACKER_BOX_HALF_SIZE)
-        y0 = max(0, cy - TRACKER_BOX_HALF_SIZE)
-        bw = min(TRACKER_BOX_HALF_SIZE * 2, w - x0)
-        bh = min(TRACKER_BOX_HALF_SIZE * 2, h - y0)
+        half_w = int(hw * w) if hw else TRACKER_BOX_HALF_SIZE
+        half_h = int(hh * h) if hh else TRACKER_BOX_HALF_SIZE
+        x0 = max(0, cx - half_w)
+        y0 = max(0, cy - half_h)
+        bw = min(half_w * 2, w - x0)
+        bh = min(half_h * 2, h - y0)
         if bw <= 0 or bh <= 0:
             return False
 
@@ -198,12 +279,27 @@ class PayloadCameraManager:
             tracker = _new_tracker()
             tracker.init(frame, (x0, y0, bw, bh))
         except Exception as e:
-            log.warning("payload_camera.tracker_init_failed", error=str(e))
-            return False
+            # Never make the operator's box (and its name) vanish just because
+            # tracking is unavailable: keep it at the drawn position instead.
+            log.warning("payload_camera.tracker_init_failed", error=str(e), fallback="static_box")
+            tracker = None
 
         with session.locks_guard:
-            session.locks[queue] = _LockState(tracker=tracker)
+            session.locks[queue] = _LockState(
+                tracker=tracker, name=_clean_label(name), last_box=(x0, y0, bw, bh),
+            )
         return True
+
+    def name_object(self, key: str, queue: asyncio.Queue, name: str) -> None:
+        """Set/clear the label drawn above this subscriber's tracked box."""
+        with self._lock:
+            session = self._sessions.get(key)
+        if not session:
+            return
+        with session.locks_guard:
+            lock_state = session.locks.get(queue)
+            if lock_state is not None:
+                lock_state.name = _clean_label(name)
 
     def unlock_object(self, key: str, queue: asyncio.Queue) -> None:
         with self._lock:
@@ -244,14 +340,32 @@ class PayloadCameraManager:
             out = frame
         else:
             out = frame.copy()
-            ok, box = lock_state.tracker.update(out)
-            lock_state.lost = not ok
-            if ok:
-                x0, y0, bw, bh = (int(v) for v in box)
-                cv2.rectangle(out, (x0, y0), (x0 + bw, y0 + bh), TRACKER_BOX_COLOR, 2)
-                cx, cy = x0 + bw // 2, y0 + bh // 2
-                cv2.drawMarker(out, (cx, cy), TRACKER_BOX_COLOR, cv2.MARKER_CROSS, 16, 2)
+            if lock_state.tracker is None:
+                ok, box = True, None          # static box: nothing to follow
             else:
+                try:
+                    ok, box = lock_state.tracker.update(out)
+                except Exception as e:
+                    # e.g. the frame size changed after a reconnect. Keep the
+                    # last box on screen (shown as lost) and never let an
+                    # OpenCV error escape into the capture thread.
+                    log.warning("payload_camera.tracker_update_failed", error=str(e))
+                    ok, box = False, None
+            lock_state.lost = lock_state.tracker is not None and not ok
+            if ok and box is not None:
+                lock_state.last_box = tuple(int(v) for v in box)
+            # A low-confidence frame must not make the box vanish: keep the
+            # last known box on screen (red) while the tracker keeps trying to
+            # re-acquire, and snap back to amber as soon as it recovers.
+            if lock_state.last_box is not None:
+                x0, y0, bw, bh = lock_state.last_box
+                color = TRACKER_BOX_COLOR if ok else (0, 0, 255)
+                cv2.rectangle(out, (x0, y0), (x0 + bw, y0 + bh), color, 2)
+                cx, cy = x0 + bw // 2, y0 + bh // 2
+                cv2.drawMarker(out, (cx, cy), color, cv2.MARKER_CROSS, 16, 2)
+                if lock_state.name:
+                    _draw_label(out, lock_state.name, x0, y0)
+            if lock_state.lost:
                 cv2.putText(out, "TARGET LOST", (10, 24), cv2.FONT_HERSHEY_SIMPLEX,
                             0.6, (0, 0, 255), 2, cv2.LINE_AA)
 

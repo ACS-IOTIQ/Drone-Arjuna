@@ -197,6 +197,8 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
       - "${RADIO_BIND_ADDR:-127.0.0.1}:14550:14550/udp"   # ArduPilot SITL / MAVLink UDP inbound
+      - "${RADIO_BIND_ADDR:-127.0.0.1}:14551:14551/udp"   # MAVLink UDP inbound (secondary)
+      - "${RADIO_BIND_ADDR:-127.0.0.1}:14552:14552/udp"   # MAVLink UDP inbound (alternate)
       - "${RADIO_BIND_ADDR:-127.0.0.1}:10110:10110/udp"   # Vessel NMEA GGA feed
     extra_hosts:
       - "host.docker.internal:host-gateway"   # reach Windows host from container (SITL TCP)

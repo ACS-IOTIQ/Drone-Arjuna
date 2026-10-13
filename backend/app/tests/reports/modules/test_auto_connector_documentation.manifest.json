@@ -1,5 +1,5 @@
 {
-  "fingerprint": "bc0a44854cac5c3b8bea2acd07d378a16731ba9dbcb2cb2e4e559740bf029a4d",
+  "fingerprint": "249d4a09450411be3da266da206d80ae84980df75c657c4b0d0defb5ce5f7364",
   "nodeids": [
     "app/tests/test_auto_connector.py::test_build_candidates_bridge_connected_is_first",
     "app/tests/test_auto_connector.py::test_build_candidates_bridge_none_no_bridge_entry",
@@ -22,6 +22,6 @@
     "app/tests/test_auto_connector.py::test_run_auto_connector_no_drone_instances_skips_connect",
     "app/tests/test_auto_connector.py::test_scan_linux_serial_no_ports_returns_empty",
     "app/tests/test_auto_connector.py::test_scan_linux_serial_non_usb_device_tries_two_bauds",
-    "app/tests/test_auto_connector.py::test_scan_linux_serial_usb_device_tries_three_bauds"
+    "app/tests/test_auto_connector.py::test_scan_linux_serial_usb_device_tries_four_bauds"
   ]
 }

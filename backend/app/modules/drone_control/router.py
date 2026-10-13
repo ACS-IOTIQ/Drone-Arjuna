@@ -211,7 +211,7 @@ async def autoconnect_drone(
         candidates = []
         for p in serial.tools.list_ports.comports():
             is_usb = "USB" in (p.hwid or "").upper()
-            bauds = (115200, 57600, 921600) if is_usb else (57600, 115200)
+            bauds = (115200, 57600, 460800, 921600) if is_usb else (57600, 115200)
             for baud in bauds:
                 candidates.append({
                     "transport": "serial",

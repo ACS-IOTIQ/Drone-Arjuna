@@ -83,7 +83,7 @@ def test_get_bridge_status_bad_json_returns_none():
 # _scan_linux_serial
 # ══════════════════════════════════════════════════════════════════════
 
-def test_scan_linux_serial_usb_device_tries_three_bauds():
+def test_scan_linux_serial_usb_device_tries_four_bauds():
     fake_port = SimpleNamespace(device="/dev/ttyUSB0", hwid="USB VID:PID=1234:5678")
     with patch(
         "app.modules.drone_control.auto_connector.serial.tools.list_ports.comports",
@@ -91,9 +91,9 @@ def test_scan_linux_serial_usb_device_tries_three_bauds():
     ):
         candidates = ac._scan_linux_serial()
 
-    assert len(candidates) == 3
+    assert len(candidates) == 4
     bauds = {c["baud_rate"] for c in candidates}
-    assert bauds == {115200, 57600, 921600}
+    assert bauds == {115200, 57600, 460800, 921600}
     assert all(c["transport"] == "serial" for c in candidates)
     assert all(c["serial_port"] == "/dev/ttyUSB0" for c in candidates)
 
@@ -180,9 +180,9 @@ def test_build_candidates_includes_serial_scan_results():
         candidates = ac._build_candidates(None)
 
     serial_candidates = [c for c in candidates if c["transport"] == "serial"]
-    assert len(serial_candidates) == 3
-    # static tcp/udp fallback list (4 entries) + 3 serial = 7
-    assert len(candidates) == 7
+    assert len(serial_candidates) == 4
+    # static tcp/udp fallback list (4 entries) + 4 serial = 8
+    assert len(candidates) == 8
 
 
 # ══════════════════════════════════════════════════════════════════════

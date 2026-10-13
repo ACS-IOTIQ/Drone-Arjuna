@@ -71,7 +71,7 @@ def _scan_linux_serial() -> list[dict]:
     out = []
     for p in serial.tools.list_ports.comports():
         is_usb = "USB" in (p.hwid or "").upper()
-        for baud in ((115200, 57600, 921600) if is_usb else (57600, 115200)):
+        for baud in ((115200, 57600, 460800, 921600) if is_usb else (57600, 115200)):
             out.append({
                 "transport":   "serial",
                 "host":        "127.0.0.1",

@@ -565,6 +565,53 @@ async def get_battery_log(
     ]
 
 
+@router.get("/telemetry/{drone_id}/events")
+async def get_drone_events(
+    drone_id: int,
+    _: Annotated[User, Depends(require_min_role(Role.VIEWER))],
+    db: AsyncSession = Depends(get_ts_db),
+    start: datetime | None = None,
+    end: datetime | None = None,
+    severity: str | None = None,
+    limit: int = Query(500, ge=1, le=5000),
+):
+    """
+    Black-box record of drone issues (low battery, weak link, GPS, geofence,
+    proximity, auto-RTL, mode/arm changes), newest first. Each row includes
+    the telemetry snapshot taken when the event fired.
+
+    `start`/`end` default to the last 24 hours.
+    """
+    end = end or datetime.now(timezone.utc)
+    start = start or (end - timedelta(hours=24))
+    result = await db.execute(
+        text("""
+            SELECT recorded_at, event_type, severity, message, value,
+                   lat, lon, alt_agl, mission_id, snapshot
+            FROM drone_events
+            WHERE drone_id = :drone_id AND recorded_at BETWEEN :start AND :end
+              AND (CAST(:severity AS text) IS NULL OR severity = :severity)
+            ORDER BY recorded_at DESC
+            LIMIT :limit
+        """),
+        {"drone_id": drone_id, "start": start, "end": end,
+         "severity": severity, "limit": limit},
+    )
+    return [
+        {
+            "timestamp": r["recorded_at"],
+            "event_type": r["event_type"],
+            "severity": r["severity"],
+            "message": r["message"],
+            "value": r["value"],
+            "lat": r["lat"], "lng": r["lon"], "alt": r["alt_agl"],
+            "mission_id": r["mission_id"],
+            "snapshot": r["snapshot"],
+        }
+        for r in result.mappings().all()
+    ]
+
+
 # ── Mission simulation ────────────────────────────────────────────
 
 @router.post("/simulate/start", status_code=status.HTTP_201_CREATED)

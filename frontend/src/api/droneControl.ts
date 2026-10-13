@@ -50,6 +50,21 @@ export interface AutoConnectPayload {
   drone_instance_id: number
 }
 
+export type DroneEventSeverity = 'info' | 'warning' | 'critical' | 'resolved'
+
+export interface DroneEventRow {
+  timestamp:  string
+  event_type: string
+  severity:   DroneEventSeverity
+  message:    string
+  value:      number | null
+  lat:        number | null
+  lng:        number | null
+  alt:        number | null
+  mission_id: number | null
+  snapshot:   Record<string, unknown> | null
+}
+
 export const droneControlApi = {
   // ── Connection management ───────────────────────────────────
   status:      ()                          => api.get('/api/drone-control/status', { timeout: 20000 }),
@@ -59,6 +74,10 @@ export const droneControlApi = {
   // ── Flight commands ─────────────────────────────────────────
   command:     (p: CommandPayload)         => api.post('/api/drone-control/command', p),
   telemetry:   (id: number)               => api.get(`/api/drone-control/telemetry/${id}`),
+
+  /** Black-box record of drone issues, newest first (default window: last 24 h). */
+  events: (id: number, params?: { start?: string; end?: string; severity?: string; limit?: number }) =>
+    api.get<DroneEventRow[]>(`/api/drone-control/telemetry/${id}/events`, { params }),
 
   /**
    * Send a NED velocity command for manual joystick / WASD control.

@@ -44,6 +44,7 @@ class StateManager:
         self._states: dict[int, dict] = {}
         self._locks: dict[int, asyncio.Lock] = {}
         self._listeners: list[Callable] = []
+        self._on_remove: list[Callable[[int], None]] = []
         self._proximity_monitor = ProximityMonitor()
 
     def init_drone(self, drone_id: int, call_sign: str):
@@ -53,6 +54,12 @@ class StateManager:
     def remove_drone(self, drone_id: int):
         self._states.pop(drone_id, None)
         self._locks.pop(drone_id, None)
+        for fn in self._on_remove:
+            fn(drone_id)
+
+    def on_remove(self, fn: Callable[[int], None]):
+        """Register a sync callback run whenever a drone is removed (disconnect/sim end)."""
+        self._on_remove.append(fn)
 
     async def update(self, drone_id: int, data: dict):
         if drone_id not in self._states:

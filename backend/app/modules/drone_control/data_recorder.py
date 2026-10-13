@@ -25,7 +25,8 @@ from app.models.telemetry import TelemetryFrame, TelemetryGauge, TelemetryHistor
 log = structlog.get_logger()
 
 RETENTION_DAYS = 1   # telemetry_history retention — replay covers recent flights only
-FLUSH_INTERVAL_S = 1.0   # how often buffered telemetry is written to TimescaleDB
+EVENT_RETENTION_DAYS = 365   # drone_events (black box) retention
+FLUSH_INTERVAL_S = 1.0  # how often buffered telemetry is written to TimescaleDB
 
 # Hard cap on rows awaiting the next flush. If TimescaleDB is unreachable or
 # slow for an extended period, _pending_history would otherwise grow without
@@ -285,7 +286,12 @@ class DataRecorder:
             await conn.run_sync(TSBase.metadata.create_all)
 
             # telemetry_history and battery_snapshots are append-only — hypertables with retention.
-            for hypertable in ("telemetry_history", "battery_snapshots"):
+            # drone_events is the black box: kept far longer than flight-path data.
+            for hypertable, days in (
+                ("telemetry_history", RETENTION_DAYS),
+                ("battery_snapshots", RETENTION_DAYS),
+                ("drone_events", EVENT_RETENTION_DAYS),
+            ):
                 await conn.execute(text(f"""
                     SELECT create_hypertable(
                         '{hypertable}', 'recorded_at',
@@ -296,7 +302,7 @@ class DataRecorder:
                 await conn.execute(text(f"""
                     SELECT add_retention_policy(
                         '{hypertable}',
-                        INTERVAL '{RETENTION_DAYS} days',
+                        INTERVAL '{days} days',
                         if_not_exists => TRUE
                     )
                 """))

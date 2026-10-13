@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import (
     BigInteger, Integer, Float, String,
-    Boolean, DateTime, Text
+    Boolean, DateTime, Text, JSON
 )
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
 
@@ -143,6 +143,36 @@ class BatterySnapshot(TSBase):
 
     battery_pct: Mapped[int] = mapped_column(Integer, default=-1)
     mission_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+
+class DroneEvent(TSBase):
+    """
+    Black-box record of drone issues and safety-relevant transitions
+    (low battery, weak link, GPS degradation, geofence breach, proximity
+    alert, auto-RTL, mode change, arm/disarm). Append-only hypertable, written
+    by blackbox.py. A telemetry snapshot is stored with each event so the
+    cause can be reviewed after the fact.
+    """
+    __tablename__ = "drone_events"
+
+    drone_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        primary_key=True,
+    )
+    # event_type is part of the key so two different events in the same
+    # instant (e.g. battery_rtl + battery_warn) cannot collide.
+    event_type: Mapped[str] = mapped_column(String(48), primary_key=True)
+
+    severity: Mapped[str] = mapped_column(String(12), default="info")  # info|warning|critical|resolved
+    message: Mapped[str] = mapped_column(Text, default="")
+    value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    alt_agl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    mission_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    snapshot: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
 
 class SystemMetric(TSBase):

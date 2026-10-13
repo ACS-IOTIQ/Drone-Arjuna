@@ -21,6 +21,7 @@ from app.utils.mavlink_executor import mavlink_executor
 from app.modules.drone_control.telemetry_processor import TelemetryProcessor
 from app.modules.drone_control.state_manager import StateManager, home_point_updater
 from app.modules.drone_control.health_monitor import HealthMonitor
+from app.modules.drone_control.blackbox import blackbox
 from app.modules.drone_control.data_recorder import data_recorder
 from app.modules.drone_control.command_controller import CommandController, CommandRecord
 from app.modules.drone_control.mavlink_broadcaster import mavlink_broadcaster
@@ -88,6 +89,10 @@ class MAVLinkManager:
         # Wire health monitor and data recorder into state update callbacks
         self.state.subscribe(self._health.evaluate)
         self.state.subscribe(data_recorder.record)
+        self.state.subscribe(blackbox.evaluate)
+        # Reset black-box edge state on disconnect so a reconnect re-logs
+        # any issue that is still present.
+        self.state.on_remove(blackbox.forget)
         # Serializes connect() per drone_id — auto_connector now probes
         # multiple candidate transports/ports concurrently for the same
         # drone, and without this lock two candidates racing past the

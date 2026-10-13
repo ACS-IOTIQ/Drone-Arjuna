@@ -6,6 +6,7 @@ Runs as a background asyncio task, wired into the StateManager's subscriber list
 import asyncio
 import structlog
 from app.core.events import emit_health_alert
+from app.modules.drone_control.blackbox import blackbox
 
 log = structlog.get_logger()
 
@@ -47,6 +48,9 @@ class HealthMonitor:
                 log.warning("Low battery — auto RTL", drone_id=drone_id, pct=batt)
                 await self._mav.send_command(drone_id, "rtl", {})
                 await emit_health_alert(drone_id, "battery_rtl", batt)
+                await blackbox.record_event(
+                    drone_id, "auto_rtl_battery", "critical",
+                    f"Auto-RTL commanded: battery {batt}% ≤ {BATTERY_RTL_PCT}%", batt, state)
                 self._mark_fired(drone_id, "battery_rtl")
         elif batt > BATTERY_RTL_PCT + 5:
             self._clear_fired(drone_id, "battery_rtl")

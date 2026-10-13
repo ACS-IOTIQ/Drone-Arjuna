@@ -5,6 +5,7 @@ import { useTelemetryStore, TelemetryFrame } from "@/store/telemetryStore";
 import GaugeDashboard from "./GaugeDashboard";
 import TelemetryChart from "./TelemetryChart";
 import SystemLog from "./SystemLog";
+import BlackBox from "./BlackBox";
 
 export default function MonitorWorkspace() {
   const { instances, connections, fetchInstances, fetchConnections, startConnectionPolling, stopConnectionPolling } =
@@ -65,6 +66,7 @@ export default function MonitorWorkspace() {
           <div className="flex flex-col gap-4">
             <GaugeDashboard droneId={activeDroneId} />
             <TelemetryChart droneId={activeDroneId} />
+            <BlackBox droneId={activeDroneId} />
 
             {/* Raw telemetry + system log side by side on wide screens */}
             <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">

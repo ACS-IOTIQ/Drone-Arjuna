@@ -24,5 +24,20 @@ if ($missing) {
     exit 1
 }
 
+# USB flight controller or ELRS radio: the Windows COM bridge forwards the COM port to the backend.
+# (Normally your PowerShell profile starts it on `docker compose`; do it here too.)
+# "auto" makes the bridge listen for a MAVLink heartbeat at 460800 (ELRS radio USB),
+# 115200, 57600 (SiK), 921600 and 230400 and keep the one that answers.
+# Pin a speed instead with: $env:BRIDGE_BAUD = 57600
+$bridgeBaud = if ($env:BRIDGE_BAUD) { $env:BRIDGE_BAUD } else { "auto" }
+try {
+    Invoke-WebRequest -UseBasicParsing http://127.0.0.1:5761/ports -TimeoutSec 2 | Out-Null
+    Write-Host "[bridge] COM bridge already running." -ForegroundColor DarkGray
+} catch {
+    Write-Host "[bridge] Starting COM bridge (waits for a USB flight controller)..." -ForegroundColor Cyan
+    Start-Process powershell.exe -WindowStyle Hidden -WorkingDirectory $PSScriptRoot -ArgumentList `
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$PSScriptRoot\start-bridge.ps1`"", "auto", $bridgeBaud, "5762"
+}
+
 docker compose up -d --no-build --pull never backend frontend
 docker compose ps

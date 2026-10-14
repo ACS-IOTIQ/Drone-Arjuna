@@ -464,3 +464,55 @@ def test_mavlink_port_closes_connection_from_disallowed_client(com_bridge, restr
     com_bridge.handle_client(conn, ("10.9.9.9", 41000))
     conn.close.assert_called_once()
     assert com_bridge.device.active_client is False
+
+
+# ── Baud auto-detection (ELRS radio USB = 460800, SiK = 57600, USB-CDC = any) ──
+
+_HB_V2 = bytes.fromhex("fd0900000001010000000000000000040303") + b"\x00\x00"
+_HB_V1 = bytes.fromhex("fe09000101000000000000000403") + b"\x03\x00\x00"
+
+
+def test_detects_mavlink2_heartbeat(com_bridge):
+    assert com_bridge.looks_like_mavlink(b"\x00\x55" + _HB_V2)
+
+
+def test_detects_mavlink1_heartbeat(com_bridge):
+    assert com_bridge.looks_like_mavlink(b"noise" + _HB_V1)
+
+
+@pytest.mark.parametrize("data", [b"", b"\x00" * 64, b"hello world 115200", b"\xfd\x09", bytes(range(0, 200, 7))])
+def test_garbage_is_not_mavlink(com_bridge, data):
+    assert not com_bridge.looks_like_mavlink(data)
+
+
+def _fake_serial_factory(good_baud, opened):
+    class FakeSerial:
+        def __init__(self, device, baud, **_kw):
+            self.baud = baud
+            self.closed = False
+            opened.append(baud)
+
+        def read(self, _n):
+            return _HB_V2 if self.baud == good_baud else b"\x00\xff\x00"
+
+        def close(self):
+            self.closed = True
+    return FakeSerial
+
+
+def test_autobaud_finds_the_baud_that_carries_mavlink(com_bridge, monkeypatch):
+    opened = []
+    monkeypatch.setattr(com_bridge.serial, "Serial", _fake_serial_factory(57600, opened))
+    monkeypatch.setattr(com_bridge, "AUTO_BAUD_LISTEN_S", 0.05)
+    ser, baud = com_bridge.open_serial_autobaud("COM9")
+    assert baud == 57600
+    assert opened == [460800, 115200, 57600]     # stopped at the first hit
+
+
+def test_autobaud_holds_first_candidate_when_nothing_is_heard(com_bridge, monkeypatch):
+    opened = []
+    monkeypatch.setattr(com_bridge.serial, "Serial", _fake_serial_factory(None, opened))
+    monkeypatch.setattr(com_bridge, "AUTO_BAUD_LISTEN_S", 0.02)
+    ser, baud = com_bridge.open_serial_autobaud("COM9")
+    assert baud == com_bridge.AUTO_BAUD_CANDIDATES[0] == 460800
+    assert opened[-1] == 460800 and not ser.closed

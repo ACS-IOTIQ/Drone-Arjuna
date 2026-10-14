@@ -1,7 +1,9 @@
 """Forward a Windows serial MAVLink device to the Docker backend.
 
-Usage: python com_bridge.py [COM_PORT|auto] [BAUD] [TCP_PORT]
+Usage: python com_bridge.py [COM_PORT|auto] [BAUD|auto] [TCP_PORT]
 Default: auto, 115200, 5762
+BAUD "auto" tries 460800 (ELRS radio USB), 115200, 57600 (SiK), 921600, 230400 and
+keeps the first rate that carries a MAVLink heartbeat.
 
 Security (the MAVLink stream carries no authentication of its own):
   BRIDGE_BIND_ADDR       interface to listen on (default 0.0.0.0 so the Docker
@@ -15,6 +17,7 @@ Security (the MAVLink stream carries no authentication of its own):
 import ipaddress
 import json
 import os
+import re
 import socket
 import sys
 import threading
@@ -26,7 +29,12 @@ import serial.tools.list_ports
 
 
 REQUESTED_PORT = sys.argv[1] if len(sys.argv) > 1 else "auto"
-BAUD = int(sys.argv[2]) if len(sys.argv) > 2 else 115200
+_BAUD_ARG = sys.argv[2] if len(sys.argv) > 2 else "115200"
+AUTO_BAUD = _BAUD_ARG.lower() == "auto"
+# ELRS radio USB = 460800; USB-CDC flight controllers ignore it; SiK radios = 57600.
+AUTO_BAUD_CANDIDATES = [460800, 115200, 57600, 921600, 230400]
+BAUD = AUTO_BAUD_CANDIDATES[0] if AUTO_BAUD else int(_BAUD_ARG)   # updated once detected
+AUTO_BAUD_LISTEN_S = 2.5   # per baud; MAVLink heartbeats arrive at 1 Hz
 TCP_PORT = int(sys.argv[3]) if len(sys.argv) > 3 else 5762
 DISCOVERY_PORT = 5761
 TCP_PORT_CANDIDATES = [TCP_PORT, 5764, 5770, 5760, 0]
@@ -38,6 +46,34 @@ ALLOWED_CLIENTS = [
     for part in os.environ.get("BRIDGE_ALLOWED_CLIENTS", _DEFAULT_ALLOWED).split(",")
     if part.strip()
 ]
+
+
+# A MAVLink HEARTBEAT frame: v2 = FD, len 9, flags, 0, seq, sys, comp, msgid 0 (3 bytes);
+# v1 = FE, len 9, seq, sys, comp, msgid 0.
+_HEARTBEAT_FRAME = re.compile(rb"\xfd\x09[\x00\x01]\x00.{3}\x00\x00\x00|\xfe\x09.{3}\x00", re.S)
+
+
+def looks_like_mavlink(data: bytes) -> bool:
+    """True if `data` contains a MAVLink v1/v2 heartbeat frame header."""
+    return bool(_HEARTBEAT_FRAME.search(data))
+
+
+def open_serial_autobaud(device: str):
+    """Open `device` at whichever baud rate carries MAVLink. Returns (serial, baud).
+    If nothing is heard at any speed (e.g. radio not linked yet) the first candidate
+    stays open so data still flows once the link comes up."""
+    for baud in AUTO_BAUD_CANDIDATES:
+        ser = serial.Serial(device, baud, timeout=0.1, write_timeout=1)
+        heard = b""
+        deadline = time.monotonic() + AUTO_BAUD_LISTEN_S
+        while time.monotonic() < deadline and len(heard) < 4096:
+            heard += ser.read(512)
+            if looks_like_mavlink(heard):
+                return ser, baud
+        ser.close()
+    first = AUTO_BAUD_CANDIDATES[0]
+    print(f"[bridge] no MAVLink heard on {device}; holding {first} baud")
+    return serial.Serial(device, first, timeout=0.1, write_timeout=1), first
 
 
 def client_allowed(host) -> bool:
@@ -129,7 +165,11 @@ class SerialDevice:
                 continue
 
             try:
-                ser = serial.Serial(selected.device, BAUD, timeout=0.1, write_timeout=1)
+                global BAUD
+                if AUTO_BAUD:
+                    ser, BAUD = open_serial_autobaud(selected.device)
+                else:
+                    ser = serial.Serial(selected.device, BAUD, timeout=0.1, write_timeout=1)
                 with self.lock:
                     self.serial = ser
                     self.port = selected.device

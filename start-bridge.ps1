@@ -1,6 +1,6 @@
 param(
     [string]$ComPort = "auto",
-    [int]$Baud = 115200,
+    [string]$Baud = "115200",   # a number, or "auto" to detect the MAVLink baud rate
     [int]$TcpPort = 5762
 )
 

@@ -1,0 +1,31 @@
+{
+  "fingerprint": "bdd675c3f3e63a7a0dfa31d445dedec4051731d9554d38e1027d30fca9d0f934",
+  "nodeids": [
+    "app/tests/test_blackbox.py::test_battery_critical_is_critical_severity",
+    "app/tests/test_blackbox.py::test_battery_hovering_at_threshold_does_not_flap",
+    "app/tests/test_blackbox.py::test_battery_sequence_warn_critical_then_clears_with_hysteresis",
+    "app/tests/test_blackbox.py::test_battery_warn_fires_once_not_every_tick",
+    "app/tests/test_blackbox.py::test_drones_are_tracked_independently",
+    "app/tests/test_blackbox.py::test_evaluate_survives_db_outage",
+    "app/tests/test_blackbox.py::test_first_state_does_not_log_mode_change",
+    "app/tests/test_blackbox.py::test_forget_does_not_log_phantom_mode_change_on_reconnect",
+    "app/tests/test_blackbox.py::test_forget_makes_reconnect_relog_active_issue",
+    "app/tests/test_blackbox.py::test_forget_unknown_drone_is_safe",
+    "app/tests/test_blackbox.py::test_geofence_breach_and_recovery",
+    "app/tests/test_blackbox.py::test_health_monitor_auto_rtl_is_recorded_once",
+    "app/tests/test_blackbox.py::test_healthy_drone_records_nothing",
+    "app/tests/test_blackbox.py::test_high_cpu_fires_at_threshold",
+    "app/tests/test_blackbox.py::test_low_gps_satellites_fires_and_clears",
+    "app/tests/test_blackbox.py::test_mode_change_and_arm_transitions",
+    "app/tests/test_blackbox.py::test_proximity_alert_message_names_intruder_and_distance",
+    "app/tests/test_blackbox.py::test_record_event_inserts_row_with_snapshot_and_commits",
+    "app/tests/test_blackbox.py::test_record_event_non_numeric_value_stored_as_null",
+    "app/tests/test_blackbox.py::test_record_event_swallows_db_errors",
+    "app/tests/test_blackbox.py::test_record_event_without_state_still_writes",
+    "app/tests/test_blackbox.py::test_state_manager_remove_drone_triggers_forget",
+    "app/tests/test_blackbox.py::test_state_manager_remove_drone_without_callbacks_is_safe",
+    "app/tests/test_blackbox.py::test_unknown_battery_is_ignored",
+    "app/tests/test_blackbox.py::test_weak_link_fires_and_clears",
+    "app/tests/test_blackbox.py::test_zero_rssi_is_not_treated_as_weak_link"
+  ]
+}

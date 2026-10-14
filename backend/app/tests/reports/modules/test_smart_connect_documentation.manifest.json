@@ -1,0 +1,20 @@
+{
+  "fingerprint": "46747ac0f440b7a6c6e2e1fe0bded5693f330228412d516af95fb34ff0ac6bd0",
+  "nodeids": [
+    "app/tests/test_smart_connect.py::test_autoconnect_request_accepts_address",
+    "app/tests/test_smart_connect.py::test_autoconnect_request_rejects_bad_ports[-1]",
+    "app/tests/test_smart_connect.py::test_autoconnect_request_rejects_bad_ports[0]",
+    "app/tests/test_smart_connect.py::test_autoconnect_request_rejects_bad_ports[65536]",
+    "app/tests/test_smart_connect.py::test_autoconnect_request_rejects_odd_hosts[10.0.0.1; rm -rf /]",
+    "app/tests/test_smart_connect.py::test_autoconnect_request_rejects_odd_hosts[]",
+    "app/tests/test_smart_connect.py::test_autoconnect_request_rejects_odd_hosts[a b]",
+    "app/tests/test_smart_connect.py::test_autoconnect_request_rejects_odd_hosts[udp://x]",
+    "app/tests/test_smart_connect.py::test_autoconnect_request_target_is_optional",
+    "app/tests/test_smart_connect.py::test_every_target_transport_builds_a_connection_string[tcp-tcp:10.0.0.1:14550]",
+    "app/tests/test_smart_connect.py::test_every_target_transport_builds_a_connection_string[tcp_listen-tcpin:0.0.0.0:14550]",
+    "app/tests/test_smart_connect.py::test_every_target_transport_builds_a_connection_string[udp-udpin:0.0.0.0:14550]",
+    "app/tests/test_smart_connect.py::test_every_target_transport_builds_a_connection_string[udp_out-udpout:10.0.0.1:14550]",
+    "app/tests/test_smart_connect.py::test_target_candidate_labels_are_unique",
+    "app/tests/test_smart_connect.py::test_target_candidates_cover_every_link_style"
+  ]
+}

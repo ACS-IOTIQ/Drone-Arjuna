@@ -10,6 +10,7 @@ HF transport notes:
   layer above handles message filtering, rate-limiting, and degraded-state logic.
 """
 import asyncio
+import time
 import structlog
 from dataclasses import dataclass, field
 from typing import Optional
@@ -150,8 +151,29 @@ class MAVLinkManager:
 
             conn.mav = await loop.run_in_executor(mavlink_executor, _open_link)
             # Wait for first heartbeat — HF uses a much longer timeout
+            def _wait_first_heartbeat(mav):
+                # Bounded in 1 s slices rather than one unbounded blocking wait: a
+                # candidate that loses an autoconnect race (or times out) would
+                # otherwise leave its worker thread blocked forever in recv/accept
+                # (a tcp_listen candidate never exits) and slowly drain the shared pool.
+                # udpout peers (e.g. an ELRS backpack's Wi-Fi bridge) only forward
+                # MAVLink to a client that has sent them something first, so announce
+                # ourselves with a GCS heartbeat each slice until theirs arrives.
+                deadline = time.monotonic() + heartbeat_timeout
+                while time.monotonic() < deadline:
+                    if transport == "udp_out":
+                        mav.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_GCS,
+                                               mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
+                    msg = mav.wait_heartbeat(timeout=1)
+                    # Ignore ground-station heartbeats: when the target is this very
+                    # machine, our own udpout announcement loops back to a sibling
+                    # udpin candidate and would look like a drone that isn't there.
+                    if msg is not None and msg.type != mavutil.mavlink.MAV_TYPE_GCS:
+                        return
+                raise asyncio.TimeoutError()
+
             await asyncio.wait_for(
-                loop.run_in_executor(mavlink_executor, conn.mav.wait_heartbeat),
+                loop.run_in_executor(mavlink_executor, _wait_first_heartbeat, conn.mav),
                 timeout=heartbeat_timeout,
             )
 

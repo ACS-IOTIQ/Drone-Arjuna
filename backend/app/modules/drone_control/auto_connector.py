@@ -95,6 +95,22 @@ _FALLBACK_CANDIDATES = [
 ]
 
 
+def build_target_candidates(host: str, port: int) -> list[dict]:
+    """
+    Every MAVLink link style for one user-supplied address, probed together by
+    _connect_drone() so a single click works whatever the device expects:
+      udp_out    we contact the device (ESP/ELRS Wi-Fi bridges, Mission Planner "UDPCl")
+      tcp        we connect to a device-side TCP server
+      udp        the device/GCS sends to a UDP port on this PC
+      tcp_listen the device connects to a TCP port on this PC
+    """
+    def cand(transport: str) -> dict:
+        return {"transport": transport, "host": host, "port": port,
+                "serial_port": "/dev/ttyUSB0", "baud_rate": 57600,
+                "label": f"target:{transport}:{host}:{port}"}
+    return [cand(t) for t in ("udp_out", "tcp", "udp", "tcp_listen")]
+
+
 def _build_candidates(bridge: dict | None) -> list[dict]:
     """
     Ordered probe list.

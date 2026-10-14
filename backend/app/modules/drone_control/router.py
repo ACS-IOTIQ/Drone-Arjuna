@@ -197,6 +197,33 @@ async def autoconnect_drone(
        mavlink_manager._connections[drone_instance_id].connected:
         raise HTTPException(status_code=409, detail="Drone is already connected")
 
+    # ── Explicit target: probe every link style for it, all at once ──
+    if req.host:
+        from app.modules.drone_control.auto_connector import _connect_drone, build_target_candidates
+        target = build_target_candidates(req.host, req.port or 14550)
+        log.info("Smart connect starting", drone_id=drone_instance_id,
+                 host=req.host, port=req.port or 14550)
+        if await _connect_drone(drone_instance_id, drone.call_sign, target):
+            conn = mavlink_manager._connections[drone_instance_id]
+            await _apply_ui_home_on_connect(drone_instance_id, db)
+            await DroneInstanceService(db).mark_used(drone_instance_id)
+            return {
+                "detail":    "Connected",
+                "drone_id":  drone_instance_id,
+                "call_sign": drone.call_sign,
+                "transport": conn.transport,
+                "host":      req.host,
+                "port":      req.port or 14550,
+                "serial_port": None,
+                "baud_rate": None,
+            }
+        raise HTTPException(
+            status_code=503,
+            detail=f"No MAVLink heartbeat from {req.host}:{req.port or 14550} over UDP client, "
+                   f"TCP client, UDP listen or TCP listen. Check that the PC is on the device's "
+                   f"network, the drone/transmitter is powered and linked, and the port is right."
+        )
+
     # ── Build candidate list ──────────────────────────────────────
     # Serial ports first (real hardware), then common SITL network ports.
     # USB-direct Pixhawk/ArduPilot connections (e.g. via USB cable) always

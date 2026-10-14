@@ -44,6 +44,9 @@ def build_connection_string(
         return f"udpout:{host}:{port}"
     if transport == "tcp":
         return f"tcp:{host}:{port}"
+    if transport == "tcp_listen":
+        # GCS listens, the drone/bridge connects out to us (Mission Planner "TCP host")
+        return f"tcpin:0.0.0.0:{port}"
     if transport == "serial":
         return f"{serial_port},{baud_rate}"
     if transport in ("sitl", "hf_serial", "hf_tcp"):

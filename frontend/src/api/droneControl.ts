@@ -5,7 +5,7 @@ import { api } from './client'
 
 export interface ConnectPayload {
   drone_instance_id: number
-  transport: 'udp' | 'tcp' | 'serial' | 'hf_serial' | 'hf_tcp'
+  transport: 'udp' | 'udp_out' | 'tcp' | 'tcp_listen' | 'serial' | 'hf_serial' | 'hf_tcp'
   host?: string
   port?: number
   serial_port?: string
@@ -48,6 +48,9 @@ export interface PortsResponse {
 
 export interface AutoConnectPayload {
   drone_instance_id: number
+  /** Optional target: try every MAVLink link style (UDP/TCP, client/listen) for this address. */
+  host?: string
+  port?: number
 }
 
 export type DroneEventSeverity = 'info' | 'warning' | 'critical' | 'resolved'

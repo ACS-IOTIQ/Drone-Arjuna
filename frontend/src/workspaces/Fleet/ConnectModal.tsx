@@ -8,7 +8,7 @@ import { droneControlApi, PortInfo, PortsResponse } from '@/api/droneControl'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
 
-type Transport = 'udp' | 'tcp' | 'serial' | 'hf_serial' | 'hf_tcp'
+type Transport = 'udp' | 'udp_out' | 'tcp' | 'tcp_listen' | 'serial' | 'hf_serial' | 'hf_tcp'
 type ModemType = 'generic' | 'harris' | 'codan' | 'barrett'
 
 interface Props { onClose: () => void }
@@ -29,6 +29,10 @@ interface ConnectionPreset {
 
 const BUILT_IN_PRESETS: ConnectionPreset[] = [
   { id: 'udp-sitl-14550', name: 'SITL UDP 14550', transport: 'udp', host: '0.0.0.0', port: 14550 },
+  { id: 'udp-elrs-backpack', name: 'ELRS TX Backpack Wi-Fi (UDP client to 10.0.0.1:14550)', transport: 'udp_out', host: '10.0.0.1', port: 14550 },
+  { id: 'udp-esp-wifi', name: 'ESP8266/ESP32 Wi-Fi MAVLink bridge (UDP client to 192.168.4.1:14550)', transport: 'udp_out', host: '192.168.4.1', port: 14550 },
+  { id: 'udp-gcs-14551', name: 'Drone/GCS forwards to this PC (UDP listen 14551)', transport: 'udp', host: '0.0.0.0', port: 14551 },
+  { id: 'tcp-listen-5760', name: 'Device connects to this PC (TCP listen 5765)', transport: 'tcp_listen', host: '0.0.0.0', port: 5765 },
   { id: 'tcp-bridge-5762', name: 'Windows COM Bridge TCP 5762', transport: 'tcp', host: 'host.docker.internal', port: 5762 },
   { id: 'serial-usb-115200', name: 'Pixhawk USB Direct 115200', transport: 'serial', serial_port: '/dev/ttyUSB0', baud_rate: 115200 },
   { id: 'serial-radio-57600', name: 'SiK Telemetry Radio 57600', transport: 'serial', serial_port: '/dev/ttyUSB0', baud_rate: 57600 },
@@ -153,7 +157,11 @@ export default function ConnectModal({ onClose }: Props) {
     if (!droneId) { setErr('Select a drone before auto-connect'); return }
     setAutoConnecting(true); setErr('')
     try {
-      await droneControlApi.autoconnect({ drone_instance_id: droneId })
+      // A specific address in the form (not a wildcard) → smart-probe every link style for it
+      const target = !isSerial && !isHF && host && host !== '0.0.0.0'
+      await droneControlApi.autoconnect(
+        target ? { drone_instance_id: droneId, host, port } : { drone_instance_id: droneId },
+      )
       subscribe(droneId)
       await fetchConnections()
       onClose()
@@ -233,7 +241,20 @@ export default function ConnectModal({ onClose }: Props) {
             onClick={() => { setTransport('tcp'); setHost('host.docker.internal'); setPort(5762) }}>
             TCP 5762
           </button>
+          <button
+            className="text-[10px] px-2 py-1 rounded flex items-center gap-1"
+            style={{ background: 'rgba(32,208,180,0.1)', color: 'var(--da-teal)', border: '1px solid rgba(32,208,180,0.25)' }}
+            title="Join the 'ExpressLRS TX Backpack' Wi-Fi in Windows first"
+            onClick={() => applyPreset('udp-elrs-backpack')}>
+            <Wifi size={10} /> ELRS Backpack
+          </button>
         </div>
+        {presetId === 'udp-elrs-backpack' && (
+          <p className="text-[11px] mb-4" style={{ color: '#64748b' }}>
+            Join the “ExpressLRS TX Backpack” Wi-Fi in Windows first, then click Connect.
+            The app contacts the backpack at 10.0.0.1:14550 so it knows where to send MAVLink.
+          </p>
+        )}
 
         {/* ── Bridge status banner ──────────────────────────────── */}
         {bridgeConnected && bridgePort && (
@@ -328,8 +349,10 @@ export default function ConnectModal({ onClose }: Props) {
             <select className="da-input" value={transport}
               onChange={e => setTransport(e.target.value as Transport)}>
               <optgroup label="Standard">
-                <option value="udp">UDP</option>
-                <option value="tcp">TCP</option>
+                <option value="udp">UDP (listen)</option>
+                <option value="udp_out">UDP (connect to device)</option>
+                <option value="tcp">TCP (connect to device)</option>
+                <option value="tcp_listen">TCP (listen)</option>
                 <option value="serial">Serial</option>
               </optgroup>
               <optgroup label="HF Radio (Naval)">
@@ -410,7 +433,7 @@ export default function ConnectModal({ onClose }: Props) {
             onClick={autoConnect}
             disabled={loading || autoConnecting || !droneId}>
             <Zap size={14} className={autoConnecting ? 'animate-pulse' : ''} />
-            {autoConnecting ? 'Scanning all ports…' : 'Auto Connect'}
+            {autoConnecting ? 'Detecting link type…' : 'Auto Connect'}
           </button>
 
           <div className="flex gap-2">

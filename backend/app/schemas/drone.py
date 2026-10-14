@@ -228,7 +228,7 @@ class DroneConfigTemplateOut(BaseModel):
 
 class ConnectRequest(BaseModel):
     drone_instance_id: int
-    transport: Literal["udp", "tcp", "serial", "hf_serial", "hf_tcp"]
+    transport: Literal["udp", "udp_out", "tcp", "tcp_listen", "serial", "hf_serial", "hf_tcp"]
     host: Optional[str] = None
     port: Optional[int] = None
     serial_port: Optional[str] = None
@@ -238,6 +238,10 @@ class ConnectRequest(BaseModel):
 
 class AutoConnectRequest(BaseModel):
     drone_instance_id: int
+    # Optional target: when set, probe every MAVLink link style (UDP client/listen,
+    # TCP client/listen) for this address instead of scanning the default ports.
+    host: Optional[str] = Field(default=None, max_length=253, pattern=r"^[A-Za-z0-9._-]+$")
+    port: Optional[int] = Field(default=None, ge=1, le=65535)
 
 
 class CommandRequest(BaseModel):

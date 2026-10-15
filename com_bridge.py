@@ -58,12 +58,29 @@ def looks_like_mavlink(data: bytes) -> bool:
     return bool(_HEARTBEAT_FRAME.search(data))
 
 
+def open_serial(device: str, baud: int):
+    """Open `device` with DTR and RTS held LOW from the first instant.
+    pyserial asserts both on open; on CP210x/CH340 USB-UART boards (ESP32-based ELRS
+    radios/modules, ESP bridges) those lines drive the chip's reset/boot pins, so a
+    default open resets the board or leaves it in the bootloader and no MAVLink ever
+    appears. Native-USB flight controllers don't care either way."""
+    ser = serial.Serial()          # unopened, so the control lines can be set before open()
+    ser.port = device
+    ser.baudrate = baud
+    ser.timeout = 0.1
+    ser.write_timeout = 1
+    ser.dtr = False
+    ser.rts = False
+    ser.open()
+    return ser
+
+
 def open_serial_autobaud(device: str):
     """Open `device` at whichever baud rate carries MAVLink. Returns (serial, baud).
     If nothing is heard at any speed (e.g. radio not linked yet) the first candidate
     stays open so data still flows once the link comes up."""
     for baud in AUTO_BAUD_CANDIDATES:
-        ser = serial.Serial(device, baud, timeout=0.1, write_timeout=1)
+        ser = open_serial(device, baud)
         heard = b""
         deadline = time.monotonic() + AUTO_BAUD_LISTEN_S
         while time.monotonic() < deadline and len(heard) < 4096:
@@ -73,7 +90,7 @@ def open_serial_autobaud(device: str):
         ser.close()
     first = AUTO_BAUD_CANDIDATES[0]
     print(f"[bridge] no MAVLink heard on {device}; holding {first} baud")
-    return serial.Serial(device, first, timeout=0.1, write_timeout=1), first
+    return open_serial(device, first), first
 
 
 def client_allowed(host) -> bool:
@@ -169,7 +186,7 @@ class SerialDevice:
                 if AUTO_BAUD:
                     ser, BAUD = open_serial_autobaud(selected.device)
                 else:
-                    ser = serial.Serial(selected.device, BAUD, timeout=0.1, write_timeout=1)
+                    ser = open_serial(selected.device, BAUD)
                 with self.lock:
                     self.serial = ser
                     self.port = selected.device

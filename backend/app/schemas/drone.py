@@ -249,7 +249,7 @@ class CommandRequest(BaseModel):
     command: Literal[
         "arm", "disarm", "set_mode", "rtl",
         "land", "takeoff", "emergency_stop",
-        "velocity", "goto"
+        "velocity", "goto", "set_flight_profile"
     ]
     params: dict = {}
 
@@ -266,6 +266,8 @@ class SimStartRequest(BaseModel):
     mission_id: int
     drone_instance_id: Optional[int] = None   # override mission's assigned drone
     speed_multiplier: float = 1.0
+    altitude_m: Optional[float] = Field(None, gt=0, le=500)  # simulation-only AGL override
+    speed_ms: Optional[float] = Field(None, gt=0, le=100)   # simulation-only route speed override
 
 
 class SimCommandRequest(BaseModel):

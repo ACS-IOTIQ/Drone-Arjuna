@@ -6,20 +6,55 @@ import { useState } from 'react'
 import { AlertTriangle, ChevronDown } from 'lucide-react'
 import { droneControlApi } from '@/api/droneControl'
 import { useTelemetryStore } from '@/store/telemetryStore'
+import { useFleetStore } from '@/store/fleetStore'
+import { useMissionStore } from '@/store/missionStore'
 import { notify } from '@/store/notificationStore'
 
 const MODES = ['STABILIZE', 'ALT_HOLD', 'LOITER', 'AUTO', 'GUIDED', 'RTL', 'LAND']
 
+function waitForMode(droneId: number, mode: string, timeoutMs = 8000): Promise<boolean> {
+  return new Promise(resolve => {
+    const startedAt = Date.now()
+    const interval = window.setInterval(() => {
+      const currentMode = useTelemetryStore.getState().frames[droneId]?.flight_mode
+      if (currentMode === mode) {
+        window.clearInterval(interval)
+        resolve(true)
+      } else if (Date.now() - startedAt >= timeoutMs) {
+        window.clearInterval(interval)
+        resolve(false)
+      }
+    }, 250)
+  })
+}
+
 export function CommandPanel({ droneId }: { droneId: number }) {
   const frame = useTelemetryStore(s => s.frames[droneId])
+  const connection = useFleetStore(s => s.connections[droneId])
+  const activeMissionId = useMissionStore(s => s.activeMissionId)
+  const activeMission = useMissionStore(s => s.missions.find(m => m.id === activeMissionId))
+  const uploadedMissionId = useMissionStore(s => s.uploadedMissionByDrone[droneId])
+  const requiresMissionUpload = connection?.transport !== 'simulation'
+  const missionReadyForAuto = !requiresMissionUpload || Boolean(
+    activeMission && activeMission.drone_instance_id === droneId && uploadedMissionId === activeMission.id,
+  )
   const [confirm, setConfirm] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const send = async (cmd: string, params = {}) => {
+  const send = async (cmd: string, params: Record<string, unknown> = {}) => {
     setBusy(true)
     try {
       await droneControlApi.command({ drone_id: droneId, command: cmd as any, params })
-      notify.success('Command sent', `'${cmd.toUpperCase()}' accepted for drone ${droneId}`, droneId)
+      if (cmd === 'set_mode' && typeof params.mode === 'string') {
+        const confirmed = await waitForMode(droneId, params.mode)
+        if (confirmed) {
+          notify.success('Flight mode confirmed', `Drone ${droneId} is now in ${params.mode} mode.`, droneId)
+        } else {
+          notify.warning('Mode change unconfirmed', `The command was sent, but telemetry did not confirm ${params.mode} mode within 8 seconds.`, droneId)
+        }
+      } else {
+        notify.success('Command sent', `'${cmd.toUpperCase()}' accepted for drone ${droneId}`, droneId)
+      }
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || 'Unknown error'
       notify.danger('Command failed', `'${cmd.toUpperCase()}' failed: ${detail}`, droneId)
@@ -70,14 +105,20 @@ export function CommandPanel({ droneId }: { droneId: number }) {
         <p className="text-[10px]" style={{ color: '#4b5563' }}>SET MODE</p>
         {['LOITER', 'AUTO', 'GUIDED'].map(m => (
           <button key={m}
-            disabled={busy || frame?.flight_mode === m}
+            disabled={busy || frame?.flight_mode === m || (m === 'AUTO' && !missionReadyForAuto)}
             onClick={() => send('set_mode', { mode: m })}
             className="da-btn da-btn-ghost justify-between text-xs py-1.5"
+            title={m === 'AUTO' && !missionReadyForAuto ? 'Upload the active saved mission to this drone from Plan before enabling AUTO' : undefined}
             style={{ opacity: frame?.flight_mode === m ? 0.5 : 1 }}>
             {m}
             {frame?.flight_mode === m && <span style={{ color: '#22c55e', fontSize: 9 }}>ACTIVE</span>}
           </button>
         ))}
+        {!missionReadyForAuto && (
+          <p className="text-[10px] leading-snug" style={{ color: '#b45309' }}>
+            Upload a saved mission assigned to this drone in Plan before selecting AUTO.
+          </p>
+        )}
       </div>
 
       {/* RTL + Land — highlighted */}

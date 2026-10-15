@@ -21,7 +21,8 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
   const [types, setTypes] = useState<DroneType[]>([])
   const [missionId, setMissionId] = useState<number | ''>('')
   const [droneId, setDroneId] = useState<number | ''>('')
-  const [speedMult, setSpeedMult] = useState(1)
+  const [altitudeM, setAltitudeM] = useState<number | ''>('')
+  const [routeSpeedMs, setRouteSpeedMs] = useState<number | ''>('')
   const [launching, setLaunching] = useState(false)
   const [err, setErr] = useState('')
 
@@ -39,9 +40,20 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
   }, [])
 
   useEffect(() => {
-    if (!missionId) return
+    if (!missionId) {
+      setAltitudeM('')
+      setRouteSpeedMs('')
+      return
+    }
     const mission = missions.find(m => m.id === Number(missionId))
     if (mission?.drone_instance_id) setDroneId(mission.drone_instance_id)
+    const firstRouteWaypoint = [...(mission?.waypoints ?? [])]
+      .filter(waypoint => !waypoint.is_home)
+      .sort((a, b) => a.sequence - b.sequence)[0]
+    setAltitudeM(firstRouteWaypoint?.altitude_m ?? 30)
+    setRouteSpeedMs(firstRouteWaypoint?.speed_ms && firstRouteWaypoint.speed_ms > 0
+      ? firstRouteWaypoint.speed_ms
+      : 10)
   }, [missionId, missions])
 
   // Suggest a fresh call sign / serial / MAVLink sysid whenever switching to "new"
@@ -57,6 +69,15 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
 
   const start = async () => {
     if (!missionId) { setErr('Select a mission'); return }
+    if (altitudeM === '' || routeSpeedMs === '') {
+      setErr('Set both the starting altitude and route speed before starting the simulation'); return
+    }
+    if (!Number.isFinite(altitudeM) || altitudeM <= 0 || altitudeM > 500) {
+      setErr('Simulation altitude must be between 0 and 500 m AGL'); return
+    }
+    if (!Number.isFinite(routeSpeedMs) || routeSpeedMs <= 0 || routeSpeedMs > 100) {
+      setErr('Route speed must be between 0 and 100 m/s'); return
+    }
     setLaunching(true); setErr('')
     try {
       let targetDroneId = droneId
@@ -80,7 +101,8 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
       const payload: SimStartPayload = {
         mission_id: Number(missionId),
         drone_instance_id: Number(targetDroneId),
-        speed_multiplier: speedMult,
+        altitude_m: altitudeM,
+        speed_ms: routeSpeedMs,
       }
       const started = await droneControlApi.simulateStart(payload)
       await useFleetStore.getState().fetchConnections()
@@ -203,23 +225,38 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
 
         <div className="flex flex-col gap-1.5">
           <span className="text-[10px] font-medium" style={{ color: '#64748b' }}>
-            SIMULATION SPEED - {speedMult}x
+            SET BEFORE START (APPLIES TO THE WHOLE SIMULATED ROUTE)
           </span>
-          <div className="grid grid-cols-4 gap-1.5">
-            {[1, 2, 5, 10].map(speed => (
-              <button key={speed} onClick={() => setSpeedMult(speed)}
-                className="rounded py-1.5 text-xs font-medium transition-all"
-                style={{
-                  background: speedMult === speed ? '#dbeafe' : '#ffffff',
-                  color: speedMult === speed ? '#2563eb' : '#334155',
-                  border: `1px solid ${speedMult === speed ? '#93c5fd' : 'var(--da-border)'}`,
-                }}>
-                {speed}x
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px]" style={{ color: '#64748b' }}>STARTING ALTITUDE (m AGL)</span>
+              <input
+                type="number"
+                className="da-input"
+                min="0.1"
+                max="500"
+                step="0.1"
+                placeholder="Enter altitude"
+                value={altitudeM}
+                onChange={e => setAltitudeM(e.target.value === '' ? '' : Number(e.target.value))}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px]" style={{ color: '#64748b' }}>ROUTE SPEED (m/s)</span>
+              <input
+                type="number"
+                className="da-input"
+                min="0.1"
+                max="100"
+                step="0.1"
+                placeholder="Enter speed"
+                value={routeSpeedMs}
+                onChange={e => setRouteSpeedMs(e.target.value === '' ? '' : Number(e.target.value))}
+              />
+            </label>
           </div>
           <p className="text-[10px]" style={{ color: '#64748b' }}>
-            Higher speeds compress flight time. HUD and telemetry still run at full fidelity.
+            These values are set before takeoff and used for every waypoint. You can change them again from the drone marker while it is flying.
           </p>
         </div>
 

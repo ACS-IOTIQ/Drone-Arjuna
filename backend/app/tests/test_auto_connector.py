@@ -125,7 +125,13 @@ def test_scan_linux_serial_no_ports_returns_empty():
 # _build_candidates
 # ══════════════════════════════════════════════════════════════════════
 
-def test_build_candidates_bridge_connected_is_first():
+@pytest.fixture
+def usb_on(monkeypatch):
+    """AUTOCONNECT_USB=true — the legacy behaviour these tests describe."""
+    monkeypatch.setattr(ac, "_usb_autoconnect_enabled", lambda: True)
+
+
+def test_build_candidates_bridge_connected_is_first(usb_on):
     bridge = {"connected": True, "active_port": "COM5", "tcp_port": 5762, "baud": 115200}
     with patch(
         "app.modules.drone_control.auto_connector.serial.tools.list_ports.comports",
@@ -142,7 +148,7 @@ def test_build_candidates_bridge_connected_is_first():
     assert len(candidates) > 1
 
 
-def test_build_candidates_bridge_none_no_bridge_entry():
+def test_build_candidates_bridge_none_no_bridge_entry(usb_on):
     with patch(
         "app.modules.drone_control.auto_connector.serial.tools.list_ports.comports",
         return_value=[],
@@ -158,7 +164,7 @@ def test_build_candidates_bridge_none_no_bridge_entry():
     assert all(c["label"] != "udp:14560" for c in candidates)
 
 
-def test_build_candidates_bridge_present_but_not_connected_no_bridge_entry():
+def test_build_candidates_bridge_present_but_not_connected_no_bridge_entry(usb_on):
     bridge = {"connected": False}
     with patch(
         "app.modules.drone_control.auto_connector.serial.tools.list_ports.comports",
@@ -171,7 +177,7 @@ def test_build_candidates_bridge_present_but_not_connected_no_bridge_entry():
     assert all(c["label"] != "udp:14560" for c in candidates)
 
 
-def test_build_candidates_includes_serial_scan_results():
+def test_build_candidates_includes_serial_scan_results(usb_on):
     fake_port = SimpleNamespace(device="/dev/ttyUSB0", hwid="USB")
     with patch(
         "app.modules.drone_control.auto_connector.serial.tools.list_ports.comports",
@@ -183,6 +189,57 @@ def test_build_candidates_includes_serial_scan_results():
     assert len(serial_candidates) == 4
     # static tcp/udp fallback list (4 entries) + 4 serial = 8
     assert len(candidates) == 8
+
+
+# ── USB auto-connect is OFF by default: USB connects only when the operator asks ──
+
+def test_usb_autoconnect_setting_defaults_off():
+    with patch("app.config.get_settings", return_value=SimpleNamespace(autoconnect_usb=False)):
+        assert ac._usb_autoconnect_enabled() is False
+    with patch("app.config.get_settings", return_value=SimpleNamespace(autoconnect_usb=True)):
+        assert ac._usb_autoconnect_enabled() is True
+
+
+def test_usb_off_leaves_out_bridge_serial_and_bridge_backed_tcp(monkeypatch):
+    monkeypatch.setattr(ac, "_usb_autoconnect_enabled", lambda: False)
+    bridge = {"connected": True, "active_port": "COM5", "tcp_port": 5762, "baud": 460800}
+    fake_port = SimpleNamespace(device="/dev/ttyUSB0", hwid="USB")
+    with patch(
+        "app.modules.drone_control.auto_connector.serial.tools.list_ports.comports",
+        return_value=[fake_port],
+    ):
+        candidates = ac._build_candidates(bridge)
+
+    assert all(not c["label"].startswith("bridge:") for c in candidates)
+    assert all(c["transport"] != "serial" for c in candidates)
+    # the Windows COM bridge's TCP ports are USB too — never probed in the background
+    assert all(c["label"] not in ("tcp:host:5762", "tcp:host:5760") for c in candidates)
+    # network (SITL / forwarded UDP) candidates are untouched
+    assert {c["label"] for c in candidates} == {"udp:14550", "udp:14551"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("usb_enabled, expect_lookup", [(False, False), (True, True)])
+async def test_cable_plug_in_triggers_a_connect_only_when_usb_autoconnect_is_on(
+        monkeypatch, usb_enabled, expect_lookup):
+    """A newly detected COM port must not start a background connect when USB auto-connect
+    is off — it would hold the bridge's single client slot and block the operator's own
+    Connect. The retry timer never elapses here, so the plug-in is the only possible trigger."""
+    monkeypatch.setattr(ac, "_usb_autoconnect_enabled", lambda: usb_enabled)
+    monkeypatch.setattr(ac, "STARTUP_DELAY", 0)
+    monkeypatch.setattr(ac, "RETRY_INTERVAL", 1e12)
+    monkeypatch.setattr(ac, "BRIDGE_POLL_INTERVAL", 0.01)
+    plugged = {"connected": True, "active_port": "COM5", "tcp_port": 5762, "baud": 460800}
+    monkeypatch.setattr(ac, "_get_bridge_status", lambda: plugged)
+    get_unconnected = AsyncMock(return_value=[])
+    monkeypatch.setattr(ac, "_get_unconnected_drones", get_unconnected)
+
+    task = asyncio.create_task(ac.run_auto_connector(MagicMock()))
+    await asyncio.sleep(0.3)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert (get_unconnected.await_count > 0) is expect_lookup
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -312,6 +369,20 @@ async def test_get_unconnected_drones_excludes_live_connections():
     result = await ac._get_unconnected_drones(session_factory)
 
     assert [d.id for d in result] == [2]
+
+
+@pytest.mark.asyncio
+async def test_get_unconnected_drones_skips_operator_disconnected(monkeypatch):
+    """A deliberate Disconnect must not be undone by the background retry loop."""
+    from app.modules.drone_control.mavlink_manager import mavlink_manager
+
+    monkeypatch.setattr(mavlink_manager, "operator_disconnected", {2})
+    drones = [SimpleNamespace(id=1, call_sign="D1", status="active"),
+              SimpleNamespace(id=2, call_sign="D2", status="active")]
+
+    result = await ac._get_unconnected_drones(_fake_session_factory(drones))
+
+    assert [d.id for d in result] == [1]
 
 
 @pytest.mark.asyncio

@@ -6,6 +6,7 @@ import GaugeDashboard from "./GaugeDashboard";
 import TelemetryChart from "./TelemetryChart";
 import SystemLog from "./SystemLog";
 import BlackBox from "./BlackBox";
+import FlightHUD from "../Fly/FlightHUD";
 
 export default function MonitorWorkspace() {
   const { instances, connections, fetchInstances, fetchConnections, startConnectionPolling, stopConnectionPolling } =
@@ -64,15 +65,20 @@ export default function MonitorWorkspace() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            <GaugeDashboard droneId={activeDroneId} />
+            {/* Gauges on the left, live flight HUD in the top-right */}
+            <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="flex min-w-0 flex-col gap-4">
+                <GaugeDashboard droneId={activeDroneId} />
+                <RawTelemetry droneId={activeDroneId} />
+              </div>
+              <div className="xl:order-last">
+                <FlightHUD droneId={activeDroneId} />
+              </div>
+            </div>
             <TelemetryChart droneId={activeDroneId} />
             <BlackBox droneId={activeDroneId} />
 
-            {/* Raw telemetry + system log side by side on wide screens */}
-            <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">
-              <RawTelemetry droneId={activeDroneId} />
-              <SystemLog droneId={activeDroneId} />
-            </div>
+            <SystemLog droneId={activeDroneId} />
           </div>
         )}
       </div>

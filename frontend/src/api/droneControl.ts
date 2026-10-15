@@ -21,6 +21,7 @@ export interface CommandPayload {
     | 'emergency_stop'
     | 'velocity'       // guided velocity command: params { vx, vy, vz }
     | 'goto'           // guided goto: params { lat, lon, alt }
+    | 'set_flight_profile' // simulation only: params { altitude_m?, speed_ms? }
   params?: Record<string, unknown>
 }
 
@@ -28,6 +29,8 @@ export interface SimStartPayload {
   mission_id: number
   drone_instance_id?: number
   speed_multiplier?: number
+  altitude_m?: number
+  speed_ms?: number
 }
 
 export interface PortInfo {

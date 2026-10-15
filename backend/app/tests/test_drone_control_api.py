@@ -696,6 +696,55 @@ async def test_disconnect_unauthenticated_401(client: AsyncClient):
     assert resp.status_code == 401
 
 
+async def test_disconnect_connected_drone_drops_the_link_and_sticks(
+    client: AsyncClient, flight_controller_user, drone_instance, make_token, monkeypatch
+):
+    """
+    Fleet "Disconnect": the live link is closed and removed, and the drone is flagged
+    operator-disconnected so the background auto-connector doesn't reconnect it.
+    """
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+    from app.modules.drone_control.mavlink_manager import mavlink_manager
+
+    monkeypatch.setattr(mavlink_manager, "operator_disconnected", set())
+    did = drone_instance["id"]
+    link = MagicMock()
+    mavlink_manager._connections[did] = SimpleNamespace(
+        connected=True, task=None, home_task=None, mav=link, transport="udp_out",
+    )
+    try:
+        token = make_token(flight_controller_user.id, flight_controller_user.role)
+        resp = await client.post(
+            f"/api/drone-control/disconnect/{did}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 200
+        assert did not in mavlink_manager._connections
+        link.close.assert_called_once()                       # socket/port released
+        assert did in mavlink_manager.operator_disconnected
+    finally:
+        mavlink_manager._connections.pop(did, None)
+
+
+async def test_manual_connect_clears_the_operator_disconnect_flag(
+    client: AsyncClient, flight_controller_user, drone_instance, make_token, monkeypatch
+):
+    """The operator asking to connect again lifts the 'stay disconnected' flag, even if this try fails."""
+    from app.modules.drone_control.mavlink_manager import mavlink_manager
+
+    did = drone_instance["id"]
+    monkeypatch.setattr(mavlink_manager, "operator_disconnected", {did})
+    token = make_token(flight_controller_user.id, flight_controller_user.role)
+    resp = await client.post(
+        "/api/drone-control/connect",
+        json={"drone_instance_id": did, "transport": "udp", "host": "127.0.0.1", "port": 19999},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 503                            # nothing listening
+    assert did not in mavlink_manager.operator_disconnected
+
+
 # ══════════════════════════════════════════════════════════════════════
 # POST /api/drone-control/drones/{drone_id}/geofence
 # ══════════════════════════════════════════════════════════════════════

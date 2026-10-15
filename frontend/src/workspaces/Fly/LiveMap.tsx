@@ -94,6 +94,7 @@ function droneIcon(heading: number, active: boolean, callSign?: string) {
   return L.divIcon({
     className: "",
     iconSize: [boxW, boxH],
+    // The map coordinate is the center of the aircraft symbol itself.
     iconAnchor: [boxW / 2, size / 2],
     html: `<div style="position:relative; width:${boxW}px; height:${boxH}px;">
       <div style="
@@ -128,6 +129,75 @@ function droneIcon(heading: number, active: boolean, callSign?: string) {
       }
     </div>`,
   });
+}
+
+function FlightProfileEditor({ droneId, altitude, speed, isSimulation }: {
+  droneId: number;
+  altitude: number;
+  speed: number;
+  isSimulation: boolean;
+}) {
+  const [altitudeM, setAltitudeM] = useState<number | "">("");
+  const [speedMs, setSpeedMs] = useState<number | "">("");
+  const [saving, setSaving] = useState(false);
+
+  const apply = async () => {
+    if (!isSimulation || (altitudeM === "" && speedMs === "")) return;
+    setSaving(true);
+    try {
+      await droneControlApi.command({
+        drone_id: droneId,
+        command: "set_flight_profile",
+        params: {
+          ...(altitudeM !== "" ? { altitude_m: altitudeM } : {}),
+          ...(speedMs !== "" ? { speed_ms: speedMs } : {}),
+        },
+      });
+      notify.success("Simulation profile updated", "The new value will apply to the remaining route.", droneId);
+      setAltitudeM("");
+      setSpeedMs("");
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail;
+      notify.danger("Profile update failed", typeof detail === "string" ? detail : "Could not update the simulation profile.", droneId);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ fontSize: 12, minWidth: 210 }}>
+      <div style={{ fontWeight: 700, marginBottom: 5 }}>Live flight values</div>
+      <div>Altitude: {altitude.toFixed(1)} m AGL</div>
+      <div>Speed: {speed.toFixed(1)} m/s</div>
+      {isSimulation ? (
+        <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 8, paddingTop: 8 }}>
+          <div style={{ fontWeight: 600, marginBottom: 5 }}>Change remaining route</div>
+          <div style={{ display: "flex", gap: 5 }}>
+            <label style={{ display: "grid", gap: 3, flex: 1, fontSize: 10 }}>
+              Altitude (m AGL)
+              <input type="number" min="0.1" max="500" step="0.1" value={altitudeM}
+                onChange={event => setAltitudeM(event.target.value === "" ? "" : Number(event.target.value))}
+                placeholder="Keep current" style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: 4, padding: "4px 5px" }} />
+            </label>
+            <label style={{ display: "grid", gap: 3, flex: 1, fontSize: 10 }}>
+              Speed (m/s)
+              <input type="number" min="0.1" max="100" step="0.1" value={speedMs}
+                onChange={event => setSpeedMs(event.target.value === "" ? "" : Number(event.target.value))}
+                placeholder="Keep current" style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: 4, padding: "4px 5px" }} />
+            </label>
+          </div>
+          <button type="button" onClick={() => void apply()} disabled={saving || (altitudeM === "" && speedMs === "")}
+            style={{ marginTop: 7, width: "100%", borderRadius: 4, padding: "5px 7px", color: "white", background: saving ? "#94a3b8" : "#2563eb", cursor: saving ? "wait" : "pointer" }}>
+            {saving ? "Applying…" : "Apply to simulation"}
+          </button>
+        </div>
+      ) : (
+        <div style={{ color: "#64748b", marginTop: 7, fontSize: 10 }}>
+          Change hardware mission values in Plan, then upload the mission.
+        </div>
+      )}
+    </div>
+  );
 }
 
 function vesselIcon(heading: number) {
@@ -634,7 +704,7 @@ export default function LiveMap({
   // Only actively-simulated drones with a known position — rendered simultaneously
   const allDrones = Object.entries(frames)
     .map(([id, f]) => ({ id: Number(id), frame: f }))
-    .filter(({ frame: f }) => f && f.sim_phase && (f.lat !== 0 || f.lon !== 0));
+    .filter(({ frame: f }) => f && (f.lat !== 0 || f.lon !== 0));
 
   // Vessels with known positions
   const positionedVessels = vessels.filter(
@@ -799,7 +869,7 @@ export default function LiveMap({
           ))}
 
           {allDrones.map(({ id, frame: f }) =>
-            id === droneId && frame ? (
+            id === droneId && frame && hasPosition ? (
               <Marker
                 key={`drone-${id}`}
                 position={[f.lat, f.lon]}
@@ -845,14 +915,19 @@ export default function LiveMap({
                   </div>
                 </Tooltip>
                 <Popup>
-                  <div style={{ fontSize: 12, minWidth: 150 }}>
+                  <div style={{ fontSize: 12, minWidth: 180 }}>
                     <div style={{ fontWeight: 700, marginBottom: 4 }}>
                       {f.call_sign ?? `Drone #${id}`}
                     </div>
                     <div>Lat: {f.lat.toFixed(6)}</div>
                     <div>Lon: {f.lon.toFixed(6)}</div>
-                    <div style={{ color: "#475569", marginTop: 4 }}>
-                      Alt AGL: {f.alt_agl.toFixed(1)} m
+                    <div style={{ color: "#475569", marginTop: 6 }}>
+                      <FlightProfileEditor
+                        droneId={id}
+                        altitude={f.alt_agl}
+                        speed={f.groundspeed_ms}
+                        isSimulation={Boolean(f.sim_phase)}
+                      />
                     </div>
                   </div>
                 </Popup>

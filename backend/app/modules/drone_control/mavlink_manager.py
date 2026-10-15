@@ -74,6 +74,7 @@ class DroneConnection:
     home_task: Optional[asyncio.Task] = None      # vessel home-point updater
     errors: list[str] = field(default_factory=list)
     link_timeout_s: float = 10.0   # no message received within this window => link considered lost
+    uploaded_mission_id: Optional[int] = None  # set only after final MAVLink MISSION_ACK
 
 
 class MAVLinkManager:
@@ -101,6 +102,10 @@ class MAVLinkManager:
         # both write self._connections[drone_id], leaking whichever one
         # loses that race (its task/socket would never be cleaned up).
         self._connect_locks: dict[int, asyncio.Lock] = {}
+        # Drones the operator explicitly disconnected. The background auto-connector
+        # skips these so a deliberate Disconnect isn't undone by its 15 s retry loop;
+        # any manual Connect / Auto Connect clears the flag again.
+        self.operator_disconnected: set[int] = set()
 
     def _build_connection_string(self, transport: str, host: str, port: int,
                                   serial_port: str, baud_rate: int) -> str:

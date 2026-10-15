@@ -178,7 +178,10 @@ def test_connect_forever_prefers_usb_hwid_port(com_bridge, fresh_device):
 
     mock_ctor = _run_one_iteration(com_bridge, fresh_device, [non_usb_port, usb_port])
 
-    mock_ctor.assert_called_once_with("COM4", com_bridge.BAUD, timeout=0.1, write_timeout=1)
+    mock_ctor.assert_called_once()  # open_serial() builds one unopened Serial
+    opened = fresh_device.serial
+    assert (opened.port, opened.baudrate) == ("COM4", com_bridge.BAUD)
+    opened.open.assert_called_once()
     assert fresh_device.port == "COM4"
     assert fresh_device.description == "Pixhawk"
 
@@ -191,7 +194,10 @@ def test_connect_forever_honors_explicit_requested_port(com_bridge, fresh_device
         com_bridge, fresh_device, [other, wanted], requested="COM7"
     )
 
-    mock_ctor.assert_called_once_with("COM7", com_bridge.BAUD, timeout=0.1, write_timeout=1)
+    mock_ctor.assert_called_once()  # open_serial() builds one unopened Serial
+    opened = fresh_device.serial
+    assert (opened.port, opened.baudrate) == ("COM7", com_bridge.BAUD)
+    opened.open.assert_called_once()
 
 
 def test_connect_forever_falls_back_to_auto_when_requested_port_absent(com_bridge, fresh_device):
@@ -201,7 +207,10 @@ def test_connect_forever_falls_back_to_auto_when_requested_port_absent(com_bridg
         com_bridge, fresh_device, [only_port], requested="COM99"
     )
 
-    mock_ctor.assert_called_once_with("COM9", com_bridge.BAUD, timeout=0.1, write_timeout=1)
+    mock_ctor.assert_called_once()  # open_serial() builds one unopened Serial
+    opened = fresh_device.serial
+    assert (opened.port, opened.baudrate) == ("COM9", com_bridge.BAUD)
+    opened.open.assert_called_once()
 
 
 def test_connect_forever_no_ports_available_waits_without_connecting(com_bridge, fresh_device):
@@ -487,13 +496,19 @@ def test_garbage_is_not_mavlink(com_bridge, data):
 
 def _fake_serial_factory(good_baud, opened):
     class FakeSerial:
-        def __init__(self, device, baud, **_kw):
-            self.baud = baud
+        """Mimics pyserial's unopened-then-open() sequence and records line state at open."""
+        def __init__(self):
+            self.port = self.baudrate = self.timeout = self.write_timeout = None
+            self.dtr = self.rts = True          # pyserial default: asserted
             self.closed = False
-            opened.append(baud)
+            self.is_open = False
+
+        def open(self):
+            self.is_open = True
+            opened.append((self.baudrate, self.dtr, self.rts))
 
         def read(self, _n):
-            return _HB_V2 if self.baud == good_baud else b"\x00\xff\x00"
+            return _HB_V2 if self.baudrate == good_baud else b"\x00\xff\x00"
 
         def close(self):
             self.closed = True
@@ -506,7 +521,7 @@ def test_autobaud_finds_the_baud_that_carries_mavlink(com_bridge, monkeypatch):
     monkeypatch.setattr(com_bridge, "AUTO_BAUD_LISTEN_S", 0.05)
     ser, baud = com_bridge.open_serial_autobaud("COM9")
     assert baud == 57600
-    assert opened == [460800, 115200, 57600]     # stopped at the first hit
+    assert [b for b, _, _ in opened] == [460800, 115200, 57600]     # stopped at the first hit
 
 
 def test_autobaud_holds_first_candidate_when_nothing_is_heard(com_bridge, monkeypatch):
@@ -515,4 +530,20 @@ def test_autobaud_holds_first_candidate_when_nothing_is_heard(com_bridge, monkey
     monkeypatch.setattr(com_bridge, "AUTO_BAUD_LISTEN_S", 0.02)
     ser, baud = com_bridge.open_serial_autobaud("COM9")
     assert baud == com_bridge.AUTO_BAUD_CANDIDATES[0] == 460800
-    assert opened[-1] == 460800 and not ser.closed
+    assert opened[-1][0] == 460800 and not ser.closed
+
+
+def test_ports_open_with_dtr_and_rts_low(com_bridge, monkeypatch):
+    """DTR/RTS drive reset/boot on CP210x ESP32-based radios: they must never be asserted on open."""
+    opened = []
+    monkeypatch.setattr(com_bridge.serial, "Serial", _fake_serial_factory(None, opened))
+    com_bridge.open_serial("COM5", 460800)
+    assert opened == [(460800, False, False)]
+
+
+def test_autobaud_never_asserts_dtr_or_rts(com_bridge, monkeypatch):
+    opened = []
+    monkeypatch.setattr(com_bridge.serial, "Serial", _fake_serial_factory(115200, opened))
+    monkeypatch.setattr(com_bridge, "AUTO_BAUD_LISTEN_S", 0.02)
+    com_bridge.open_serial_autobaud("COM5")
+    assert opened and all(dtr is False and rts is False for _, dtr, rts in opened)

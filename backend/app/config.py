@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     # (other than RADIO_STATUS) are dropped. Empty = signing disabled (dev).
     mavlink_signing_key: str = ""
 
+    # Background auto-connect over USB (COM bridge / serial ports). Off by default:
+    # a USB device only connects when the operator clicks Connect. When on, a cable
+    # plug-in and a 15 s retry loop connect it automatically — and hold the bridge's
+    # single client slot, which blocks a manual connect.
+    autoconnect_usb: bool = False
+
     # Vessel NMEA feed
     # Bind to loopback unless told otherwise; docker-compose sets HF_FEED_HOST=0.0.0.0
     # inside the container and limits the host side with RADIO_BIND_ADDR.

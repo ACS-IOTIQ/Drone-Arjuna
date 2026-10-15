@@ -474,12 +474,14 @@ class MissionPlanner:
 
         mav  = conn.mav
         loop = asyncio.get_event_loop()
+        conn.uploaded_mission_id = None
 
         try:
             items = self._build_mavlink_items(waypoints, mav)
             await loop.run_in_executor(
                 None, lambda: self._send_mission_items(mav, items)
             )
+            conn.uploaded_mission_id = mission.id
             log.info("Mission uploaded", mission_id=mission.id,
                      drone_id=mission.drone_instance_id, items=len(items))
             return {
@@ -519,12 +521,16 @@ class MissionPlanner:
 
         mav  = conn.mav
         loop = asyncio.get_event_loop()
+        conn.uploaded_mission_id = None
 
         try:
             items = MissionPlanner._build_mavlink_items(waypoints, mav)
             await loop.run_in_executor(
                 None, lambda: MissionPlanner._send_mission_items(mav, items)
             )
+            # Draft uploads are not linked to a saved, validated mission and
+            # must never satisfy the backend AUTO authorization check.
+            conn.uploaded_mission_id = None
             log.info("Live waypoint sync uploaded",
                      drone_id=drone_instance_id, items=len(items))
             return {"detail": "Waypoints synced to drone", "items": len(items)}

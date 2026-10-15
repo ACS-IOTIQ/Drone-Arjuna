@@ -111,17 +111,31 @@ def build_target_candidates(host: str, port: int) -> list[dict]:
     return [cand(t) for t in ("udp_out", "tcp", "udp", "tcp_listen")]
 
 
+# Fallback candidates that reach a USB device through the Windows COM bridge.
+_USB_BRIDGE_LABELS = {"tcp:host:5762", "tcp:host:5760"}
+
+
+def _usb_autoconnect_enabled() -> bool:
+    """AUTOCONNECT_USB — off by default: USB devices connect only when the operator asks."""
+    from app.config import get_settings
+    return bool(get_settings().autoconnect_usb)
+
+
 def _build_candidates(bridge: dict | None) -> list[dict]:
     """
     Ordered probe list.
-    Bridge (cable via TCP) is always first — it is the most reliable path.
+    With AUTOCONNECT_USB on, the bridge (cable via TCP) is first — the most reliable
+    path. With it off (default) every USB path is left out — the bridge, serial ports
+    and the bridge-backed TCP fallbacks — so the background loop never claims the
+    bridge's single client slot or a COM port the operator is about to connect.
     Fallback candidates currently in their failure cooldown are skipped
     (see FAILURE_COOLDOWN_S) — bridge/serial candidates are always included
     since they're only present when something real was actually detected.
     """
     candidates = []
+    usb = _usb_autoconnect_enabled()
 
-    if bridge and bridge.get("connected"):
+    if usb and bridge and bridge.get("connected"):
         tcp_port = bridge.get("tcp_port", 5762)
         baud     = bridge.get("baud", 115200)
         candidates.append({
@@ -133,10 +147,13 @@ def _build_candidates(bridge: dict | None) -> list[dict]:
             "label":       f"bridge:{bridge.get('active_port')}->tcp:{tcp_port}",
         })
 
-    candidates += _scan_linux_serial()
+    if usb:
+        candidates += _scan_linux_serial()
 
     now = time.monotonic()
     for c in _FALLBACK_CANDIDATES:
+        if not usb and c["label"] in _USB_BRIDGE_LABELS:
+            continue
         if _candidate_cooldown_until.get(c["label"], 0.0) > now:
             continue
         candidates.append(c)
@@ -239,6 +256,7 @@ async def _get_unconnected_drones(session_factory) -> list:
         d for d in all_drones
         if not (mavlink_manager._connections.get(d.id) and
                 mavlink_manager._connections[d.id].connected)
+        and d.id not in mavlink_manager.operator_disconnected   # a deliberate Disconnect sticks
     ]
     return unconnected
 
@@ -280,7 +298,9 @@ async def run_auto_connector(session_factory) -> None:
             curr_connected  = bool(bridge and bridge.get("connected"))
             curr_port: str | None = bridge.get("active_port") if bridge else None
 
+            # A cable plug-in only triggers a connect when AUTOCONNECT_USB is on.
             cable_just_plugged_in = (
+                _usb_autoconnect_enabled() and
                 curr_connected and
                 (not prev_bridge_connected or curr_port != prev_bridge_port)
             )

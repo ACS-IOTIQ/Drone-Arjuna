@@ -3,7 +3,7 @@
 // DroneCard.tsx
 // ═══════════════════════════════════════════
 import { useTelemetryStore } from '@/store/telemetryStore'
-import { Battery, Wifi, Satellite, Gauge, Navigation, Anchor, Radio, Package, Clock, Trash2 } from 'lucide-react'
+import { Battery, Wifi, Satellite, Gauge, Navigation, Anchor, Radio, Package, Clock, Trash2, Unplug } from 'lucide-react'
 import { getDroneLastActivity, type DroneInstance } from '@/store/fleetStore'
 import type { NavalVessel } from '@/store/vesselStore'
 
@@ -25,9 +25,11 @@ interface Props {
   payloadName?: string
   stale?: boolean
   onRemove?: () => void
+  /** Shown on a connected drone; omitted for simulated flights (stopped from the Fly workspace). */
+  onDisconnect?: () => void
 }
 
-export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloadName, stale = false, onRemove }: Props) {
+export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloadName, stale = false, onRemove, onDisconnect }: Props) {
   const frame = useTelemetryStore(s => s.frames[drone.id])
   const liveFrame = connected ? frame : null
   const lastActivity = getDroneLastActivity(drone)
@@ -141,6 +143,17 @@ export function DroneCard({ drone, connected, homeVessel, connectionInfo, payloa
           </span>
           {stale && <span className="ml-auto font-medium">Inactive 30+ days</span>}
         </div>
+      )}
+
+      {connected && onDisconnect && (
+        <button
+          type="button"
+          className="da-btn da-btn-ghost justify-center text-xs"
+          style={{ color: '#dc2626', borderColor: 'rgba(220,38,38,0.25)' }}
+          onClick={onDisconnect}
+          aria-label={`Disconnect ${drone.call_sign}`}>
+          <Unplug size={12} /> Disconnect
+        </button>
       )}
 
       {stale && onRemove && (

@@ -159,12 +159,19 @@ async def update_mission(
     ):
         raise HTTPException(422, "A drone must be assigned before saving a mission")
 
+    previously_assigned_drone_id = m.drone_instance_id
+
     effective_enforce = body.enforce_airspace if body.enforce_airspace is not None else m.enforce_airspace
     _enforce_airspace(body.waypoints, body.geofence, effective_enforce)
 
     update_data = body.model_dump(exclude_unset=True, exclude={"waypoints"})
     for field, value in update_data.items():
         setattr(m, field, value)
+
+    for drone_id in {previously_assigned_drone_id, m.drone_instance_id} - {None}:
+        conn = mavlink_manager._connections.get(drone_id)
+        if conn and conn.uploaded_mission_id == mid:
+            conn.uploaded_mission_id = None
 
     if body.waypoints is not None:
         await db.execute(delete(Waypoint).where(Waypoint.mission_id == mid))
@@ -208,6 +215,10 @@ async def delete_mission(mid: int, db: DbDep, _: PilotDep):
     m = await db.get(Mission, mid)
     if not m:
         raise HTTPException(404, "Mission not found")
+    if m.drone_instance_id is not None:
+        conn = mavlink_manager._connections.get(m.drone_instance_id)
+        if conn and conn.uploaded_mission_id == mid:
+            conn.uploaded_mission_id = None
     if m.status == "executing":
         raise HTTPException(409, "Cannot delete an executing mission")
     await db.execute(delete(Waypoint).where(Waypoint.mission_id == mid))

@@ -64,6 +64,7 @@ export default function FleetWorkspace() {
     useFleetStore();
   const role = useAuthStore((s) => s.role);
   const subscribe = useTelemetryStore((s) => s.subscribe);
+  const clearDrone = useTelemetryStore((s) => s.clearDrone);
   const { vessels, fetchVessels } = useVesselStore();
   const [showConnect, setShowConnect] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -89,6 +90,14 @@ export default function FleetWorkspace() {
   );
   const [removingDrone, setRemovingDrone] = useState(false);
   const [removeError, setRemoveError] = useState("");
+  const [disconnectCandidate, setDisconnectCandidate] =
+    useState<DroneInstance | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState("");
+  // Boolean selector: re-renders only when the armed state flips, not on every telemetry frame.
+  const disconnectArmed = useTelemetryStore((s) =>
+    disconnectCandidate ? !!s.frames[disconnectCandidate.id]?.is_armed : false,
+  );
 
   const connectedCount = Object.values(connections).filter(
     (c) => c.connected,
@@ -286,6 +295,25 @@ export default function FleetWorkspace() {
           "Payload assignment saved locally; backend route is not reachable.",
       );
       setPayloadAssignments(next || previous);
+    }
+  };
+
+  const disconnectDrone = async () => {
+    if (!disconnectCandidate) return;
+    setDisconnecting(true);
+    setDisconnectError("");
+    try {
+      await droneControlApi.disconnect(disconnectCandidate.id);
+      // Close the live telemetry socket and drop stale frames so the card goes OFFLINE cleanly.
+      clearDrone(disconnectCandidate.id);
+      setDisconnectCandidate(null);
+      await fetchConnections();
+    } catch (e: any) {
+      setDisconnectError(
+        e.response?.data?.detail ?? "Unable to disconnect the drone",
+      );
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -675,6 +703,15 @@ export default function FleetWorkspace() {
                         : undefined
                     }
                     stale={!connections[d.id]?.connected && isDroneStale(d)}
+                    onDisconnect={
+                      connections[d.id]?.connected &&
+                      connections[d.id]?.transport !== "simulation"
+                        ? () => {
+                            setDisconnectError("");
+                            setDisconnectCandidate(d);
+                          }
+                        : undefined
+                    }
                     onRemove={
                       canRemoveStaleDrones
                         ? () => {
@@ -691,6 +728,27 @@ export default function FleetWorkspace() {
       </div>
 
       {showConnect && <ConnectModal onClose={() => setShowConnect(false)} />}
+      {disconnectCandidate && (
+        <ConfirmModal
+          title={`Disconnect ${disconnectCandidate.call_sign}?`}
+          message={
+            disconnectError ||
+            (disconnectArmed
+              ? "This drone is ARMED. Disconnecting ends live telemetry and control from this console; the drone keeps flying on its own failsafes."
+              : "Live telemetry and control for this drone will stop. You can reconnect from Connect at any time.")
+          }
+          confirmLabel="Disconnect"
+          variant={disconnectArmed ? "danger" : "primary"}
+          isLoading={disconnecting}
+          onConfirm={disconnectDrone}
+          onCancel={() => {
+            if (!disconnecting) {
+              setDisconnectCandidate(null);
+              setDisconnectError("");
+            }
+          }}
+        />
+      )}
       {removeCandidate && (
         <ConfirmModal
           title={`Remove ${removeCandidate.call_sign}?`}

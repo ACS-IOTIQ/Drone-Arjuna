@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, CheckCircle2, PanelLeft, Send, XCircle } from 'lucide-react'
+import { Activity, CheckCircle2, PanelLeft, Send, Upload, XCircle } from 'lucide-react'
 import { useMissionStore } from '@/store/missionStore'
 import { useFleetStore } from '@/store/fleetStore'
 import { useVesselStore } from '@/store/vesselStore'
@@ -8,11 +8,11 @@ import MapCanvas from './MapCanvas'
 import MissionEditor from './MissionEditor'
 import LiveOpsPanel from './LiveOpsPanel'
 import FleetAssignModal from './FleetAssignModal'
+import { droneFlightApi } from '@/api/droneFlight'
 
 export default function PlanWorkspace() {
-  const { missions, activeMissionId, fetchMissions, updateMissionStatus } = useMissionStore()
-  const fetchInstances = useFleetStore(s => s.fetchInstances)
-  const fetchConnections = useFleetStore(s => s.fetchConnections)
+  const { missions, activeMissionId, fetchMissions, updateMissionStatus, markMissionUploaded, uploadedMissionByDrone } = useMissionStore()
+  const { instances, connections, fetchInstances, fetchConnections, startConnectionPolling, stopConnectionPolling } = useFleetStore()
   const fetchVessels = useVesselStore(s => s.fetchVessels)
   const [busyAction, setBusyAction] = useState('')
   const [actionErr, setActionErr] = useState('')
@@ -33,10 +33,36 @@ export default function PlanWorkspace() {
     })
   }, [fetchMissions, fetchInstances, fetchConnections, fetchVessels])
 
+  useEffect(() => {
+    startConnectionPolling()
+    return () => stopConnectionPolling()
+  }, [startConnectionPolling, stopConnectionPolling])
+
   const activeMission = useMemo(
     () => missions.find(m => m.id === activeMissionId),
     [missions, activeMissionId],
   )
+  const assignedDroneId = activeMission?.drone_instance_id ?? null
+  const assignedDrone = assignedDroneId == null ? null : instances.find(drone => drone.id === assignedDroneId)
+  const connection = assignedDroneId == null ? null : connections[assignedDroneId]
+  const alreadyUploaded = assignedDroneId != null && activeMissionId != null && uploadedMissionByDrone[assignedDroneId] === activeMissionId
+
+  const uploadActiveMission = async () => {
+    if (!activeMissionId || assignedDroneId == null) return
+    setBusyAction('Upload'); setActionErr('')
+    try {
+      await droneFlightApi.uploadMission(activeMissionId)
+      markMissionUploaded(assignedDroneId, activeMissionId)
+      notify.success('Mission uploaded', `${activeMission?.name ?? 'Mission'} was accepted by ${assignedDrone?.call_sign ?? `Drone #${assignedDroneId}`}. You can now select AUTO in Fly.`)
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail
+      const message = typeof detail === 'string' ? detail : detail?.message ?? 'Mission upload failed'
+      setActionErr(message)
+      notify.danger('Mission upload failed', message)
+    } finally {
+      setBusyAction('')
+    }
+  }
 
   const updateStatus = async (label: string, status: 'planning' | 'approved' | 'aborted') => {
     if (!activeMissionId) return
@@ -92,6 +118,14 @@ export default function PlanWorkspace() {
         </div>
 
         <div className="da-plan-header-actions">
+          <button
+            type="button"
+            className={alreadyUploaded ? 'da-btn da-btn-success' : 'da-btn da-btn-primary'}
+            disabled={!activeMissionId || !assignedDroneId || !connection?.connected || connection.transport === 'simulation' || !!busyAction || alreadyUploaded}
+            title={alreadyUploaded ? 'Mission is uploaded to the assigned drone' : 'Upload the active mission to its connected MAVLink drone'}
+            onClick={() => void uploadActiveMission()}>
+            <Upload size={14} /> <span className="da-plan-btn-label">{busyAction === 'Upload' ? 'Uploading...' : alreadyUploaded ? 'Uploaded' : 'Upload to drone'}</span>
+          </button>
           <button
             type="button"
             className={liveOpsOpen ? 'da-btn da-btn-teal' : 'da-btn da-btn-ghost'}

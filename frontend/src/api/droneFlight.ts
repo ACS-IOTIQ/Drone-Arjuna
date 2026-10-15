@@ -68,6 +68,7 @@ export const droneFlightApi = {
   updateStatus:    (id: number, status: string) =>
     api.patch(`/api/flight/missions/${id}/status`, { status }),
   deleteMission:   (id: number)     => api.delete(`/api/flight/missions/${id}`),
+  uploadMission:   (id: number)     => api.post(`/api/flight/missions/${id}/upload`),
   assignFleet:     (d: FleetAssignInput) =>
     api.post<FleetAssignResult>('/api/flight/assign-fleet', d),
   liveSyncWaypoints: (droneInstanceId: number, waypoints: WaypointInput[], geofence?: object | null) =>

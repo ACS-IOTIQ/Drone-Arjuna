@@ -402,6 +402,18 @@ class _SimulatedFlight:
                     if self.phase == SimPhase.RTL:
                         self.phase = SimPhase.GUIDED
 
+        elif action == "set_flight_profile":
+            altitude = params.get("altitude_m")
+            speed = params.get("speed_ms")
+            for waypoint in self.waypoints[self.wp_idx:]:
+                if altitude is not None:
+                    waypoint["altitude_m"] = float(altitude)
+                    waypoint["altitude_ref"] = "AGL"
+                if speed is not None:
+                    waypoint["speed_ms"] = float(speed)
+            if altitude is not None and self.phase == SimPhase.TAKEOFF:
+                self._target_alt = float(altitude)
+
         elif action == "goto":
             lat = params.get("latitude", params.get("lat"))
             lon = params.get("longitude", params.get("lon"))

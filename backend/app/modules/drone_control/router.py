@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 import structlog
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -15,7 +16,7 @@ from app.core.security import AuditLogger, client_ip
 from app.database import get_db, get_ts_db, AsyncSessionLocal
 from app.models.user import User
 from app.models.mission import Mission, Waypoint
-from app.models.drone import DroneInstance
+from app.models.drone import DroneInstance, DroneType
 from app.schemas.drone import ConnectRequest, CommandRequest, SimStartRequest, SimCommandRequest, AutoConnectRequest, GeofenceSetRequest
 from app.utils.geofence import geofence_store
 from app.utils.geo_utils import all_points_in_geofence
@@ -196,6 +197,8 @@ async def autoconnect_drone(
     if mavlink_manager._connections.get(drone_instance_id, None) and \
        mavlink_manager._connections[drone_instance_id].connected:
         raise HTTPException(status_code=409, detail="Drone is already connected")
+
+    mavlink_manager.operator_disconnected.discard(drone_instance_id)   # operator wants it connected again
 
     # ── Explicit target: probe every link style for it, all at once ──
     if req.host:
@@ -379,6 +382,7 @@ async def connect_drone(
     if not drone or not drone.is_active:
         raise HTTPException(status_code=404, detail="Drone instance not found")
 
+    mavlink_manager.operator_disconnected.discard(req.drone_instance_id)   # operator wants it connected again
     ok = await mavlink_manager.connect(
         drone_id=req.drone_instance_id,
         call_sign=drone.call_sign,
@@ -405,6 +409,7 @@ async def disconnect_drone(
     _: Annotated[User, Depends(require_min_role(Role.FLIGHT_CONTROLLER))],
     db: AsyncSession = Depends(get_db),
 ):
+    mavlink_manager.operator_disconnected.add(drone_id)   # keep the auto-connector from undoing this
     await mavlink_manager.disconnect(drone_id)
     drone = await db.get(DroneInstance, drone_id)
     if drone and drone.is_active:
@@ -453,6 +458,36 @@ async def send_command(
     are restricted to FLIGHT_CONTROLLER and above.
     """
     from app.modules.drone_control.command_controller import CommandResult
+    if req.command == "set_flight_profile":
+        conn = mavlink_manager._connections.get(req.drone_id)
+        if not conn or not conn.connected or conn.transport != "simulation":
+            raise HTTPException(status_code=400, detail="Flight profile edits are available only for an active simulation")
+        params = req.params or {}
+        if not any(key in params for key in ("altitude_m", "speed_ms")):
+            raise HTTPException(status_code=422, detail="Provide altitude_m, speed_ms, or both")
+        try:
+            altitude = float(params["altitude_m"]) if params.get("altitude_m") is not None else None
+            speed = float(params["speed_ms"]) if params.get("speed_ms") is not None else None
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422, detail="Altitude and speed must be numeric")
+        if altitude is not None and (not math.isfinite(altitude) or altitude <= 0 or altitude > 500):
+            raise HTTPException(status_code=422, detail="Altitude must be between 0 and 500 m AGL")
+        if speed is not None and (not math.isfinite(speed) or speed <= 0 or speed > 100):
+            raise HTTPException(status_code=422, detail="Speed must be between 0 and 100 m/s")
+        drone = await db.get(DroneInstance, req.drone_id)
+        drone_type = await db.get(DroneType, drone.drone_type_id) if drone else None
+        if altitude is not None and drone_type and altitude > drone_type.max_altitude_m:
+            raise HTTPException(status_code=422, detail=f"Altitude exceeds this drone type's {drone_type.max_altitude_m:g} m ceiling")
+        if speed is not None and drone_type and speed > drone_type.max_speed_ms:
+            raise HTTPException(status_code=422, detail=f"Speed exceeds this drone type's {drone_type.max_speed_ms:g} m/s maximum")
+        req.params = {**params, **({"altitude_m": altitude} if altitude is not None else {}), **({"speed_ms": speed} if speed is not None else {})}
+    if req.command == "set_mode" and str((req.params or {}).get("mode", "")).upper() == "AUTO":
+        conn = mavlink_manager._connections.get(req.drone_id)
+        if conn and conn.connected and conn.transport != "simulation" and conn.uploaded_mission_id is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Upload a saved mission and receive MAVLink mission acceptance before setting AUTO mode",
+            )
     rec = await mavlink_manager.send_command(req.drone_id, req.command, req.params)
     await AuditLogger(db).command_sent(
         user.id, req.drone_id, req.command,
@@ -670,6 +705,17 @@ async def start_simulation(
     drone = await db.get(DroneInstance, drone_id)
     if not drone or not drone.is_active:
         raise HTTPException(status_code=404, detail="Drone instance not found")
+    drone_type = await db.get(DroneType, drone.drone_type_id)
+    if req.altitude_m is not None and drone_type and req.altitude_m > drone_type.max_altitude_m:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Simulation altitude {req.altitude_m:g} m exceeds this drone type's {drone_type.max_altitude_m:g} m ceiling",
+        )
+    if req.speed_ms is not None and drone_type and req.speed_ms > drone_type.max_speed_ms:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Route speed {req.speed_ms:g} m/s exceeds this drone type's {drone_type.max_speed_ms:g} m/s maximum",
+        )
 
     # Fetch waypoints ordered by sequence, skip home waypoints
     result = await db.execute(
@@ -708,6 +754,13 @@ async def start_simulation(
         }
         for w in wps
     ]
+    if req.altitude_m is not None:
+        for waypoint in waypoint_dicts:
+            waypoint["altitude_m"] = req.altitude_m
+            waypoint["altitude_ref"] = "AGL"
+    if req.speed_ms is not None:
+        for waypoint in waypoint_dicts:
+            waypoint["speed_ms"] = req.speed_ms
 
     # A geofence may have been drawn/edited after these waypoints were saved —
     # re-check now so we never arm a fence that will RTL the drone mid-mission

@@ -31,7 +31,6 @@ import {
 import { useMissionStore, type GeoPoint } from "@/store/missionStore";
 import { useFleetStore } from "@/store/fleetStore";
 import { useTelemetryStore } from "@/store/telemetryStore";
-import { droneFlightApi } from "@/api/droneFlight";
 import { notify } from "@/store/notificationStore";
 import { buildZoneLayers } from "@/utils/geofenceZones";
 import {
@@ -395,6 +394,23 @@ function MapResizeHandler() {
   return null;
 }
 
+function LiveDroneMapFollower({ lat, lon, droneId }: { lat: number; lon: number; droneId: number }) {
+  const map = useMap();
+  const lastDroneIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return;
+    if (lastDroneIdRef.current !== droneId) {
+      map.setView([lat, lon], Math.max(map.getZoom(), 15), { animate: true });
+      lastDroneIdRef.current = droneId;
+      return;
+    }
+    map.panTo([lat, lon], { animate: true, duration: 0.4 });
+  }, [lat, lon, droneId, map]);
+
+  return null;
+}
+
 type MapCanvasProps = {
   onFleetAssign?: () => void;
 };
@@ -416,6 +432,7 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
     setGovernmentZonesEnabled,
   } = useMissionStore();
   const instances = useFleetStore((s) => s.instances);
+  const connections = useFleetStore((s) => s.connections);
   const [drawing, setDrawing] = useState(false);
   const [routeDrawing, setRouteDrawing] = useState(true);
   const [manualLat, setManualLat] = useState("");
@@ -438,7 +455,11 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
     () => missions.find((m) => m.id === activeMissionId) ?? null,
     [missions, activeMissionId],
   );
-  const liveDroneId = activeMission?.drone_instance_id ?? null;
+  const assignedDroneId = activeMission?.drone_instance_id ?? null;
+  const fallbackDroneId = instances.find((drone) => connections[drone.id]?.connected)?.id ?? null;
+  const liveDroneId = assignedDroneId != null
+    ? (connections[assignedDroneId]?.connected ? assignedDroneId : null)
+    : fallbackDroneId;
   const liveFrame = useTelemetryStore((s) =>
     liveDroneId != null ? s.frames[liveDroneId] : null,
   );
@@ -454,41 +475,6 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
   useEffect(() => {
     if (liveDroneId != null) subscribeTelemetry(liveDroneId);
   }, [liveDroneId, subscribeTelemetry]);
-
-  // While the operator draws/drags waypoints, mirror the draft route straight
-  // to the drone over its live MAVLink link (UDP for SITL) — debounced so
-  // dragging a vertex doesn't flood the link with a re-upload every frame.
-  const connections = useFleetStore((s) => s.connections);
-  const isMavlinkConnected =
-    liveDroneId != null &&
-    connections[liveDroneId]?.connected &&
-    connections[liveDroneId]?.transport !== "simulation";
-
-  useEffect(() => {
-    if (
-      !isMavlinkConnected ||
-      liveDroneId == null ||
-      draftWaypoints.length === 0
-    )
-      return;
-    const handle = setTimeout(() => {
-      droneFlightApi
-        .liveSyncWaypoints(
-          liveDroneId,
-          draftWaypoints,
-          geofence.length >= 3 ? { geofence } : null,
-        )
-        .catch((err: any) => {
-          notify.danger(
-            "Live waypoint sync failed",
-            err?.response?.data?.detail ||
-              err?.message ||
-              "Could not push waypoints to the drone",
-          );
-        });
-    }, 500);
-    return () => clearTimeout(handle);
-  }, [draftWaypoints, geofence, isMavlinkConnected, liveDroneId]);
 
   const otherMissions = useMemo(
     () =>
@@ -1145,19 +1131,33 @@ export default function MapCanvas({ onFleetAssign }: MapCanvasProps) {
             })}
 
             {hasLivePosition && liveFrame && (
-              <Marker
-                position={[liveFrame.lat, liveFrame.lon]}
-                icon={liveDroneIcon(
-                  liveFrame.heading ?? 0,
-                  droneName(liveDroneId),
-                )}
-                zIndexOffset={1000}
-              >
-                <Tooltip direction="top" offset={[0, -16]}>
-                  {droneName(liveDroneId)} · {liveFrame.flight_mode} ·{" "}
-                  {Math.round(liveFrame.alt_agl ?? 0)} m AGL
-                </Tooltip>
-              </Marker>
+              <>
+                <LiveDroneMapFollower
+                  key={`live-drone-follow-${liveDroneId}`}
+                  droneId={liveDroneId!}
+                  lat={liveFrame.lat}
+                  lon={liveFrame.lon}
+                />
+                <Marker
+                  position={[liveFrame.lat, liveFrame.lon]}
+                  icon={liveDroneIcon(liveFrame.heading ?? 0, droneName(liveDroneId))}
+                  zIndexOffset={1000}
+                >
+                  <Tooltip direction="top" offset={[0, -16]}>
+                    {droneName(liveDroneId)} | {liveFrame.flight_mode} | {Math.round(liveFrame.alt_agl ?? 0)} m AGL | {liveFrame.groundspeed_ms.toFixed(1)} m/s
+                  </Tooltip>
+                  <Popup>
+                    <div style={{ minWidth: 170, fontSize: 12 }}>
+                      <strong>{droneName(liveDroneId)}</strong>
+                      <div>Lat: {liveFrame.lat.toFixed(6)}</div>
+                      <div>Lon: {liveFrame.lon.toFixed(6)}</div>
+                      <div style={{ marginTop: 4 }}>Altitude: {liveFrame.alt_agl.toFixed(1)} m AGL</div>
+                      <div>Speed: {liveFrame.groundspeed_ms.toFixed(1)} m/s</div>
+                      <div>Mode: {liveFrame.flight_mode}</div>
+                    </div>
+                  </Popup>
+                </Marker>
+              </>
             )}
 
             <MapClickHandler

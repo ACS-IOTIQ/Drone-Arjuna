@@ -1,5 +1,5 @@
 {
-  "fingerprint": "33ace3f708754cb2c3ee4eae09f27c6c5a88bccb0a2be1bdeecbb65e2fd2442b",
+  "fingerprint": "83680dbe9d57905585731c88caacb3c3311afb6c08db90d626b2e6644ca7af74",
   "nodeids": [
     "app/tests/test_drone_control_api.py::test_autoconnect_already_connected_409",
     "app/tests/test_drone_control_api.py::test_autoconnect_drone_not_found_404",
@@ -11,6 +11,7 @@
     "app/tests/test_drone_control_api.py::test_connect_no_heartbeat_returns_503",
     "app/tests/test_drone_control_api.py::test_connect_unauthenticated_401",
     "app/tests/test_drone_control_api.py::test_connect_viewer_403",
+    "app/tests/test_drone_control_api.py::test_disconnect_connected_drone_drops_the_link_and_sticks",
     "app/tests/test_drone_control_api.py::test_disconnect_not_connected_returns_200",
     "app/tests/test_drone_control_api.py::test_disconnect_unauthenticated_401",
     "app/tests/test_drone_control_api.py::test_disconnect_viewer_403",
@@ -24,6 +25,7 @@
     "app/tests/test_drone_control_api.py::test_list_ports_includes_connected_windows_bridge",
     "app/tests/test_drone_control_api.py::test_list_ports_unauthenticated_401",
     "app/tests/test_drone_control_api.py::test_list_ports_viewer_200",
+    "app/tests/test_drone_control_api.py::test_manual_connect_clears_the_operator_disconnect_flag",
     "app/tests/test_drone_control_api.py::test_simulate_start_already_running_409",
     "app/tests/test_drone_control_api.py::test_simulate_start_drone_not_found_404",
     "app/tests/test_drone_control_api.py::test_simulate_start_mission_not_found_404",

@@ -33,39 +33,43 @@ export default function FlyWorkspace() {
     return () => stopConnectionPolling()
   }, [])
 
-  const simulatingDrones = useMemo(
+  const connectedDrones = useMemo(
     () => instances.filter(
-      drone => connections[drone.id]?.connected && connections[drone.id]?.transport === 'simulation',
+      drone => connections[drone.id]?.connected,
     ),
     [instances, connections],
   )
-  const simulatingDroneIds = useMemo(
-    () => new Set(simulatingDrones.map(drone => drone.id)),
-    [simulatingDrones],
+  const simulationDrones = useMemo(
+    () => connectedDrones.filter(drone => connections[drone.id]?.transport === 'simulation'),
+    [connectedDrones, connections],
   )
-  const selectedSimulationExists = simulatingDrones.some(drone => drone.id === selectedDroneId)
-  const activeDroneId = selectedSimulationExists ? selectedDroneId : simulatingDrones[0]?.id ?? null
+  const connectedDroneIds = useMemo(
+    () => new Set(connectedDrones.map(drone => drone.id)),
+    [connectedDrones],
+  )
+  const selectedConnectedDroneExists = connectedDrones.some(drone => drone.id === selectedDroneId)
+  const activeDroneId = selectedConnectedDroneExists ? selectedDroneId : connectedDrones[0]?.id ?? null
   const manualShiftAlert = useMemo(
-    () => simulatingDrones
+    () => simulationDrones
       .map(drone => ({ drone, frame: frames[drone.id] }))
       .find(({ drone, frame }) => {
         if (!frame?.manual_control_required || !frame?.proximity_alert) return false
         if (frame.proximity_intruder_drone_id == null) return false
         if (frame.proximity_intruder_drone_id === drone.id) return false
-        return simulatingDroneIds.has(frame.proximity_intruder_drone_id)
+        return connectedDroneIds.has(frame.proximity_intruder_drone_id)
       }) ?? null,
-    [simulatingDrones, simulatingDroneIds, frames],
+    [simulationDrones, connectedDroneIds, frames],
   )
 
   useEffect(() => {
-    if (simulatingDrones.length > 0) setHasEverSimulated(true)
-  }, [simulatingDrones.length])
+    if (simulationDrones.length > 0) setHasEverSimulated(true)
+  }, [simulationDrones.length])
 
   useEffect(() => {
     // Deliberately no unsubscribe on unmount/dep-change - telemetry sockets
     // are shared app-wide and should survive workspace switches.
-    simulatingDrones.forEach(drone => subscribe(drone.id))
-  }, [simulatingDrones.map(drone => drone.id).join(',')])
+    connectedDrones.forEach(drone => subscribe(drone.id))
+  }, [connectedDrones.map(drone => drone.id).join(',')])
 
   useEffect(() => {
     setActivePanel(activeDroneId ? 'telemetry' : null)
@@ -104,18 +108,18 @@ export default function FlyWorkspace() {
   return (
     <div className={`da-fly-workspace ${activePanel ? 'control-open' : ''}`}>
       <header className="da-fly-header">
-        <div className="da-fly-drone-strip" aria-label="Simulating drones">
-          {simulatingDrones.length === 0 ? (
-            <div className="da-fly-no-drone"><Activity size={14} /> No active simulation</div>
+        <div className="da-fly-drone-strip" aria-label="Connected drones">
+          {connectedDrones.length === 0 ? (
+            <div className="da-fly-no-drone"><Activity size={14} /> No connected drones</div>
           ) : (
-            simulatingDrones.map(drone => (
+            connectedDrones.map(drone => (
               <button
                 key={drone.id}
                 type="button"
                 className={drone.id === activeDroneId ? 'da-fly-drone is-active' : 'da-fly-drone'}
                 onClick={() => setSelectedDroneId(drone.id)}>
                 <span>{drone.call_sign}</span>
-                <b>SIM</b>
+                <b>{connections[drone.id]?.transport === 'simulation' ? 'SIM' : 'GPS'}</b>
               </button>
             ))
           )}

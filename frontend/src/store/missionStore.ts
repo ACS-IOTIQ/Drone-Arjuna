@@ -36,6 +36,9 @@ interface MissionState {
   geofence: GeoPoint[];
   isLoading: boolean;
   governmentZonesEnabled: boolean;
+  uploadedMissionByDrone: Record<number, number>;
+  markMissionUploaded: (droneId: number, missionId: number) => void;
+  invalidateActiveMissionUpload: () => void;
   setGovernmentZonesEnabled: (enabled: boolean) => void;
   fetchMissions: () => Promise<void>;
   setActiveMission: (id: number | null) => void;
@@ -93,6 +96,17 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   geofence: [],
   isLoading: false,
   governmentZonesEnabled: true,
+  uploadedMissionByDrone: {},
+
+  markMissionUploaded: (droneId, missionId) =>
+    set((s) => ({ uploadedMissionByDrone: { ...s.uploadedMissionByDrone, [droneId]: missionId } })),
+  invalidateActiveMissionUpload: () => set((s) => {
+    const mission = s.missions.find((item) => item.id === s.activeMissionId);
+    if (!mission?.drone_instance_id || s.uploadedMissionByDrone[mission.drone_instance_id] !== mission.id) return {};
+    const uploadedMissionByDrone = { ...s.uploadedMissionByDrone };
+    delete uploadedMissionByDrone[mission.drone_instance_id];
+    return { uploadedMissionByDrone };
+  }),
 
   setGovernmentZonesEnabled: (enabled) =>
     set({ governmentZonesEnabled: enabled }),
@@ -109,12 +123,15 @@ export const useMissionStore = create<MissionState>((set, get) => ({
 
   setActiveMission: (id) => set({ activeMissionId: id }),
 
-  addWaypoint: (wp) =>
+  addWaypoint: (wp) => {
+    get().invalidateActiveMissionUpload();
     set((s) => ({
       draftWaypoints: [...s.draftWaypoints, wp],
-    })),
+    }));
+  },
 
-  removeWaypoint: (seq) =>
+  removeWaypoint: (seq) => {
+    get().invalidateActiveMissionUpload();
     set((s) => {
       const removedHome = s.draftWaypoints.some(
         (w) => w.sequence === seq && w.is_home,
@@ -128,32 +145,39 @@ export const useMissionStore = create<MissionState>((set, get) => ({
             is_home: removedHome ? false : w.is_home,
           })),
       };
-    }),
+    });
+  },
 
-  setHomeWaypoint: (seq) =>
+  setHomeWaypoint: (seq) => {
+    get().invalidateActiveMissionUpload();
     set((s) => ({
       draftWaypoints: s.draftWaypoints.map((w) => ({
         ...w,
         is_home: w.sequence === seq,
       })),
-    })),
+    }));
+  },
 
-  clearHomeWaypoint: (seq) =>
+  clearHomeWaypoint: (seq) => {
+    get().invalidateActiveMissionUpload();
     set((s) => ({
       draftWaypoints: s.draftWaypoints.map((w) => ({
         ...w,
         is_home: seq != null ? (w.sequence === seq ? false : w.is_home) : false,
       })),
-    })),
+    }));
+  },
 
-  setGeofence: (points) => set({ geofence: points }),
+  setGeofence: (points) => { get().invalidateActiveMissionUpload(); set({ geofence: points }); },
 
-  updateGeofencePoint: (idx, point) =>
+  updateGeofencePoint: (idx, point) => {
+    get().invalidateActiveMissionUpload();
     set((s) => ({
       geofence: s.geofence.map((p, i) => (i === idx ? point : p)),
-    })),
+    }));
+  },
 
-  clearGeofence: () => set({ geofence: [] }),
+  clearGeofence: () => { get().invalidateActiveMissionUpload(); set({ geofence: [] }); },
 
   clearDraft: () =>
     set({ draftWaypoints: [], geofence: [], activeMissionId: null }),
@@ -187,6 +211,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
     homePointType = "fixed",
     homeVesselId,
   ) => {
+    get().invalidateActiveMissionUpload();
     const { data } = await droneFlightApi.updateMission(id, {
       name,
       mission_type: type,
@@ -225,6 +250,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   },
 
   deleteMission: async (id) => {
+    get().invalidateActiveMissionUpload();
     await droneFlightApi.deleteMission(id);
     set((s) => {
       const deletingActiveMission = s.activeMissionId === id;

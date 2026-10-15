@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Activity, Gamepad2, Gauge, Plus, SlidersHorizontal, X } from 'lucide-react'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
+import { droneControlApi } from '@/api/droneControl'
 import LiveMap from './LiveMap'
 import InstrumentHUD from './InstrumentHUD'
 import CommandPanel from './CommandPanel'
@@ -60,10 +61,42 @@ export default function FlyWorkspace() {
       }) ?? null,
     [simulationDrones, connectedDroneIds, frames],
   )
+  const activeConnection = activeDroneId ? connections[activeDroneId] : null
+  const isSimulated = activeConnection?.transport === 'simulation'
+  const activeDrone = instances.find(drone => drone.id === activeDroneId) ?? null
 
   useEffect(() => {
     if (simulationDrones.length > 0) setHasEverSimulated(true)
   }, [simulationDrones.length])
+
+  // Connection polling can briefly miss a simulation transition (for example
+  // while the backend is busy). Check the simulator's authoritative status
+  // while a simulated drone is selected so a naturally completed flight
+  // cannot leave the workspace stuck on a dead connection.
+  useEffect(() => {
+    if (!isSimulated || !activeDroneId) return
+    let cancelled = false
+    const checkSimulation = async () => {
+      try {
+        const { data } = await droneControlApi.simulateStatus(activeDroneId)
+        if (cancelled || data?.active) return
+        clearDrone(activeDroneId)
+        await fetchConnections()
+        if (!cancelled) {
+          setSelectedDroneId(null)
+          setActivePanel(null)
+        }
+      } catch {
+        // The regular connection poll and telemetry reconnect handle transient failures.
+      }
+    }
+    void checkSimulation()
+    const timer = window.setInterval(() => { void checkSimulation() }, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [isSimulated, activeDroneId, clearDrone, fetchConnections])
 
   useEffect(() => {
     // Deliberately no unsubscribe on unmount/dep-change - telemetry sockets
@@ -74,10 +107,6 @@ export default function FlyWorkspace() {
   useEffect(() => {
     setActivePanel(activeDroneId ? 'telemetry' : null)
   }, [activeDroneId])
-
-  const activeConnection = activeDroneId ? connections[activeDroneId] : null
-  const isSimulated = activeConnection?.transport === 'simulation'
-  const activeDrone = instances.find(drone => drone.id === activeDroneId) ?? null
 
   const handleSimStopped = async () => {
     if (activeDroneId) clearDrone(activeDroneId)

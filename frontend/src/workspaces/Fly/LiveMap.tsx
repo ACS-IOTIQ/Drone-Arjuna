@@ -15,6 +15,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import { droneControlApi } from "@/api/droneControl";
+import { droneMasterApi } from "@/api/droneMaster";
 import { useMissionStore, type GeoPoint } from "@/store/missionStore";
 import type { WaypointInput } from "@/api/droneFlight";
 import { notify } from "@/store/notificationStore";
@@ -131,18 +132,47 @@ function droneIcon(heading: number, active: boolean, callSign?: string) {
   });
 }
 
-function FlightProfileEditor({ droneId, altitude, speed, isSimulation }: {
+function FlightProfileEditor({ droneId, altitude, speed, isSimulation, regulatoryAltitudeLimit }: {
   droneId: number;
   altitude: number;
   speed: number;
   isSimulation: boolean;
+  regulatoryAltitudeLimit: number | null;
 }) {
   const [altitudeM, setAltitudeM] = useState<number | "">("");
   const [speedMs, setSpeedMs] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
+  const [maxAltitudeM, setMaxAltitudeM] = useState<number | null>(null);
+  const [maxSpeedMs, setMaxSpeedMs] = useState<number | null>(null);
+  const [profileError, setProfileError] = useState("");
+
+  useEffect(() => {
+    if (!isSimulation) return;
+    let cancelled = false;
+    droneMasterApi.getDroneTypeSpec(droneId).then(({ data }) => {
+      if (!cancelled) {
+        setMaxAltitudeM(Number(data.max_altitude_m));
+        setMaxSpeedMs(Number(data.max_speed_ms));
+      }
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [droneId, isSimulation]);
 
   const apply = async () => {
     if (!isSimulation || (altitudeM === "" && speedMs === "")) return;
+    if (altitudeM !== "" && maxAltitudeM != null && altitudeM > maxAltitudeM) {
+      setProfileError(`Altitude exceeds this drone type's ${maxAltitudeM} m maximum.`);
+      return;
+    }
+    if (altitudeM !== "" && regulatoryAltitudeLimit != null && altitudeM > regulatoryAltitudeLimit) {
+      setProfileError(`Altitude exceeds this airspace's ${regulatoryAltitudeLimit} m limit. Airspace automation would lower it again.`);
+      return;
+    }
+    if (speedMs !== "" && maxSpeedMs != null && speedMs > maxSpeedMs) {
+      setProfileError(`Speed exceeds this drone type's ${maxSpeedMs} m/s maximum.`);
+      return;
+    }
+    setProfileError("");
     setSaving(true);
     try {
       await droneControlApi.command({
@@ -153,12 +183,14 @@ function FlightProfileEditor({ droneId, altitude, speed, isSimulation }: {
           ...(speedMs !== "" ? { speed_ms: speedMs } : {}),
         },
       });
-      notify.success("Simulation profile updated", "The new value will apply to the remaining route.", droneId);
+      notify.success("Simulation profile updated", "The new value is applied to the current leg and remaining route.", droneId);
       setAltitudeM("");
       setSpeedMs("");
     } catch (error: any) {
       const detail = error?.response?.data?.detail;
-      notify.danger("Profile update failed", typeof detail === "string" ? detail : "Could not update the simulation profile.", droneId);
+      const message = typeof detail === "string" ? detail : "Could not update the simulation profile.";
+      setProfileError(message);
+      notify.danger("Profile update failed", message, droneId);
     } finally {
       setSaving(false);
     }
@@ -175,17 +207,28 @@ function FlightProfileEditor({ droneId, altitude, speed, isSimulation }: {
           <div style={{ display: "flex", gap: 5 }}>
             <label style={{ display: "grid", gap: 3, flex: 1, fontSize: 10 }}>
               Altitude (m AGL)
-              <input type="number" min="0.1" max="500" step="0.1" value={altitudeM}
-                onChange={event => setAltitudeM(event.target.value === "" ? "" : Number(event.target.value))}
+                <input type="number" min="0.1" max={Math.min(maxAltitudeM ?? 500, regulatoryAltitudeLimit ?? 500)} step="0.1" value={altitudeM}
+                onChange={event => { setProfileError(""); setAltitudeM(event.target.value === "" ? "" : Number(event.target.value)); }}
                 placeholder="Keep current" style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: 4, padding: "4px 5px" }} />
             </label>
             <label style={{ display: "grid", gap: 3, flex: 1, fontSize: 10 }}>
               Speed (m/s)
-              <input type="number" min="0.1" max="100" step="0.1" value={speedMs}
-                onChange={event => setSpeedMs(event.target.value === "" ? "" : Number(event.target.value))}
+                <input type="number" min="0.1" max={maxSpeedMs ?? 100} step="0.1" value={speedMs}
+                onChange={event => { setProfileError(""); setSpeedMs(event.target.value === "" ? "" : Number(event.target.value)); }}
                 placeholder="Keep current" style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: 4, padding: "4px 5px" }} />
             </label>
           </div>
+          {profileError && <div role="alert" style={{ color: "#b91c1c", marginTop: 5 }}>{profileError}</div>}
+          {(maxAltitudeM != null || maxSpeedMs != null) && (
+            <div style={{ color: "#64748b", marginTop: 4, fontSize: 10 }}>
+              Type limits: {maxAltitudeM != null ? `${maxAltitudeM} m AGL` : "altitude unavailable"} / {maxSpeedMs != null ? `${maxSpeedMs} m/s` : "speed unavailable"}
+            </div>
+          )}
+          {regulatoryAltitudeLimit != null && (
+            <div style={{ color: "#64748b", marginTop: 3, fontSize: 10 }}>
+              Airspace altitude limit: {regulatoryAltitudeLimit} m AGL
+            </div>
+          )}
           <button type="button" onClick={() => void apply()} disabled={saving || (altitudeM === "" && speedMs === "")}
             style={{ marginTop: 7, width: "100%", borderRadius: 4, padding: "5px 7px", color: "white", background: saving ? "#94a3b8" : "#2563eb", cursor: saving ? "wait" : "pointer" }}>
             {saving ? "Applying…" : "Apply to simulation"}
@@ -632,14 +675,19 @@ export default function LiveMap({
           );
           await droneControlApi.command({
             drone_id: droneId,
-            command: "goto",
-            params: {
-              latitude: frame.lat,
-              longitude: frame.lon,
-              altitude_m: targetAlt,
-              altitude_only: true,
-              source: "airspace_auto",
-            },
+            // A simulated goto replaces the active waypoint. Use a profile
+            // update so altitude compliance does not discard the planned
+            // route or leave the simulator holding at the drone's old position.
+            command: frame.sim_phase ? "set_flight_profile" : "goto",
+            params: frame.sim_phase
+              ? { altitude_m: targetAlt, source: "airspace_auto" }
+              : {
+                  latitude: frame.lat,
+                  longitude: frame.lon,
+                  altitude_m: targetAlt,
+                  altitude_only: true,
+                  source: "airspace_auto",
+                },
           });
           autoActionRef.current.set(zoneKey, Date.now());
           notify.warning(
@@ -927,6 +975,7 @@ export default function LiveMap({
                         altitude={f.alt_agl}
                         speed={f.groundspeed_ms}
                         isSimulation={Boolean(f.sim_phase)}
+                        regulatoryAltitudeLimit={getRegulatoryRule(f.lat, f.lon, 0)?.maxAltitudeM ?? null}
                       />
                     </div>
                   </div>

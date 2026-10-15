@@ -10,6 +10,7 @@ export const droneMasterApi = {
   archiveType:  (id: number) => api.delete(`/api/master/drone-types/${id}`),
 
   listDrones:   ()          => api.get('/api/master/drones'),
+  getDroneTypeSpec: (droneId: number) => api.get(`/api/master/drones/${droneId}/type-spec`),
   createDrone:  (d: object) => api.post('/api/master/drones', d),
   updateDrone:  (id: number, d: object) => api.put(`/api/master/drones/${id}`, d),
   getDrone:     (id: number) => api.get(`/api/master/drones/${id}`),

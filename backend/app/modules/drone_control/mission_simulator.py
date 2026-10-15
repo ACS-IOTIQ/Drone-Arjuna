@@ -265,6 +265,13 @@ class _SimulatedFlight:
         mavlink_broadcaster.set_command_handler(drone_id, self._handle_external_command)
 
     async def command(self, action: str, params: dict = {}):
+        # Apply live flight-profile edits immediately. The normal queue drains
+        # once per tick and then runs physics, which can overwrite the requested
+        # speed before the HTTP caller can observe it.
+        if action == "set_flight_profile":
+            self._handle_cmd(action, params)
+            await self._push()
+            return
         await self._cmds.put((action, params))
 
     async def stop(self):
@@ -405,14 +412,30 @@ class _SimulatedFlight:
         elif action == "set_flight_profile":
             altitude = params.get("altitude_m")
             speed = params.get("speed_ms")
+            # Apply edits to the active waypoint as well as the remaining route.
+            # Otherwise the current leg keeps its old speed until the next
+            # waypoint, which makes an in-flight speed change appear ignored.
             for waypoint in self.waypoints[self.wp_idx:]:
                 if altitude is not None:
                     waypoint["altitude_m"] = float(altitude)
                     waypoint["altitude_ref"] = "AGL"
                 if speed is not None:
                     waypoint["speed_ms"] = float(speed)
-            if altitude is not None and self.phase == SimPhase.TAKEOFF:
-                self._target_alt = float(altitude)
+            if speed is not None:
+                self.groundspeed = float(speed)
+                self.airspeed = float(speed)
+            if altitude is not None:
+                target_altitude = float(altitude)
+                # During flight, changing waypoint altitude alone can leave the
+                # simulator chasing the previous takeoff target. Retarget the
+                # vehicle immediately and let the next physics tick climb or
+                # descend to this requested AGL altitude.
+                self._target_alt = target_altitude
+            # LOITER maps to PAUSED in this simulator. A profile edit explicitly
+            # asks to continue on the configured route, so resume only when a
+            # route waypoint is still pending; completed missions remain held.
+            if self.phase == SimPhase.PAUSED and self.wp_idx < len(self.waypoints):
+                self.phase = SimPhase.FLYING
 
         elif action == "goto":
             lat = params.get("latitude", params.get("lat"))
@@ -541,7 +564,15 @@ class _SimulatedFlight:
             self.alt   += climb * dt
             self.climb_rate = climb
             self.throttle   = 78.0
-            self.airspeed   = 2.0
+            # Keep telemetry consistent with the route speed configured at
+            # launch, including during climb and at the exact first waypoint.
+            route_speed = (
+                float(self.waypoints[self.wp_idx].get("speed_ms") or self.CRUISE_MS)
+                if self.waypoints and self.wp_idx < len(self.waypoints)
+                else self.CRUISE_MS
+            )
+            self.groundspeed = route_speed
+            self.airspeed   = route_speed
             self.pitch      = 12.0
             if self.alt >= self._target_alt:
                 self.alt        = self._target_alt
@@ -565,6 +596,8 @@ class _SimulatedFlight:
             t_lon  = float(wp["longitude"])
             t_alt  = float(wp.get("altitude_m", 30.0))
             spd    = float(wp.get("speed_ms") or self.CRUISE_MS) * self.speed_mult
+            self.groundspeed = spd
+            self.airspeed = self.groundspeed
 
             dist = _haversine_m(self.lat, self.lon, t_lat, t_lon)
             tgt_hdg = _bearing_deg(self.lat, self.lon, t_lat, t_lon) if dist > 0.5 else self.heading
@@ -592,7 +625,6 @@ class _SimulatedFlight:
             )
             self.pitch       = max(min(alt_err * 0.4, 15.0), -12.0)
             self.roll        = max(min(hdg_err * 0.25, 30.0), -30.0)
-            self.groundspeed = float(wp.get("speed_ms") or self.CRUISE_MS)
             self.airspeed    = self.groundspeed + (1.0 if alt_err > 1.0 else 0.0)
             self.throttle    = 60.0 + (15.0 if alt_err > 2.0 else 0.0)
             self.battery_pct = max(0.0, self.battery_pct - self.BATT_DRAIN * dt)

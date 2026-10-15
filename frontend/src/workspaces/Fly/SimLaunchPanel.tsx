@@ -50,10 +50,17 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
     const firstRouteWaypoint = [...(mission?.waypoints ?? [])]
       .filter(waypoint => !waypoint.is_home)
       .sort((a, b) => a.sequence - b.sequence)[0]
-    setAltitudeM(firstRouteWaypoint?.altitude_m ?? 30)
-    setRouteSpeedMs(firstRouteWaypoint?.speed_ms && firstRouteWaypoint.speed_ms > 0
-      ? firstRouteWaypoint.speed_ms
-      : 10)
+    // Mission selection can refresh the missions array after the operator has
+    // already edited these fields. Keep explicit user input instead of
+    // replacing it whenever that array changes.
+    setAltitudeM(current => current === ''
+      ? (firstRouteWaypoint?.altitude_m ?? 30)
+      : current)
+    setRouteSpeedMs(current => current === ''
+      ? (firstRouteWaypoint?.speed_ms && firstRouteWaypoint.speed_ms > 0
+        ? firstRouteWaypoint.speed_ms
+        : 10)
+      : current)
   }, [missionId, missions])
 
   // Suggest a fresh call sign / serial / MAVLink sysid whenever switching to "new"

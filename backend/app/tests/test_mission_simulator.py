@@ -29,6 +29,99 @@ def make_flight() -> _SimulatedFlight:
     return flight
 
 
+def test_set_flight_profile_updates_active_and_remaining_waypoints():
+    flight = make_flight()
+    flight.waypoints = [
+        {"latitude": 12.98, "longitude": 77.60, "altitude_m": 30.0, "speed_ms": 10.0},
+        {"latitude": 12.99, "longitude": 77.61, "altitude_m": 30.0, "speed_ms": 10.0},
+    ]
+    flight.wp_idx = 0
+    flight.phase = SimPhase.FLYING
+
+    flight._handle_cmd("set_flight_profile", {"speed_ms": 6.0})
+
+    assert [wp["speed_ms"] for wp in flight.waypoints] == [6.0, 6.0]
+    assert flight.groundspeed == 6.0
+    assert flight.airspeed == 6.0
+
+    # The next physics tick must use the new speed for both movement and
+    # telemetry, instead of restoring the original waypoint speed.
+    flight._tick(1.0 / flight.TICK_HZ)
+    assert flight.groundspeed == 6.0
+    assert flight.airspeed == pytest.approx(6.0)
+
+
+def test_tick_reports_launch_route_speed_during_takeoff():
+    flight = make_flight()
+    flight.waypoints = [{
+        "latitude": 12.98, "longitude": 77.60,
+        "altitude_m": 42.0, "speed_ms": 7.5,
+    }]
+    flight.phase = SimPhase.TAKEOFF
+    flight._target_alt = 42.0
+
+    flight._tick(1.0 / flight.TICK_HZ)
+
+    assert flight.groundspeed == pytest.approx(7.5)
+    assert flight.airspeed == pytest.approx(7.5)
+
+
+def test_set_flight_profile_retargets_live_altitude_during_flight():
+    flight = make_flight()
+    flight.waypoints = [{
+        "latitude": 12.98, "longitude": 77.60,
+        "altitude_m": 120.0, "speed_ms": 30.0,
+    }]
+    flight.wp_idx = 0
+    flight.alt = 120.0
+    flight.phase = SimPhase.FLYING
+
+    flight._handle_cmd("set_flight_profile", {"altitude_m": 130.0})
+
+    assert flight.waypoints[0]["altitude_m"] == 130.0
+    assert flight._target_alt == 130.0
+    flight._tick(1.0 / flight.TICK_HZ)
+    assert flight.alt > 120.0
+
+
+def test_repeated_flight_profile_updates_preserve_waypoint_route_and_heading():
+    flight = make_flight()
+    flight.waypoints = [
+        {"sequence": 1, "latitude": 12.98, "longitude": 77.60,
+         "altitude_m": 30.0, "speed_ms": 10.0},
+        {"sequence": 2, "latitude": 12.99, "longitude": 77.61,
+         "altitude_m": 35.0, "speed_ms": 12.0},
+    ]
+    flight.wp_idx = 0
+    flight.alt = 30.0
+    flight.heading = 73.0
+    flight.phase = SimPhase.FLYING
+    route = [(wp["latitude"], wp["longitude"]) for wp in flight.waypoints]
+
+    flight._handle_cmd("set_flight_profile", {"altitude_m": 40.0, "speed_ms": 14.0})
+    flight._handle_cmd("set_flight_profile", {"altitude_m": 45.0, "speed_ms": 16.0})
+
+    assert [(wp["latitude"], wp["longitude"]) for wp in flight.waypoints] == route
+    assert flight.wp_idx == 0
+    assert flight.heading == pytest.approx(73.0)
+    assert [wp["altitude_m"] for wp in flight.waypoints] == [45.0, 45.0]
+    assert [wp["speed_ms"] for wp in flight.waypoints] == [16.0, 16.0]
+
+
+def test_flight_profile_edit_resumes_paused_drone_with_remaining_route():
+    flight = make_flight()
+    flight.waypoints = [{
+        "sequence": 1, "latitude": 12.98, "longitude": 77.60,
+        "altitude_m": 30.0, "speed_ms": 10.0,
+    }]
+    flight.phase = SimPhase.PAUSED
+    flight.wp_idx = 0
+
+    flight._handle_cmd("set_flight_profile", {"altitude_m": 35.0, "speed_ms": 12.0})
+
+    assert flight.phase == SimPhase.FLYING
+
+
 @pytest.mark.asyncio
 async def test_simulated_flight_pushes_state_to_mission_planner_broadcaster():
     flight = make_flight()

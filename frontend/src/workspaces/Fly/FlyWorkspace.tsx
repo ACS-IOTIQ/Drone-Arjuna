@@ -115,7 +115,7 @@ export default function FlyWorkspace() {
     setActivePanel(null)
   }
 
-  const handleSimStarted = async (droneId: number) => {
+  const handleDroneFocused = async (droneId: number) => {
     subscribe(droneId)
     setSelectedDroneId(droneId)
     await fetchInstances()
@@ -250,7 +250,8 @@ export default function FlyWorkspace() {
 
       {launcherVisible && (
         <SimLaunchPanel
-          onStarted={handleSimStarted}
+          onStarted={handleDroneFocused}
+          onDroneAssigned={handleDroneFocused}
           onClose={activeDroneId || hasEverSimulated ? () => setShowLauncher(false) : undefined}
         />
       )}

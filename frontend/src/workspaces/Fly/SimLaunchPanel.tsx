@@ -7,15 +7,18 @@ import { droneMasterApi } from '@/api/droneMaster'
 
 interface Props {
   onStarted: (droneId: number) => void
+  onDroneAssigned: (droneId: number) => void
   onClose?: () => void
 }
 
 interface DroneType { id: number; name: string; manufacturer: string; model: string }
 
-export default function SimLaunchPanel({ onStarted, onClose }: Props) {
+export default function SimLaunchPanel({ onStarted, onDroneAssigned, onClose }: Props) {
   const { missions, fetchMissions } = useMissionStore()
   const { instances, connections, fetchInstances, fetchConnections } = useFleetStore()
-  const availableDrones = instances.filter(d => !connections[d.id]?.connected)
+  const selectableDrones = instances.filter(
+    d => !connections[d.id]?.connected || connections[d.id]?.transport !== 'simulation',
+  )
 
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
   const [types, setTypes] = useState<DroneType[]>([])
@@ -41,12 +44,13 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
 
   useEffect(() => {
     if (!missionId) {
+      setDroneId('')
       setAltitudeM('')
       setRouteSpeedMs('')
       return
     }
     const mission = missions.find(m => m.id === Number(missionId))
-    if (mission?.drone_instance_id) setDroneId(mission.drone_instance_id)
+    setDroneId(mission?.drone_instance_id ?? '')
     const firstRouteWaypoint = [...(mission?.waypoints ?? [])]
       .filter(waypoint => !waypoint.is_home)
       .sort((a, b) => a.sequence - b.sequence)[0]
@@ -63,6 +67,14 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
       : current)
   }, [missionId, missions])
 
+  const selectedConnection = typeof droneId === 'number' ? connections[droneId] : undefined
+  const selectedDroneIsGpsConnected = Boolean(
+    selectedConnection?.connected && selectedConnection.transport !== 'simulation',
+  )
+  const selectedDroneIsSimulating = Boolean(
+    selectedConnection?.connected && selectedConnection.transport === 'simulation',
+  )
+
   // Suggest a fresh call sign / serial / MAVLink sysid whenever switching to "new"
   useEffect(() => {
     if (mode !== 'new') return
@@ -76,22 +88,34 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
 
   const start = async () => {
     if (!missionId) { setErr('Select a mission'); return }
-    if (altitudeM === '' || routeSpeedMs === '') {
-      setErr('Set both the starting altitude and route speed before starting the simulation'); return
-    }
-    if (!Number.isFinite(altitudeM) || altitudeM <= 0 || altitudeM > 500) {
-      setErr('Simulation altitude must be between 0 and 500 m AGL'); return
-    }
-    if (!Number.isFinite(routeSpeedMs) || routeSpeedMs <= 0 || routeSpeedMs > 100) {
-      setErr('Route speed must be between 0 and 100 m/s'); return
-    }
-    setLaunching(true); setErr('')
+    if (mode === 'existing' && !droneId) { setErr('Select a drone'); return }
+
+    setLaunching(true)
+    setErr('')
     try {
+      if (mode === 'existing' && selectedDroneIsSimulating) {
+        setErr('This drone is already flying a simulation')
+        return
+      }
+
+      if (altitudeM === '' || routeSpeedMs === '') {
+        setErr('Set both the starting altitude and route speed before starting the simulation')
+        return
+      }
+      if (!Number.isFinite(altitudeM) || altitudeM <= 0 || altitudeM > 500) {
+        setErr('Simulation altitude must be between 0 and 500 m AGL')
+        return
+      }
+      if (!Number.isFinite(routeSpeedMs) || routeSpeedMs <= 0 || routeSpeedMs > 100) {
+        setErr('Route speed must be between 0 and 100 m/s')
+        return
+      }
       let targetDroneId = droneId
 
       if (mode === 'new') {
         if (!newTypeId || !newCallSign.trim() || !newSerial.trim()) {
-          setErr('Drone type, call sign, and serial number are required'); setLaunching(false); return
+          setErr('Drone type, call sign, and serial number are required')
+          return
         }
         const created = await droneMasterApi.createDrone({
           call_sign: newCallSign.trim(),
@@ -102,8 +126,6 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
         targetDroneId = created.data.id
         await fetchInstances()
       }
-
-      if (!targetDroneId) { setErr('Select a drone'); setLaunching(false); return }
 
       const payload: SimStartPayload = {
         mission_id: Number(missionId),
@@ -174,12 +196,14 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
 
         {mode === 'existing' ? (
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-medium" style={{ color: '#64748b' }}>SIMULATED DRONE</span>
+            <span className="text-[10px] font-medium" style={{ color: '#64748b' }}>DRONE</span>
             <select className="da-input" value={droneId}
               onChange={e => setDroneId(e.target.value ? Number(e.target.value) : '')}>
               <option value="">Select drone</option>
-              {availableDrones.map(d => (
-                <option key={d.id} value={d.id}>{d.call_sign}</option>
+              {selectableDrones.map(d => (
+                <option key={d.id} value={d.id}>
+                  {d.call_sign}{connections[d.id]?.connected ? ' — GPS connected' : ''}
+                </option>
               ))}
             </select>
             {instances.length === 0 && (
@@ -187,9 +211,14 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
                 No drones registered yet — switch to "+ New drone" to create one.
               </p>
             )}
-            {instances.length > 0 && availableDrones.length === 0 && (
+            {instances.length > 0 && selectableDrones.length === 0 && (
               <p className="text-[10px]" style={{ color: '#64748b' }}>
-                All registered drones are already connected/simulating.
+                All registered drones are already flying simulations.
+              </p>
+            )}
+            {selectedDroneIsSimulating && (
+              <p className="text-[10px] text-amber-700">
+                This drone is already flying a simulation. Select another drone.
               </p>
             )}
           </label>
@@ -271,8 +300,10 @@ export default function SimLaunchPanel({ onStarted, onClose }: Props) {
 
         <button onClick={start}
           disabled={
-            launching || !missionId ||
-            (mode === 'existing' ? !droneId : !newTypeId || !newCallSign.trim() || !newSerial.trim())
+            launching || !missionId || (mode === 'existing' && selectedDroneIsSimulating) ||
+            (mode === 'existing'
+              ? !droneId
+              : !newTypeId || !newCallSign.trim() || !newSerial.trim())
           }
           className="da-btn da-btn-primary justify-center">
           <Play size={14} />

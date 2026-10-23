@@ -275,6 +275,10 @@ async def run_auto_connector(session_factory) -> None:
       Retry loop      — every RETRY_INTERVAL seconds, reconnects any drone
                         that lost its connection.
     """
+    if not _usb_autoconnect_enabled():
+        log.info("autoconnect.disabled", hint="Use the Connect button to start a connection scan")
+        return
+
     log.info("autoconnect.started",
              bridge_poll_s=BRIDGE_POLL_INTERVAL,
              retry_s=RETRY_INTERVAL)

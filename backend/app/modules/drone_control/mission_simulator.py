@@ -376,9 +376,17 @@ class _SimulatedFlight:
                 log.warning("Takeoff rejected — invalid phase", drone_id=self.drone_id, phase=self.phase.value)
 
         elif action == "set_mode":
-            mode = params.get("mode", "")
-            if mode == "AUTO" and self.phase in (SimPhase.ARMED,):
-                self._target_alt = float(self.waypoints[0]["altitude_m"]) if self.waypoints else 30.0
+            mode = str(params.get("mode", "")).upper()
+            if mode == "AUTO" and self.phase in (SimPhase.IDLE, SimPhase.ARMED):
+                # A simulation starts in IDLE with the saved mission already
+                # loaded. Selecting AUTO should therefore behave like an
+                # accepted mission start: arm, climb to the first leg altitude,
+                # then let the FLYING state advance through the waypoints.
+                if not self.waypoints:
+                    log.warning("AUTO rejected — simulated mission has no waypoints", drone_id=self.drone_id)
+                    return
+                self.is_armed = True
+                self._target_alt = float(self.waypoints[0].get("altitude_m", 30.0))
                 self.phase = SimPhase.TAKEOFF
             elif mode == "RTL":
                 self._enter_rtl(shortest_path=True)
@@ -388,7 +396,7 @@ class _SimulatedFlight:
                 self.phase = SimPhase.GUIDED
             elif mode == "LOITER" and self.phase == SimPhase.FLYING:
                 self.phase = SimPhase.PAUSED
-            elif mode in ("AUTO", "STABILIZE") and self.phase in (SimPhase.GUIDED, SimPhase.PAUSED):
+            elif mode == "AUTO" and self.phase in (SimPhase.GUIDED, SimPhase.PAUSED):
                 self.phase = SimPhase.FLYING
 
         elif action == "rtl":

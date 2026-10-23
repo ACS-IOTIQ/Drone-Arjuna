@@ -21,6 +21,8 @@ export interface MissionInput {
   description?: string
   mission_type?: string
   drone_instance_id?: number
+  altitude_m?: number
+  speed_ms?: number
   home_point_type?: string
   home_vessel_id?: number
   waypoints?: WaypointInput[]
@@ -68,7 +70,9 @@ export const droneFlightApi = {
   updateStatus:    (id: number, status: string) =>
     api.patch(`/api/flight/missions/${id}/status`, { status }),
   deleteMission:   (id: number)     => api.delete(`/api/flight/missions/${id}`),
-  uploadMission:   (id: number)     => api.post(`/api/flight/missions/${id}/upload`),
+  // Mission uploads wait for the flight controller's item requests and final
+  // MISSION_ACK; large routes over serial/radio can exceed the default API timeout.
+  uploadMission:   (id: number)     => api.post(`/api/flight/missions/${id}/upload`, {}, { timeout: 120000 }),
   assignFleet:     (d: FleetAssignInput) =>
     api.post<FleetAssignResult>('/api/flight/assign-fleet', d),
   liveSyncWaypoints: (droneInstanceId: number, waypoints: WaypointInput[], geofence?: object | null) =>

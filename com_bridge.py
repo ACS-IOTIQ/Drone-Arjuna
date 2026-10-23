@@ -153,11 +153,17 @@ class SerialDevice:
 
     def connect_forever(self):
         while True:
-            if self.serial and self.serial.is_open:
-                time.sleep(1)
-                continue
-
             ports = list(serial.tools.list_ports.comports())
+            if self.serial and self.serial.is_open:
+                port_still_present = any(
+                    p.device.upper() == (self.port or "").upper() for p in ports
+                )
+                if port_still_present:
+                    time.sleep(1)
+                    continue
+                print(f"[bridge] {self.port} disappeared; closing stale serial handle")
+                self.mark_disconnected()
+
             selected = None
 
             if REQUESTED_PORT.lower() != "auto":
@@ -170,8 +176,25 @@ class SerialDevice:
                     )
 
             if not selected and ports:
+                # In auto mode, do not grab motherboard/virtual serial ports
+                # (for example Intel AMT SOL on COM3). They look like valid
+                # COM devices but cannot carry the flight controller's MAVLink.
+                # Explicit COM_PORT selection remains available for non-USB
+                # radios and adapters.
+                usb_ports = [
+                    p for p in ports
+                    if "USB" in (p.hwid or "").upper()
+                    or "USB" in (p.description or "").upper()
+                ]
+                if not usb_ports:
+                    available = ", ".join(
+                        f"{p.device} ({p.description or p.device})" for p in ports
+                    ) or "none"
+                    print(f"[bridge] waiting for USB serial device (visible: {available})")
+                    time.sleep(2)
+                    continue
                 selected = sorted(
-                    ports,
+                    usb_ports,
                     key=lambda p: ("USB" not in (p.hwid or "").upper(), p.device),
                 )[0]
 

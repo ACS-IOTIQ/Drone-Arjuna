@@ -43,6 +43,7 @@ function Start-DroneArjunaBridge {
         if ($status.connected -eq $true -and $status.tcp_port) {
             Write-Host "[bridge] COM bridge ready: $($status.active_port) -> host.docker.internal:$($status.tcp_port)." -ForegroundColor DarkGray
         } else {
+            Write-Host "[bridge] NOT CONNECTED - no serial device is open." -ForegroundColor Yellow
             $portsText = Get-DroneArjunaBridgePortsText -Status $status
             if ($portsText -eq "none") {
                 Write-Host "[bridge] COM bridge is running and waiting for a Windows serial device. None detected yet." -ForegroundColor Yellow
@@ -57,7 +58,7 @@ function Start-DroneArjunaBridge {
     if (Test-Path "VBSPATH_PLACEHOLDER") {
         Start-Process wscript.exe -ArgumentList """VBSPATH_PLACEHOLDER""" -WindowStyle Hidden
     } else {
-        Start-Process python -ArgumentList """BRIDGESCRIPT_PLACEHOLDER""" -WindowStyle Minimized
+        Start-Process -FilePath python -ArgumentList ('"{0}" auto 460800' -f "BRIDGESCRIPT_PLACEHOLDER") -WindowStyle Normal
     }
 
     Start-Sleep -Seconds 3
@@ -65,6 +66,7 @@ function Start-DroneArjunaBridge {
     if ($status -and $status.connected -eq $true) {
         Write-Host "[bridge] Bridge ready: $($status.active_port) -> host.docker.internal:$($status.tcp_port)." -ForegroundColor Green
     } elseif ($status) {
+        Write-Host "[bridge] NOT CONNECTED - no serial device is open." -ForegroundColor Yellow
         $portsText = Get-DroneArjunaBridgePortsText -Status $status
         if ($portsText -eq "none") {
             Write-Host "[bridge] Bridge started and is waiting for a Windows serial device. Plug in or replug the drone." -ForegroundColor Yellow
@@ -72,7 +74,7 @@ function Start-DroneArjunaBridge {
             Write-Host "[bridge] Bridge started, but the serial port is not open yet. If one of these is your drone, close Mission Planner/QGC first: $portsText" -ForegroundColor Yellow
         }
     } else {
-        Write-Host "[bridge] Bridge did not start. Check bridge.err.log." -ForegroundColor Red
+        Write-Host "[bridge] NOT CONNECTED - bridge did not start. Check bridge.err.log." -ForegroundColor Red
     }
 }
 
@@ -80,7 +82,7 @@ function Invoke-Docker {
     $dockerArgs = @($args)
     $argsStr = $dockerArgs -join " "
 
-    if ($dockerArgs.Count -gt 0 -and $dockerArgs[0] -eq "compose" -and $argsStr -notmatch "\b(down|stop)\b") {
+    if ($dockerArgs.Count -gt 0 -and $dockerArgs[0] -eq "compose" -and $argsStr -notmatch '(down|stop)') {
         Start-DroneArjunaBridge
     }
 

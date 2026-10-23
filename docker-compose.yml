@@ -1,3 +1,5 @@
+name: dronearjuna
+
 services:
 
   # ── PostgreSQL + PostGIS ──────────────────────────────────────────
@@ -194,6 +196,7 @@ services:
       MINIO_USER: ${MINIO_USER:-da_minio}
       MINIO_PASSWORD: ${MINIO_PASSWORD:?set MINIO_PASSWORD in .env}
       HF_FEED_HOST: 0.0.0.0     # inside the container; the host side is limited by RADIO_BIND_ADDR
+      AUTOCONNECT_USB: ${AUTOCONNECT_USB:-false}  # only connect when the operator clicks Connect
     ports:
       - "127.0.0.1:8000:8000"
       - "${RADIO_BIND_ADDR:-127.0.0.1}:14550:14550/udp"   # ArduPilot SITL / MAVLink UDP inbound
@@ -240,7 +243,7 @@ services:
     container_name: da_frontend
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${FRONTEND_PORT:-3001}:3000"
     depends_on:
       - backend
     volumes:

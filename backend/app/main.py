@@ -27,7 +27,12 @@ from app.modules.drone_control.router import router as control_router
 from app.modules.drone_master.router import router as master_router
 from app.modules.drone_inventory.router import router as inventory_router
 from app.modules.drone_flight.router import router as flight_router
-from app.modules.drone_analyst.router import router as analyst_router
+try:
+    from app.modules.drone_analyst.router import router as analyst_router
+except ModuleNotFoundError as exc:
+    if exc.name != "app.modules.drone_analyst":
+        raise
+    analyst_router = None
 
 # Auth router
 from app.core.auth import router as auth_router, ensure_default_admin
@@ -100,8 +105,11 @@ async def lifespan(app: FastAPI):
             await init_rabbitmq()
             from app.modules.drone_control.mavlink_manager import mavlink_manager
             await mavlink_manager.start_geofence_rtl_consumer()
-            from app.modules.drone_analyst.job_consumer import start_job_consumer
-            await start_job_consumer()
+            if analyst_router is not None:
+                from app.modules.drone_analyst.job_consumer import start_job_consumer
+                await start_job_consumer()
+            else:
+                log.warning("Drone Analyst module is missing; analyst routes and jobs are disabled")
             from app.core.storage import ensure_bucket
             await ensure_bucket()
             await data_recorder.start()
@@ -194,7 +202,8 @@ app.include_router(control_router,   prefix="/api/drone-control", tags=["Drone C
 app.include_router(master_router,    prefix="/api/master",    tags=["Drone Master"])
 app.include_router(inventory_router, prefix="/api/inventory", tags=["Drone Inventory"])
 app.include_router(flight_router,    prefix="/api/flight",    tags=["Drone Flight"])
-app.include_router(analyst_router,   prefix="/api/analyst",   tags=["Drone Analyst"])
+if analyst_router is not None:
+    app.include_router(analyst_router, prefix="/api/analyst", tags=["Drone Analyst"])
 
 
 @app.get("/api/health", tags=["System"])

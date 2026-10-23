@@ -16,6 +16,7 @@ Distinct from:
 """
 import math
 import asyncio
+import time
 import structlog
 from dataclasses import dataclass, field
 from typing import Optional
@@ -29,6 +30,7 @@ from app.models.drone import DroneType, DroneInstance
 from app.models.vessel import NavalVessel
 from app.modules.drone_flight.geo_service import haversine_m, CRUISE_SPEED_MS
 from app.modules.drone_control.mavlink_manager import mavlink_manager
+from app.utils.mavlink_executor import mavlink_executor
 from app.utils.geo_utils import (
     point_in_polygon, geojson_polygon_to_ring, bearing_deg,
 )
@@ -219,6 +221,16 @@ class MissionValidator:
             self._check_payload_weight(mission, drone_type, result)
             self._check_altitude_limits(waypoints, drone_type, result)
             self._check_speed_limits(waypoints, drone_type, result)
+            if mission.altitude_m is not None and mission.altitude_m > drone_type.max_altitude_m - self.ALTITUDE_MARGIN_M:
+                result.add_error(
+                    f"Mission altitude {mission.altitude_m:g} m exceeds safe ceiling "
+                    f"{drone_type.max_altitude_m - self.ALTITUDE_MARGIN_M:g} m for {drone_type.name}"
+                )
+            if mission.speed_ms is not None and mission.speed_ms > drone_type.max_speed_ms:
+                result.add_error(
+                    f"Mission speed {mission.speed_ms:g} m/s exceeds max speed "
+                    f"{drone_type.max_speed_ms:g} m/s for {drone_type.name}"
+                )
             self._check_battery_budget(waypoints, drone_type, result, vessel=vessel)
             self._check_leg_distance(waypoints, drone_type, result)
 
@@ -240,11 +252,10 @@ class MissionValidator:
         if not wps:
             r.add_error("Mission has no waypoints")
             return
-        if len(wps) < 2:
-            r.add_error("Mission needs at least 2 waypoints (home + one target)")
+        target_count = sum(1 for w in wps if not w.is_home)
+        if target_count < 1:
+            r.add_error("Mission needs at least one target waypoint")
         home_count = sum(1 for w in wps if w.is_home)
-        if home_count == 0:
-            r.add_error("Mission has no home/takeoff waypoint (is_home=True)")
         if home_count > 1:
             r.add_error(f"Mission has {home_count} home waypoints — only 1 allowed")
         seqs = [w.sequence for w in wps]
@@ -477,9 +488,14 @@ class MissionPlanner:
         conn.uploaded_mission_id = None
 
         try:
-            items = self._build_mavlink_items(waypoints, mav)
+            items = self._build_mavlink_items(
+                waypoints, mav,
+                altitude_m=mission.altitude_m,
+                speed_ms=mission.speed_ms,
+            )
             await loop.run_in_executor(
-                None, lambda: self._send_mission_items(mav, items)
+                mavlink_executor,
+                lambda: self._send_mission_items(mav, items, conn.io_lock),
             )
             conn.uploaded_mission_id = mission.id
             log.info("Mission uploaded", mission_id=mission.id,
@@ -526,7 +542,8 @@ class MissionPlanner:
         try:
             items = MissionPlanner._build_mavlink_items(waypoints, mav)
             await loop.run_in_executor(
-                None, lambda: MissionPlanner._send_mission_items(mav, items)
+                mavlink_executor,
+                lambda: MissionPlanner._send_mission_items(mav, items, conn.io_lock),
             )
             # Draft uploads are not linked to a saved, validated mission and
             # must never satisfy the backend AUTO authorization check.
@@ -539,11 +556,17 @@ class MissionPlanner:
             raise HTTPException(503, f"Live waypoint sync failed: {e}")
 
     @staticmethod
-    def _build_mavlink_items(waypoints: list, mav) -> list[dict]:
+    def _build_mavlink_items(
+        waypoints: list, mav, altitude_m: Optional[float] = None,
+        speed_ms: Optional[float] = None,
+    ) -> list[dict]:
         """Converts waypoint objects (ORM or schema) to MAVLink mission item dicts."""
         items = []
 
-        # Item 0 — home position (required by MAVLink protocol)
+        # Item 0 — home slot required by the MAVLink mission protocol. If the
+        # plan has no explicit home waypoint, use the first target as the slot
+        # placeholder; ArduCopter records its actual RTL home when the operator
+        # arms the aircraft. The target is still sent below as sequence 1.
         home = next((w for w in waypoints if w.is_home), waypoints[0])
         items.append({
             "seq":     0,
@@ -561,10 +584,29 @@ class MissionPlanner:
             if wp.is_home:
                 continue
 
+            # MAV_CMD_NAV_WAYPOINT param4 is yaw, not speed. Send an explicit
+            # DO_CHANGE_SPEED mission item so the autopilot applies the
+            # waypoint's requested ground speed while running in AUTO.
+            speed = speed_ms if speed_ms is not None else getattr(wp, "speed_ms", None)
+            if speed is not None and float(speed) > 0:
+                items.append({
+                    "seq": len(items),
+                    "frame": mavutil.mavlink.MAV_FRAME_MISSION,
+                    "command": mavutil.mavlink.MAV_CMD_DO_CHANGE_SPEED,
+                    "current": 0,
+                    "lat": 0, "lon": 0, "alt": 0,
+                    "param1": 1,             # ground speed
+                    "param2": float(speed),
+                    "param3": -1,            # leave throttle unchanged
+                    "param4": 0,
+                })
+
             cmd, p1, p2, p3, p4 = MissionPlanner._action_to_mavlink(wp)
-            frame = (mavutil.mavlink.MAV_FRAME_GLOBAL_INT
-                     if wp.altitude_ref == "MSL"
-                     else mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT)
+            frame = (
+                mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT
+                if altitude_m is not None or wp.altitude_ref != "MSL"
+                else mavutil.mavlink.MAV_FRAME_GLOBAL_INT
+            )
 
             items.append({
                 "seq":     len(items),
@@ -573,7 +615,7 @@ class MissionPlanner:
                 "current": 0,
                 "lat":     int(wp.latitude  * 1e7),
                 "lon":     int(wp.longitude * 1e7),
-                "alt":     wp.altitude_m,
+                "alt":     altitude_m if altitude_m is not None else wp.altitude_m,
                 "param1":  p1, "param2": p2, "param3": p3, "param4": p4,
             })
 
@@ -592,57 +634,83 @@ class MissionPlanner:
         if wp.action == "photo":
             return (mavutil.mavlink.MAV_CMD_DO_DIGICAM_CONTROL, 0, 0, 0, 1)
         # Default: simple navigation waypoint
-        speed = wp.speed_ms or 0
-        return (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 0, 0, speed)
+        return (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 0, 0, 0)
 
     @staticmethod
-    def _send_mission_items(mav, items: list[dict]):
+    def _send_mission_items(mav, items: list[dict], io_lock=None):
         """
         Synchronous mission upload protocol.
-        Runs in executor — blocks until MISSION_ACK received.
+        Runs in executor — owns the connection receive lock through the complete
+        request/item/ACK exchange, so the background telemetry reader cannot
+        consume mission-protocol messages.
         """
-        count = len(items)
-        mav.mav.mission_count_send(
-            mav.target_system, mav.target_component, count
-        )
-        # Respond to MISSION_REQUEST / MISSION_REQUEST_INT messages
-        for _ in range(count):
-            msg = mav.recv_match(
-                type=["MISSION_REQUEST", "MISSION_REQUEST_INT"],
-                blocking=True, timeout=5
+        def _transfer():
+            count = len(items)
+            mav.mav.mission_count_send(
+                mav.target_system, mav.target_component, count
             )
-            if not msg:
-                raise TimeoutError("No MISSION_REQUEST received from drone")
+            # Keep servicing requests until the FC sends its final ACK. Some
+            # flight controllers retry the final item request before ACKing;
+            # stopping as soon as each sequence was requested loses that retry
+            # and makes a valid upload look like an ACK timeout.
+            sent = set()
+            deadline = time.monotonic() + max(20, count * 3)
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    missing = sorted(set(range(count)) - sent)
+                    if missing:
+                        raise TimeoutError(
+                            f"Mission upload timed out; drone did not request item(s) {missing} "
+                            f"({len(sent)}/{count} unique items sent)"
+                        )
+                    raise TimeoutError(
+                        f"No MISSION_ACK from drone after sending all {count} mission items; "
+                        "the drone may not be receiving the return link"
+                    )
+                msg = mav.recv_match(
+                    type=["MISSION_REQUEST", "MISSION_REQUEST_INT", "MISSION_ACK"],
+                    blocking=True, timeout=min(2, remaining)
+                )
+                if not msg:
+                    continue
+                if msg.get_type() == "MISSION_ACK":
+                    if msg.type != mavutil.mavlink.MAV_MISSION_ACCEPTED:
+                        raise RuntimeError(f"Mission rejected by drone (MAV_MISSION_RESULT {msg.type})")
+                    missing = sorted(set(range(count)) - sent)
+                    if missing:
+                        raise RuntimeError(
+                            f"Drone acknowledged mission before requesting item(s) {missing}"
+                        )
+                    break
+                seq = int(msg.seq)
+                if seq < 0 or seq >= count:
+                    raise RuntimeError(f"Drone requested invalid mission item {seq}; upload has {count} items")
+                item = items[seq]
+                mav.mav.mission_item_int_send(
+                    mav.target_system, mav.target_component,
+                    item["seq"],
+                    item["frame"],
+                    item["command"],
+                    item["current"],
+                    1,               # autocontinue
+                    item["param1"], item["param2"],
+                    item["param3"], item["param4"],
+                    item["lat"],    item["lon"],
+                    item["alt"],
+                    mavutil.mavlink.MAV_MISSION_TYPE_MISSION,
+                )
+                sent.add(seq)
 
-            seq  = msg.seq
-            item = items[seq]
-            mav.mav.mission_item_int_send(
-                mav.target_system, mav.target_component,
-                item["seq"],
-                item["frame"],
-                item["command"],
-                item["current"],
-                1,               # autocontinue
-                item["param1"], item["param2"],
-                item["param3"], item["param4"],
-                item["lat"],    item["lon"],
-                item["alt"],
-                mavutil.mavlink.MAV_MISSION_TYPE_MISSION,
-            )
+            # Start from the first target, not the protocol's home slot.
+            if count > 1:
+                mav.mav.mission_set_current_send(mav.target_system, mav.target_component, 1)
 
-        # Await final ACK
-        ack = mav.recv_match(type="MISSION_ACK", blocking=True, timeout=5)
-        if not ack:
-            raise TimeoutError("No MISSION_ACK from drone after upload")
-        if ack.type != mavutil.mavlink.MAV_MISSION_ACCEPTED:
-            raise RuntimeError(f"Mission rejected by drone: MAV_MISSION_TYPE {ack.type}")
-
-        # Without this, the autopilot keeps whatever "current" mission item it
-        # already had (often seq 0 / home from a prior mission), so switching
-        # to AUTO makes it loiter/circle near the launch point instead of
-        # flying out to the first real waypoint.
-        if count > 1:
-            mav.mav.mission_set_current_send(mav.target_system, mav.target_component, 1)
+        if io_lock is None:
+            _transfer()
+        else:
+            with io_lock:
+                _transfer()
 
     # ── Survey grid generation ────────────────────────────────────
 

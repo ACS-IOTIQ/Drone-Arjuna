@@ -8,6 +8,7 @@ from app.core.rbac import require_min_role, Role
 from app.models.user import User
 from app.schemas.ops import SurveyGridRequest
 from app.models.mission import Mission, Waypoint
+from app.models.drone import DroneInstance, DroneType
 from app.schemas.mission import (
     MissionCreate, MissionOut, MissionSummary,
     MissionStatusUpdate, MissionUpdate, WaypointOut, LiveWaypointSync,
@@ -71,11 +72,42 @@ def _enforce_airspace(waypoints_body, geofence_body, enforce: bool = True):
         raise HTTPException(status_code=422, detail={"errors": result.error_messages})
 
 
+async def _validate_mission_profile(db: AsyncSession, drone_id: int,
+                                    altitude_m: float | None, speed_ms: float | None):
+    """Check mission-wide route values against the assigned drone type."""
+    if altitude_m is None and speed_ms is None:
+        return
+    drone = await db.get(DroneInstance, drone_id)
+    drone_type = await db.get(DroneType, drone.drone_type_id) if drone else None
+    if not drone_type:
+        raise HTTPException(422, "Assigned drone type could not be found")
+    safe_ceiling = drone_type.max_altitude_m - MissionPlanner.ALTITUDE_MARGIN_M
+    if altitude_m is not None and altitude_m > safe_ceiling:
+        raise HTTPException(422, f"Mission altitude exceeds this drone type's safe ceiling of {safe_ceiling:g} m")
+    if speed_ms is not None and speed_ms > drone_type.max_speed_ms:
+        raise HTTPException(422, f"Mission speed exceeds this drone type's {drone_type.max_speed_ms:g} m/s maximum")
+
+
+def _apply_mission_profile(waypoints, altitude_m: float | None, speed_ms: float | None):
+    """Apply mission-wide values to every flight waypoint, preserving home."""
+    if altitude_m is None and speed_ms is None:
+        return waypoints
+    return [
+        wp.model_copy(update={
+            **({"altitude_m": altitude_m, "altitude_ref": "AGL"} if altitude_m is not None and not wp.is_home else {}),
+            **({"speed_ms": speed_ms} if speed_ms is not None and not wp.is_home else {}),
+        })
+        for wp in waypoints
+    ]
+
+
 @router.post("/missions", response_model=MissionOut, status_code=201)
 async def create_mission(body: MissionCreate, db: DbDep, user: PilotDep):
     if body.drone_instance_id is None:
         raise HTTPException(422, "A drone must be assigned before saving a mission")
-    _enforce_airspace(body.waypoints, body.geofence, body.enforce_airspace)
+    await _validate_mission_profile(db, body.drone_instance_id, body.altitude_m, body.speed_ms)
+    waypoints = _apply_mission_profile(body.waypoints, body.altitude_m, body.speed_ms)
+    _enforce_airspace(waypoints, body.geofence, body.enforce_airspace)
 
     existing_count = await db.scalar(
         select(func.count()).select_from(Mission).where(
@@ -91,6 +123,8 @@ async def create_mission(body: MissionCreate, db: DbDep, user: PilotDep):
         description=body.description,
         mission_type=body.mission_type,
         drone_instance_id=body.drone_instance_id,
+        altitude_m=body.altitude_m,
+        speed_ms=body.speed_ms,
         home_point_type=body.home_point_type,
         home_vessel_id=body.home_vessel_id,
         created_by=user.id,
@@ -103,7 +137,7 @@ async def create_mission(body: MissionCreate, db: DbDep, user: PilotDep):
     db.add(m)
     await db.flush()   # get m.id
 
-    for i, wp_data in enumerate(body.waypoints):
+    for i, wp_data in enumerate(waypoints):
         wp = Waypoint(mission_id=m.id, **wp_data.model_dump())
         db.add(wp)
 
@@ -161,8 +195,15 @@ async def update_mission(
 
     previously_assigned_drone_id = m.drone_instance_id
 
+    effective_drone_id = body.drone_instance_id if body.drone_instance_id is not None else m.drone_instance_id
+    effective_altitude = body.altitude_m if "altitude_m" in body.model_fields_set else m.altitude_m
+    effective_speed = body.speed_ms if "speed_ms" in body.model_fields_set else m.speed_ms
+    if effective_drone_id is not None:
+        await _validate_mission_profile(db, effective_drone_id, effective_altitude, effective_speed)
+
     effective_enforce = body.enforce_airspace if body.enforce_airspace is not None else m.enforce_airspace
-    _enforce_airspace(body.waypoints, body.geofence, effective_enforce)
+    effective_waypoints = _apply_mission_profile(body.waypoints, effective_altitude, effective_speed) if body.waypoints is not None else None
+    _enforce_airspace(effective_waypoints, body.geofence, effective_enforce)
 
     update_data = body.model_dump(exclude_unset=True, exclude={"waypoints"})
     for field, value in update_data.items():
@@ -173,9 +214,9 @@ async def update_mission(
         if conn and conn.uploaded_mission_id == mid:
             conn.uploaded_mission_id = None
 
-    if body.waypoints is not None:
+    if effective_waypoints is not None:
         await db.execute(delete(Waypoint).where(Waypoint.mission_id == mid))
-        for wp_data in body.waypoints:
+        for wp_data in effective_waypoints:
             db.add(Waypoint(mission_id=mid, **wp_data.model_dump()))
 
     await db.flush()

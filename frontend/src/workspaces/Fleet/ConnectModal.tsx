@@ -3,7 +3,7 @@
 // Connect-to-drone modal with port scan / auto-fill
 // ═══════════════════════════════════════════════════════════════
 import { useState, useEffect } from 'react'
-import { X, Radio, ScanLine, Wifi, Usb, Cable, Zap } from 'lucide-react'
+import { X, Radio, ScanLine, Wifi, Usb, Cable } from 'lucide-react'
 import { droneControlApi, PortInfo, PortsResponse } from '@/api/droneControl'
 import { useFleetStore } from '@/store/fleetStore'
 import { useTelemetryStore } from '@/store/telemetryStore'
@@ -70,7 +70,6 @@ export default function ConnectModal({ onClose }: Props) {
   const [baud, setBaud]             = useState(57600)
   const [modemType, setModemType]   = useState<ModemType>('generic')
   const [loading, setLoading]         = useState(false)
-  const [autoConnecting, setAutoConnecting] = useState(false)
   const [err, setErr]               = useState('')
   const [presetId, setPresetId]     = useState('')
   const [presets]                   = useState<ConnectionPreset[]>(() => [
@@ -81,6 +80,7 @@ export default function ConnectModal({ onClose }: Props) {
   // ── Port scan state ────────────────────────────────────────────
   const [scanning,       setScanning]       = useState(false)
   const [portList,       setPortList]       = useState<PortInfo[] | null>(null)
+  const [bridgeAvailable, setBridgeAvailable] = useState(false)
   const [bridgeConnected, setBridgeConnected] = useState(false)
   const [bridgePort,     setBridgePort]     = useState<string | null>(null)
   const [scanErr,        setScanErr]        = useState('')
@@ -105,7 +105,7 @@ export default function ConnectModal({ onClose }: Props) {
     if (preset.hf_modem_type) setModemType(preset.hf_modem_type)
   }
 
-  const connect = async () => {
+  const connectManual = async () => {
     if (!droneId) { setErr('Select a drone before connecting'); return }
     setLoading(true); setErr('')
     try {
@@ -128,12 +128,31 @@ export default function ConnectModal({ onClose }: Props) {
     }
   }
 
+  // The primary Connect action probes the live bridge, serial ports, and
+  // standard MAVLink network endpoints so the operator does not have to guess
+  // which transport the drone is currently using.
+  const connect = async () => {
+    if (!droneId) { setErr('Select a drone before connecting'); return }
+    setLoading(true); setErr('')
+    try {
+      await droneControlApi.autoconnect({ drone_instance_id: droneId })
+      subscribe(droneId)
+      await fetchConnections()
+      onClose()
+    } catch (e: any) {
+      setErr(e.response?.data?.detail ?? 'No MAVLink heartbeat found. Check that the drone is powered and its telemetry link is connected.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const scanPorts = async () => {
     setScanning(true); setScanErr('')
     try {
       const res = await droneControlApi.ports()
       const data: PortsResponse = res.data
       setPortList(data.ports ?? [])
+      setBridgeAvailable(data.bridge_available ?? false)
       setBridgeConnected(data.bridge_connected ?? false)
       setBridgePort(data.bridge_active_port ?? null)
       // Auto-fill form with the first ready bridge port so user just clicks Connect
@@ -152,25 +171,6 @@ export default function ConnectModal({ onClose }: Props) {
     const interval = setInterval(scanPorts, 3000)
     return () => clearInterval(interval)
   }, [])
-
-  const autoConnect = async () => {
-    if (!droneId) { setErr('Select a drone before auto-connect'); return }
-    setAutoConnecting(true); setErr('')
-    try {
-      // A specific address in the form (not a wildcard) → smart-probe every link style for it
-      const target = !isSerial && !isHF && host && host !== '0.0.0.0'
-      await droneControlApi.autoconnect(
-        target ? { drone_instance_id: droneId, host, port } : { drone_instance_id: droneId },
-      )
-      subscribe(droneId)
-      await fetchConnections()
-      onClose()
-    } catch (e: any) {
-      setErr(e.response?.data?.detail ?? 'Auto-connect failed')
-    } finally {
-      setAutoConnecting(false)
-    }
-  }
 
   // Auto-fill form fields from a discovered port
   const applyPort = (p: PortInfo) => {
@@ -294,6 +294,17 @@ export default function ConnectModal({ onClose }: Props) {
           {portList && portList.length === 0 && (
             <p className="text-[11px] px-3 py-2" style={{ color: '#4b5563' }}>
               No ports found. Connect hardware and retry.
+            </p>
+          )}
+
+          {portList && !bridgeAvailable && (
+            <p className="text-[11px] px-3 py-2" style={{ color: '#fbbf24' }}>
+              Windows COM bridge is not reachable. Start the DroneArjunaCOMBridge scheduled task, then scan again.
+            </p>
+          )}
+          {portList && bridgeAvailable && !bridgeConnected && (
+            <p className="text-[11px] px-3 py-2" style={{ color: '#fbbf24' }}>
+              Port scan is working, but no serial device is open. Connect the drone USB/telemetry adapter and confirm its COM number in Device Manager.
             </p>
           )}
 
@@ -421,27 +432,16 @@ export default function ConnectModal({ onClose }: Props) {
               style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>{err}</p>
           )}
 
-          {/* Auto Connect — tries all ports automatically */}
-          <button
-            className="w-full flex items-center justify-center gap-2 py-2 rounded text-sm font-medium transition-colors"
-            style={{
-              background: autoConnecting ? 'rgba(234,179,8,0.08)' : 'rgba(234,179,8,0.1)',
-              color: autoConnecting ? '#a16207' : '#eab308',
-              border: '1px solid rgba(234,179,8,0.3)',
-              opacity: loading ? 0.5 : 1,
-            }}
-            onClick={autoConnect}
-            disabled={loading || autoConnecting || !droneId}>
-            <Zap size={14} className={autoConnecting ? 'animate-pulse' : ''} />
-            {autoConnecting ? 'Detecting link type…' : 'Auto Connect'}
-          </button>
-
           <div className="flex gap-2">
             <button className="da-btn da-btn-ghost flex-1" onClick={onClose}>Cancel</button>
-            <button className="da-btn da-btn-primary flex-1" onClick={connect} disabled={loading || autoConnecting || !droneId}>
-              {loading ? 'Connecting…' : 'Connect'}
+            <button className="da-btn da-btn-primary flex-1" onClick={connect} disabled={loading || !droneId}>
+              {loading ? 'Detecting and connecting…' : 'Connect'}
             </button>
           </div>
+          <button className="w-full text-xs py-1.5" style={{ color: '#64748b' }}
+            onClick={connectManual} disabled={loading || !droneId}>
+            Use selected connection settings
+          </button>
         </div>
       </div>
     </div>

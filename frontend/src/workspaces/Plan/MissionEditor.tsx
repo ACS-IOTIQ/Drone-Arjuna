@@ -24,6 +24,8 @@ type EditorSection = 'details' | 'waypoints' | 'geofence' | 'missions'
 interface DroneTypeLite {
   id: number
   range_km: number
+  max_altitude_m: number
+  max_speed_ms: number
 }
 
 const EARTH_RADIUS_M = 6_371_000
@@ -59,6 +61,8 @@ export default function MissionEditor() {
   const [name, setName] = useState('')
   const [type, setType] = useState('ISR')
   const [droneId, setDroneId] = useState<number | undefined>()
+  const [altitudeM, setAltitudeM] = useState('')
+  const [speedMs, setSpeedMs] = useState('')
   const [homeType, setHomeType] = useState<'fixed' | 'dynamic_vessel'>('fixed')
   const [homeVesselId, setHomeVesselId] = useState<number | undefined>()
   const [saving, setSaving] = useState(false)
@@ -101,6 +105,9 @@ export default function MissionEditor() {
       setName(meta.name)
       setType(meta.mission_type)
       setDroneId(meta.drone_instance_id ?? undefined)
+      const route = (useMissionStore.getState().draftWaypoints ?? []).filter(w => !w.is_home)
+      setAltitudeM(meta.altitude_m != null ? String(meta.altitude_m) : route[0]?.altitude_m != null ? String(route[0].altitude_m) : '')
+      setSpeedMs(meta.speed_ms != null ? String(meta.speed_ms) : route[0]?.speed_ms != null ? String(route[0].speed_ms) : '')
       setHomeType((meta.home_point_type as 'fixed' | 'dynamic_vessel') ?? 'fixed')
       setHomeVesselId(meta.home_vessel_id ?? undefined)
       setSection('details')
@@ -131,8 +138,27 @@ export default function MissionEditor() {
       return
     }
 
+    const altitude = Number(altitudeM)
+    const speed = Number(speedMs)
+    if (!altitudeM || !Number.isFinite(altitude) || altitude <= 0) {
+      setErr('Enter a mission altitude greater than 0 m')
+      return
+    }
+    if (!speedMs || !Number.isFinite(speed) || speed <= 0) {
+      setErr('Enter a mission speed greater than 0 m/s')
+      return
+    }
+
     const drone = instances.find(instance => instance.id === droneId)
     const droneType = drone ? droneTypes.find(dt => dt.id === drone.drone_type_id) : undefined
+    if (droneType && altitude > droneType.max_altitude_m) {
+      setErr(`Altitude exceeds this drone type's ${droneType.max_altitude_m} m maximum`)
+      return
+    }
+    if (droneType && speed > droneType.max_speed_ms) {
+      setErr(`Speed exceeds this drone type's ${droneType.max_speed_ms} m/s maximum`)
+      return
+    }
     if (droneType?.range_km) {
       const maxLegM = (droneType.range_km * 1000) / 2
       const ordered = [...draftWaypoints].sort((a, b) => a.sequence - b.sequence)
@@ -154,7 +180,7 @@ export default function MissionEditor() {
     setSaving(true)
     setErr('')
     try {
-      await saveMission(name, type, droneId, homeType, homeVesselId)
+      await saveMission(name, type, droneId, homeType, homeVesselId, altitude, speed)
       setName('')
     } catch (error: any) {
       const message = extractApiError(error)
@@ -238,6 +264,20 @@ export default function MissionEditor() {
                 onChange={event => setName(event.target.value)}
               />
             </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="da-mission-field">
+                <span>Mission altitude (m AGL)</span>
+                <input className="da-input" type="number" min="1" step="1" placeholder="30" value={altitudeM}
+                  onChange={event => setAltitudeM(event.target.value)} />
+              </label>
+              <label className="da-mission-field">
+                <span>Mission speed (m/s)</span>
+                <input className="da-input" type="number" min="0.1" step="0.1" placeholder="5" value={speedMs}
+                  onChange={event => setSpeedMs(event.target.value)} />
+              </label>
+            </div>
+            <p>Applied to every route waypoint and uploaded with the mission.</p>
 
             <label className="da-mission-field">
               <span>Type</span>

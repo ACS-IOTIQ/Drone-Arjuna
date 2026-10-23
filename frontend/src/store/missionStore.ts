@@ -15,6 +15,8 @@ export interface Mission {
   mission_type: string;
   status: string;
   drone_instance_id: number | null;
+  altitude_m?: number | null;
+  speed_ms?: number | null;
   waypoints: WaypointInput[];
   geofence?: object | null;
   created_at: string;
@@ -27,6 +29,8 @@ export interface LoadedMissionMeta {
   drone_instance_id: number | null;
   home_point_type: string;
   home_vessel_id: number | null;
+  altitude_m: number | null;
+  speed_ms: number | null;
 }
 
 interface MissionState {
@@ -56,6 +60,8 @@ interface MissionState {
     droneId?: number,
     homePointType?: string,
     homeVesselId?: number,
+    altitudeM?: number,
+    speedMs?: number,
   ) => Promise<void>;
   updateMission: (
     id: number,
@@ -64,6 +70,8 @@ interface MissionState {
     droneId?: number,
     homePointType?: string,
     homeVesselId?: number,
+    altitudeM?: number,
+    speedMs?: number,
   ) => Promise<void>;
   loadMission: (id: number) => Promise<LoadedMissionMeta>;
   deleteMission: (id: number) => Promise<void>;
@@ -188,7 +196,15 @@ export const useMissionStore = create<MissionState>((set, get) => ({
     droneId,
     homePointType = "fixed",
     homeVesselId,
+    altitudeM,
+    speedMs,
   ) => {
+    const waypoints = get().draftWaypoints.map((waypoint) => ({
+      ...waypoint,
+      altitude_m: !waypoint.is_home && altitudeM != null ? altitudeM : waypoint.altitude_m,
+      altitude_ref: !waypoint.is_home && altitudeM != null ? "AGL" as const : waypoint.altitude_ref,
+      speed_ms: !waypoint.is_home && speedMs != null ? speedMs : waypoint.speed_ms,
+    }));
     const { data } = await droneFlightApi.createMission({
       name,
       mission_type: type,
@@ -196,7 +212,9 @@ export const useMissionStore = create<MissionState>((set, get) => ({
       home_point_type: homePointType,
       home_vessel_id:
         homePointType === "dynamic_vessel" ? homeVesselId : undefined,
-      waypoints: get().draftWaypoints,
+      altitude_m: altitudeM,
+      speed_ms: speedMs,
+      waypoints,
       geofence: geofenceToGeoJson(get().geofence),
       enforce_airspace: get().governmentZonesEnabled,
     });
@@ -210,6 +228,8 @@ export const useMissionStore = create<MissionState>((set, get) => ({
     droneId,
     homePointType = "fixed",
     homeVesselId,
+    altitudeM,
+    speedMs,
   ) => {
     get().invalidateActiveMissionUpload();
     const { data } = await droneFlightApi.updateMission(id, {
@@ -219,7 +239,14 @@ export const useMissionStore = create<MissionState>((set, get) => ({
       home_point_type: homePointType,
       home_vessel_id:
         homePointType === "dynamic_vessel" ? homeVesselId : undefined,
-      waypoints: get().draftWaypoints,
+      altitude_m: altitudeM,
+      speed_ms: speedMs,
+      waypoints: get().draftWaypoints.map((waypoint) => ({
+        ...waypoint,
+        altitude_m: !waypoint.is_home && altitudeM != null ? altitudeM : waypoint.altitude_m,
+        altitude_ref: !waypoint.is_home && altitudeM != null ? "AGL" as const : waypoint.altitude_ref,
+        speed_ms: !waypoint.is_home && speedMs != null ? speedMs : waypoint.speed_ms,
+      })),
       geofence: geofenceToGeoJson(get().geofence),
       enforce_airspace: get().governmentZonesEnabled,
     });
@@ -246,6 +273,8 @@ export const useMissionStore = create<MissionState>((set, get) => ({
       drone_instance_id: data.drone_instance_id ?? null,
       home_point_type: data.home_point_type ?? "fixed",
       home_vessel_id: data.home_vessel_id ?? null,
+      altitude_m: data.altitude_m ?? null,
+      speed_ms: data.speed_ms ?? null,
     };
   },
 

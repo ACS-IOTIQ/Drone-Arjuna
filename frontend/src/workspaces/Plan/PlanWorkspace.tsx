@@ -56,7 +56,10 @@ export default function PlanWorkspace() {
       notify.success('Mission uploaded', `${activeMission?.name ?? 'Mission'} was accepted by ${assignedDrone?.call_sign ?? `Drone #${assignedDroneId}`}. You can now select AUTO in Fly.`)
     } catch (error: any) {
       const detail = error?.response?.data?.detail
-      const message = typeof detail === 'string' ? detail : detail?.message ?? 'Mission upload failed'
+      const validationErrors = Array.isArray(detail?.errors) ? detail.errors.filter((item: unknown) => typeof item === 'string') : []
+      const message = typeof detail === 'string'
+        ? detail
+        : [detail?.message, ...validationErrors].filter((item): item is string => typeof item === 'string' && item.length > 0).join(': ') || 'Mission upload failed'
       setActionErr(message)
       notify.danger('Mission upload failed', message)
     } finally {

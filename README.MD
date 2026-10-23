@@ -101,19 +101,32 @@ All services are on `da_network` (named bridge) for DNS resolution.
    ```
    Edit `.env` with your values (see `Configuration` section below).
 
-4. **Start the full stack:**
+4. **Enable the Windows COM bridge (for a USB-connected drone):**
+   Docker Desktop cannot open Windows COM ports itself. Register the bridge once
+   from PowerShell; it will start at Windows sign-in and stay
+   available when you run Docker Compose. The default `auto` mode detects COM4
+   and other USB serial devices:
+   ```powershell
+   .\install-bridge-service.ps1
+   ```
+   To pin it to COM4, use `\.\install-bridge-service.ps1 -ComPort COM4 -Baud auto`.
+   After setup, `docker compose up -d` starts the backend with the bridge already
+   running on the Windows host. For a one-time launch instead, use
+   `\.\start.ps1 -ComPort COM4`.
+
+5. **Start the full stack:**
    ```powershell
    docker compose up -d --build
    ```
    This builds images and starts all services in the background.
 
-5. **Apply database migrations:**
+6. **Apply database migrations:**
    ```powershell
    docker compose exec backend alembic upgrade head
    ```
    Initializes PostgreSQL schema and creates default admin account.
 
-6. **Access the system:**
+7. **Access the system:**
    ```
    Frontend:    http://localhost:3000
    Backend API: http://localhost:8000
@@ -123,7 +136,7 @@ All services are on `da_network` (named bridge) for DNS resolution.
    MinIO:       http://localhost:9001
    ```
 
-7. **Default credentials:**
+8. **Default credentials:**
    ```
    Username: admin
    Password: Admin@1234

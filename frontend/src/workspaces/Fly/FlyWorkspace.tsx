@@ -255,6 +255,7 @@ export default function FlyWorkspace() {
           onClose={activeDroneId || hasEverSimulated ? () => setShowLauncher(false) : undefined}
         />
       )}
+
     </div>
   )
 }

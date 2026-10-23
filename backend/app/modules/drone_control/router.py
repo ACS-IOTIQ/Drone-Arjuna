@@ -147,6 +147,7 @@ async def list_available_ports(
     ]
 
     return {
+        "bridge_available": bool(bridge),
         "bridge_connected": bool(bridge and bridge.get("connected")),
         "bridge_active_port": bridge.get("active_port") if bridge else None,
         "ports": windows_ports + serial_ports + network_ports,
@@ -184,8 +185,8 @@ async def autoconnect_drone(
     _: User = Depends(require_min_role(Role.FLIGHT_CONTROLLER)),
 ):
     """
-    Tries every available serial port then common MAVLink UDP/TCP ports in order.
-    Connects on the first port that returns a heartbeat within 4 seconds.
+    Tries detected bridge and serial ports, then probes common MAVLink
+    UDP/TCP endpoints concurrently to keep the connection scan bounded.
     Returns 200 with connection details on success, 503 if all ports fail.
     """
     drone_instance_id: int = req.drone_instance_id
@@ -282,8 +283,8 @@ async def autoconnect_drone(
         {"transport": "tcp", "host": "127.0.0.1",            "port": 5762,  "serial_port": "/dev/ttyUSB0", "baud_rate": 57600},
     ]
 
-    # Order: bridge (ready, cable) → Linux serial → network fallbacks
-    candidates = bridge_candidates + serial_candidates + network_candidates
+    # Order: ready bridge first, then Linux serial candidates.
+    candidates = bridge_candidates + serial_candidates
 
     log.info("Autoconnect starting", drone_id=drone_instance_id,
              call_sign=drone.call_sign, candidates=len(candidates))
@@ -328,11 +329,31 @@ async def autoconnect_drone(
                 "baud_rate": baud_rate if transport == "serial" else None,
             }
 
+    from app.modules.drone_control.auto_connector import _connect_drone
+    for index, candidate in enumerate(network_candidates):
+        candidate["label"] = f"manual-autoconnect:{candidate['transport']}:{candidate['host']}:{candidate['port']}:{index}"
+
+    if await _connect_drone(drone_instance_id, drone.call_sign, network_candidates):
+        conn = mavlink_manager._connections[drone_instance_id]
+        await _apply_ui_home_on_connect(drone_instance_id, db)
+        await DroneInstanceService(db).mark_used(drone_instance_id)
+        return {
+            "detail": "Connected",
+            "drone_id": drone_instance_id,
+            "call_sign": drone.call_sign,
+            "transport": conn.transport,
+            "host": None,
+            "port": None,
+            "serial_port": None,
+            "baud_rate": None,
+        }
+
+    total_candidates = len(candidates) + len(network_candidates)
     log.warning("Autoconnect exhausted all candidates", drone_id=drone_instance_id)
     raise HTTPException(
         status_code=503,
         detail=f"Autoconnect failed — no heartbeat received on any of the "
-               f"{len(candidates)} candidate port(s). "
+               f"{total_candidates} candidate port(s). "
                f"Ensure the drone or SITL is running and reachable."
     )
 
@@ -483,11 +504,27 @@ async def send_command(
         req.params = {**params, **({"altitude_m": altitude} if altitude is not None else {}), **({"speed_ms": speed} if speed is not None else {})}
     if req.command == "set_mode" and str((req.params or {}).get("mode", "")).upper() == "AUTO":
         conn = mavlink_manager._connections.get(req.drone_id)
-        if conn and conn.connected and conn.transport != "simulation" and conn.uploaded_mission_id is None:
-            raise HTTPException(
-                status_code=409,
-                detail="Upload a saved mission and receive MAVLink mission acceptance before setting AUTO mode",
-            )
+        if conn and conn.connected and conn.transport != "simulation":
+            params = req.params or {}
+            requested_mission_id = params.get("mission_id")
+            if requested_mission_id is not None:
+                try:
+                    requested_mission_id = int(requested_mission_id)
+                except (TypeError, ValueError):
+                    raise HTTPException(status_code=422, detail="mission_id must be an integer")
+                mission = await db.get(Mission, requested_mission_id)
+                if not mission or mission.drone_instance_id != req.drone_id:
+                    raise HTTPException(status_code=409, detail="Select a saved mission assigned to this connected drone")
+                if conn.uploaded_mission_id != requested_mission_id:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Upload this mission from Plan and receive flight-controller acceptance before arming and takeoff",
+                    )
+            elif conn.uploaded_mission_id is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Upload the assigned mission from Plan and receive flight-controller acceptance before arming and takeoff",
+                )
     rec = await mavlink_manager.send_command(req.drone_id, req.command, req.params)
     await AuditLogger(db).command_sent(
         user.id, req.drone_id, req.command,

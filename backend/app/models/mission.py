@@ -19,6 +19,8 @@ class Mission(Base):
     # planning | approved | executing | completed | aborted
     created_by: Mapped[int] = mapped_column(Integer)       # user.id
     drone_instance_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    altitude_m: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    speed_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

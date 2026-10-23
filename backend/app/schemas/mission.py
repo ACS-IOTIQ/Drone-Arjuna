@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, Literal
+import math
 from pydantic import BaseModel, field_validator, model_validator
 
 
@@ -74,6 +75,8 @@ class MissionCreate(BaseModel):
     description: Optional[str] = None
     mission_type: str = "ISR"
     drone_instance_id: Optional[int] = None
+    altitude_m: Optional[float] = None
+    speed_ms: Optional[float] = None
     home_point_type: str = "fixed"
     home_vessel_id: Optional[int] = None
     waypoints: list[WaypointCreate] = []
@@ -87,6 +90,20 @@ class MissionCreate(BaseModel):
     def payload_weight_non_negative(cls, v: Optional[float]) -> Optional[float]:
         if v is not None and v < 0:
             raise ValueError("payload_weight_kg must be >= 0")
+        return v
+
+    @field_validator("altitude_m")
+    @classmethod
+    def mission_altitude_positive(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and (not math.isfinite(v) or v <= 0):
+            raise ValueError("altitude_m must be a finite value greater than 0")
+        return v
+
+    @field_validator("speed_ms")
+    @classmethod
+    def mission_speed_positive(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and (not math.isfinite(v) or v <= 0):
+            raise ValueError("speed_ms must be a finite value greater than 0")
         return v
 
     @field_validator("name")
@@ -113,6 +130,8 @@ class MissionOut(BaseModel):
     status: str
     created_by: int
     drone_instance_id: Optional[int]
+    altitude_m: Optional[float] = None
+    speed_ms: Optional[float] = None
     home_point_type: str
     home_vessel_id: Optional[int]
     created_at: datetime
@@ -131,6 +150,8 @@ class MissionUpdate(BaseModel):
     description: Optional[str] = None
     mission_type: Optional[str] = None
     drone_instance_id: Optional[int] = None
+    altitude_m: Optional[float] = None
+    speed_ms: Optional[float] = None
     home_point_type: Optional[str] = None
     home_vessel_id: Optional[int] = None
     notes: Optional[str] = None
@@ -138,6 +159,20 @@ class MissionUpdate(BaseModel):
     payload_weight_kg: Optional[float] = None
     waypoints: Optional[list[WaypointCreate]] = None  # if provided, replaces all waypoints
     enforce_airspace: Optional[bool] = None  # False when the operator disabled the Government airspace zones layer
+
+    @field_validator("altitude_m")
+    @classmethod
+    def mission_altitude_positive(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and (not math.isfinite(v) or v <= 0):
+            raise ValueError("altitude_m must be a finite value greater than 0")
+        return v
+
+    @field_validator("speed_ms")
+    @classmethod
+    def mission_speed_positive(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and (not math.isfinite(v) or v <= 0):
+            raise ValueError("speed_ms must be a finite value greater than 0")
+        return v
 
 
 class MissionStatusUpdate(BaseModel):

@@ -4,6 +4,10 @@
 // ═══════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { droneControlApi } from '@/api/droneControl'
+import { useFleetStore } from '@/store/fleetStore'
+import { useMissionStore } from '@/store/missionStore'
+import { useTelemetryStore } from '@/store/telemetryStore'
+import { notify } from '@/store/notificationStore'
 
 interface Props { droneId: number }
 
@@ -22,6 +26,15 @@ const NUDGE_DURATION_MS = 800
 
 export default function ManualControlPanel({ droneId }: Props) {
   const [kbEnabled, setKbEnabled] = useState(false)
+  const [autoBusy, setAutoBusy] = useState(false)
+  const frame = useTelemetryStore(s => s.frames[droneId])
+  const connection = useFleetStore(s => s.connections[droneId])
+  const activeMissionId = useMissionStore(s => s.activeMissionId)
+  const activeMission = useMissionStore(s => s.missions.find(m => m.id === activeMissionId))
+  const uploadedMissionId = useMissionStore(s => s.uploadedMissionByDrone[droneId])
+  const missionAvailableForAuto = connection?.transport === 'simulation' || Boolean(
+    connection?.connected && activeMission && activeMission.drone_instance_id === droneId && uploadedMissionId === activeMission.id,
+  )
   // Which keys are currently depressed (for visual highlight only)
   const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set())
 
@@ -131,6 +144,33 @@ export default function ManualControlPanel({ droneId }: Props) {
   // ── helpers for button active-state ──────────────────────────
   const isActive = (...keys: string[]) => keys.some(k => activeKeys.has(k))
 
+  const switchToAuto = async () => {
+    setAutoBusy(true)
+    stopLoop()
+    velRef.current = [0, 0, 0]
+    heldKeysRef.current.clear()
+    setActiveKeys(new Set())
+    try {
+      await droneControlApi.velocity(droneId, 0, 0, 0)
+      await droneControlApi.command({
+        drone_id: droneId,
+        command: 'set_mode',
+        params: {
+          mode: 'AUTO',
+          ...(connection?.transport !== 'simulation' && activeMission
+            ? { mission_id: activeMission.id }
+            : {}),
+        },
+      })
+      notify.success('AUTO mode requested', `Drone ${droneId} was told to follow the assigned mission.`, droneId)
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'Unknown error'
+      notify.danger('AUTO mode failed', detail, droneId)
+    } finally {
+      setAutoBusy(false)
+    }
+  }
+
   return (
     <div
       className="da-card flex flex-col gap-3 p-3"
@@ -192,6 +232,20 @@ export default function ManualControlPanel({ droneId }: Props) {
           active={isActive('f')}
           onPress={() => nudge(0, 0, 2)} />
       </div>
+
+      <button
+        type="button"
+        disabled={autoBusy || frame?.flight_mode === 'AUTO' || !missionAvailableForAuto}
+        onClick={() => void switchToAuto()}
+        title={!missionAvailableForAuto ? 'Upload the assigned mission in Plan and receive acceptance before takeoff' : 'Stop manual inputs and follow the uploaded mission'}
+        className="da-btn da-btn-primary justify-center text-xs py-2 font-semibold">
+        {autoBusy ? 'Switching to AUTO…' : frame?.flight_mode === 'AUTO' ? 'AUTO active' : 'AUTO · Follow mission'}
+      </button>
+      {!missionAvailableForAuto && (
+        <p className="text-[9px] text-center leading-snug" style={{ color: '#b45309' }}>
+          Assign and upload the mission in Plan, then arm and take off before selecting AUTO.
+        </p>
+      )}
 
       {/* Keyboard hint */}
       {kbEnabled ? (

@@ -44,6 +44,7 @@ export interface PortInfo {
 }
 
 export interface PortsResponse {
+  bridge_available:   boolean
   bridge_connected:   boolean
   bridge_active_port: string | null
   ports:              PortInfo[]

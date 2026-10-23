@@ -11,6 +11,7 @@ HF transport notes:
 """
 import asyncio
 import time
+import threading
 import structlog
 from dataclasses import dataclass, field
 from typing import Optional
@@ -68,6 +69,10 @@ class DroneConnection:
     task: Optional[asyncio.Task] = None
     heartbeat_task: Optional[asyncio.Task] = None
     controller: Optional[CommandController] = None
+    # A single MAVLink connection has one receive socket. Serialize its normal
+    # telemetry reader with mission-protocol reads so MISSION_REQUEST/ACK
+    # messages cannot be consumed by the telemetry loop.
+    io_lock: object = field(default_factory=threading.Lock, repr=False)
     connected: bool = False
     link_quality: int = 0
     hf_adapter: Optional[HFLinkAdapter] = None   # set when transport is HF
@@ -161,12 +166,13 @@ class MAVLinkManager:
                 # candidate that loses an autoconnect race (or times out) would
                 # otherwise leave its worker thread blocked forever in recv/accept
                 # (a tcp_listen candidate never exits) and slowly drain the shared pool.
-                # udpout peers (e.g. an ELRS backpack's Wi-Fi bridge) only forward
-                # MAVLink to a client that has sent them something first, so announce
-                # ourselves with a GCS heartbeat each slice until theirs arrives.
+                # Some telemetry bridges (UDP-out, TCP radios, serial radios)
+                # do not forward the vehicle stream until they have seen a GCS
+                # heartbeat. Announce ourselves while waiting; our own heartbeat
+                # is filtered below so it cannot satisfy the vehicle check.
                 deadline = time.monotonic() + heartbeat_timeout
                 while time.monotonic() < deadline:
-                    if transport == "udp_out":
+                    if transport in {"udp_out", "tcp", "serial", "hf_serial", "hf_tcp"}:
                         mav.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_GCS,
                                                mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
                     msg = mav.wait_heartbeat(timeout=1)
@@ -353,16 +359,17 @@ class MAVLinkManager:
 
         def _recv_and_heartbeat():
             nonlocal last_hb
-            msg = conn.mav.recv_match(blocking=True, timeout=1.0)
-            now = _time.monotonic()
-            if now - last_hb >= 1.0:
-                conn.mav.mav.heartbeat_send(
-                    mavutil.mavlink.MAV_TYPE_GCS,
-                    mavutil.mavlink.MAV_AUTOPILOT_INVALID,
-                    0, 0, 0,
-                )
-                last_hb = now
-            return msg
+            with conn.io_lock:
+                msg = conn.mav.recv_match(blocking=True, timeout=1.0)
+                now = _time.monotonic()
+                if now - last_hb >= 1.0:
+                    conn.mav.mav.heartbeat_send(
+                        mavutil.mavlink.MAV_TYPE_GCS,
+                        mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+                        0, 0, 0,
+                    )
+                    last_hb = now
+                return msg
 
         while conn.connected:
             try:

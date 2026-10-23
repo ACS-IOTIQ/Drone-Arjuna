@@ -124,10 +124,10 @@ export default function PlanWorkspace() {
           <button
             type="button"
             className={alreadyUploaded ? 'da-btn da-btn-success' : 'da-btn da-btn-primary'}
-            disabled={!activeMissionId || !assignedDroneId || !connection?.connected || connection.transport === 'simulation' || !!busyAction || alreadyUploaded}
-            title={alreadyUploaded ? 'Mission is uploaded to the assigned drone' : 'Upload the active mission to its connected MAVLink drone'}
+            disabled={!activeMissionId || !assignedDroneId || !connection?.connected || connection.transport === 'simulation' || !!busyAction}
+            title={alreadyUploaded ? 'Mission was uploaded; click to upload it again' : 'Upload the active mission to its connected MAVLink drone'}
             onClick={() => void uploadActiveMission()}>
-            <Upload size={14} /> <span className="da-plan-btn-label">{busyAction === 'Upload' ? 'Uploading...' : alreadyUploaded ? 'Uploaded' : 'Upload to drone'}</span>
+            <Upload size={14} /> <span className="da-plan-btn-label">{busyAction === 'Upload' ? 'Uploading...' : alreadyUploaded ? 'Upload again' : 'Upload to drone'}</span>
           </button>
           <button
             type="button"

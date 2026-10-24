@@ -155,6 +155,7 @@ class _SimulatedFlight:
         self.waypoints: list = []
         self.speed_mult = 1.0
         self.wp_idx     = 0
+        self._leg_start: Optional[tuple] = None
 
         self.lat         = 0.0
         self.lon         = 0.0
@@ -246,6 +247,7 @@ class _SimulatedFlight:
         self.is_armed   = False
         self.phase      = SimPhase.IDLE
         self.wp_idx     = 0
+        self._leg_start = None
         self._manual_vx = 0.0
         self._manual_vy = 0.0
         self._manual_vz = 0.0
@@ -462,6 +464,7 @@ class _SimulatedFlight:
                 else:
                     self.waypoints = [target]
                     self.wp_idx = 0
+                self._leg_start = None
                 if self.phase not in (SimPhase.IDLE, SimPhase.LANDED, SimPhase.LANDING):
                     self.phase = SimPhase.FLYING
 
@@ -639,8 +642,22 @@ class _SimulatedFlight:
 
             # Acceptance radius is never smaller than one tick's travel, otherwise a
             # fast (time-compressed) drone can step straight past the waypoint.
-            if dist < max(self.WP_RADIUS_M, spd * dt) and abs(alt_err) < 3.0:
+            # The turn-rate cap gives a ~23 m turn radius, so a waypoint can be
+            # missed by more than WP_RADIUS_M and would then be orbited forever.
+            # Like ArduPilot, also count the waypoint as reached once the drone
+            # crosses the line through it perpendicular to the leg.
+            reached_radius = max(self.WP_RADIUS_M, spd * dt)
+            if self._leg_start is None:
+                self._leg_start = (self.lat, self.lon)
+            s_lat, s_lon = self._leg_start
+            m_lon = 111_320.0 * math.cos(math.radians(s_lat))
+            leg_x, leg_y = (t_lon - s_lon) * m_lon, (t_lat - s_lat) * 111_320.0
+            pos_x, pos_y = (self.lon - s_lon) * m_lon, (self.lat - s_lat) * 111_320.0
+            leg_len_sq = leg_x * leg_x + leg_y * leg_y
+            passed_wp = leg_len_sq > 1.0 and (pos_x * leg_x + pos_y * leg_y) >= leg_len_sq
+            if (dist < reached_radius or passed_wp) and abs(alt_err) < 3.0:
                 self.wp_idx += 1
+                self._leg_start = None
                 if self.wp_idx >= len(self.waypoints):
                     # Hold at destination instead of auto-landing — see FLYING branch above.
                     self.phase = SimPhase.PAUSED

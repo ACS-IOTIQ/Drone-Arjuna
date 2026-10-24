@@ -237,6 +237,12 @@ to a simulated flight exactly like real hardware:
   operator command against a simulated vehicle (e.g. "Set Home Here")
   hangs until the GCS times out.
 
+For the Docker development setup, configure Mission Planner's UDP link to
+listen on port `14560` (the `MAVLINK_BROADCAST_PORT` default). The backend
+sends simulated-drone telemetry to `host.docker.internal:14560`; Docker also
+publishes UDP `14560` back to the backend so commands from Mission Planner can
+reach the simulator. Keep real-drone UDP input on `14550`–`14559` as before.
+
 ---
 
 ## 8. Threading model (`mavlink_executor.py`)

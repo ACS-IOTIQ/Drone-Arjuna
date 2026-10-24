@@ -40,6 +40,7 @@ from app.utils.mavlink_utils import apply_signing
 log = structlog.get_logger()
 
 _GPS_FIX_MAP = {"No GPS": 0, "No Fix": 1, "2D Fix": 2, "3D Fix": 3}
+_COPTER_MODE_NUM = {name: num for num, name in mavutil.mode_mapping_acm.items()}
 
 # COMMAND_LONG ids the simulator can actually act on. Any other COMMAND_LONG
 # still gets ack'd (ACCEPTED) so the GCS doesn't hang — it just has no effect.
@@ -47,6 +48,20 @@ _ACTIONABLE_COMMANDS = {
     mavutil.mavlink.MAV_CMD_DO_SET_HOME: "set_home",
     mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM: "arm_disarm",
 }
+
+# Mission Planner waits for PARAM_VALUE replies after it receives a heartbeat.
+# This is a small compatibility set for the synthetic vehicle; it is not the
+# parameter table of a connected physical autopilot.
+_GCS_COMPAT_PARAMETERS = (
+    ("SYSID_MYGCS", 255.0),
+    ("FRAME_CLASS", 1.0),
+    ("FRAME_TYPE", 1.0),
+    ("ARMING_CHECK", 1.0),
+    ("WPNAV_SPEED", 500.0),
+    ("RTL_ALT", 1500.0),
+    ("ANGLE_MAX", 4500.0),
+    ("FS_THR_ENABLE", 1.0),
+)
 
 
 def _default_target() -> str:
@@ -65,6 +80,7 @@ class MAVLinkBroadcaster:
         self._target = target or _default_target()
         self._links: dict[int, object] = {}
         self._last_heartbeat: dict[int, float] = {}
+        self._system_ids: dict[int, int] = {}
         # drone_id -> callback(action: str, params: dict) — lets the simulator
         # react to GCS-issued commands (set_home, arm, disarm).
         self._command_handlers: dict[int, Callable[[str, dict], None]] = {}
@@ -108,6 +124,36 @@ class MAVLinkBroadcaster:
     def _handle_incoming(self, drone_id: int, link, msg):
         mtype = msg.get_type()
         handler = self._command_handlers.get(drone_id)
+        parameters = (("SYSID_THISMAV", float(self._system_ids.get(drone_id, 1))),) + _GCS_COMPAT_PARAMETERS
+
+        if mtype == "PARAM_REQUEST_LIST" and handler:
+            # GCS clients such as Mission Planner block their initial connect
+            # flow until the requested parameter list has been returned.
+            count = len(parameters)
+            for index, (name, value) in enumerate(parameters):
+                link.mav.param_value_send(
+                    name.encode("ascii"), value,
+                    mavutil.mavlink.MAV_PARAM_TYPE_REAL32, count, index,
+                )
+            log.info("MAVLink broadcaster sent compatibility parameters",
+                     drone_id=drone_id, count=count)
+            return
+
+        if mtype == "PARAM_REQUEST_READ" and handler:
+            requested_name = msg.param_id
+            if isinstance(requested_name, bytes):
+                requested_name = requested_name.decode("ascii", errors="ignore")
+            requested_name = requested_name.rstrip("\x00")
+            requested_index = int(msg.param_index)
+            for index, (name, value) in enumerate(parameters):
+                if requested_index == index or (requested_index < 0 and requested_name == name):
+                    link.mav.param_value_send(
+                        name.encode("ascii"), value,
+                        mavutil.mavlink.MAV_PARAM_TYPE_REAL32,
+                        len(parameters), index,
+                    )
+                    break
+            return
 
         if mtype in ("COMMAND_LONG", "COMMAND_INT"):
             # COMMAND_LONG carries lat/lon as floats in param5/param6; COMMAND_INT
@@ -154,6 +200,7 @@ class MAVLinkBroadcaster:
                      drone_id=drone_id, command=msg.command, action=action or "no-op", mtype=mtype)
 
     def send(self, drone_id: int, sys_id: int, state: dict):
+        self._system_ids[drone_id] = sys_id
         link = self._get_link(drone_id, sys_id)
         if link is None:
             return
@@ -164,11 +211,14 @@ class MAVLinkBroadcaster:
             armed = bool(state.get("is_armed"))
 
             if now - self._last_heartbeat.get(drone_id, 0.0) >= 1.0:
+                base_mode = mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
+                if armed:
+                    base_mode |= mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
                 mav.heartbeat_send(
                     mavutil.mavlink.MAV_TYPE_QUADROTOR,
                     mavutil.mavlink.MAV_AUTOPILOT_ARDUPILOTMEGA,
-                    mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED if armed else 0,
-                    0,
+                    base_mode,
+                    _COPTER_MODE_NUM.get(str(state.get("flight_mode", "")).upper(), 0),
                     mavutil.mavlink.MAV_STATE_ACTIVE if armed else mavutil.mavlink.MAV_STATE_STANDBY,
                 )
                 self._last_heartbeat[drone_id] = now
@@ -242,6 +292,7 @@ class MAVLinkBroadcaster:
     def remove(self, drone_id: int):
         link = self._links.pop(drone_id, None)
         self._last_heartbeat.pop(drone_id, None)
+        self._system_ids.pop(drone_id, None)
         self._command_handlers.pop(drone_id, None)
         if link is not None:
             try:

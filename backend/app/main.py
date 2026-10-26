@@ -30,7 +30,10 @@ from app.modules.drone_flight.router import router as flight_router
 try:
     from app.modules.drone_analyst.router import router as analyst_router
 except ModuleNotFoundError as exc:
-    if exc.name != "app.modules.drone_analyst":
+    # This feature is optional in deployments that omit its source files.
+    # A present package directory without router.py raises the full module
+    # name here, so accept both the package and its router as absent.
+    if exc.name not in {"app.modules.drone_analyst", "app.modules.drone_analyst.router"}:
         raise
     analyst_router = None
 

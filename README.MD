@@ -780,6 +780,32 @@ Map actions:
 
 When `Save Mission` is clicked, the current geofence is saved with the mission as a GeoJSON polygon in mission state and sent through the mission creation payload.
 
+### Government Airspace Zones (Red / Orange)
+
+The `Government airspace zones` map layer (Plan and Fly maps) shows India's restricted airspace as an offline DigitalSky-style snapshot. It currently covers 171 airports and air force / naval air stations, plus the international-boundary buffers and the Central Delhi and Mumbai naval dockyard zones.
+
+Each airport gets three bands:
+
+| Band | Colour | Rule |
+|------|--------|------|
+| 0-5 km | Red | No-drone zone. Central Government permission required. Placement is blocked. |
+| 5-8 km | Orange | Yellow zone from ground level. ATC / authority permission required. Speed limit 4 m/s. Placement is blocked. |
+| 8-12 km | Orange | Yellow zone above 60 m AGL. Stay below 60 m unless permission is granted. Placement is blocked. |
+
+Enforcement:
+
+- Plan map: waypoint and geofence-vertex placement is blocked inside a red or orange zone, and route legs or drawn geofences that cross or enclose a zone are rejected.
+- Fly map and HUD: the live drone position is matched against the zones. The HUD shows the current government zone name and applies its altitude and speed limits.
+- Backend: mission validation (`validate_mission_airspace` in `backend/app/modules/drone_flight/airspace_service.py`) rejects waypoints, mission legs, geofence vertices, geofence edges and enclosing geofences that touch a zone.
+- Switching the layer off in the layer control disables the Plan-map placement checks.
+
+Airports added in the 2026-10-27 update include Dundigal Air Force Academy, Bilaspur (Chhattisgarh), Bhavnagar, Sri Sathya Sai (Puttaparthi), HAL Bengaluru, Nanded, Rajkot International (Hirasar), and about 80 further civil airports and air force stations (for example Ambala, Adampur, Halwara, Pathankot, Yelahanka, Begumpet, Thanjavur, Kalaikunda). Vadodara, Ahmedabad SVPI, Bengaluru Kempegowda and the original Rajkot airport were already present and are now also enforced by the backend.
+
+Keeping the lists in sync:
+
+- Airports are defined in two places: `AIRPORTS` in `frontend/src/utils/regulatoryZones.ts` and `AIRPORT_ZONES` in `backend/app/modules/drone_flight/airspace_service.py`. Both must list the same airports with the same coordinates. Update both whenever a zone is added.
+- Coordinates come from the OurAirports dataset (airport reference points). The data is an offline snapshot, not a live feed, so verify against the official DigitalSky map before operational use.
+
 ### Mission Submit, Approve, Reject
 
 In `Plan`, save or load a mission first. The action bar over the map then enables:

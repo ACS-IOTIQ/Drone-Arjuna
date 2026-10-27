@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   LayersControl,
   LayerGroup,
@@ -223,8 +224,11 @@ function MapClickHandler({
 }) {
   const { draftWaypoints, addWaypoint, geofence, setGeofence } =
     useMissionStore();
+  const [pending, setPending] = useState<GeoPoint | null>(null);
+  const lastValues = useRef({ altitude: 100, speed: 10 });
   useMapEvents({
     click(e) {
+      if (pending) return;
       if (drawing) {
         const newPt = { lat: e.latlng.lat, lng: e.latlng.lng };
         // 1. Vertex itself inside a restricted zone
@@ -342,19 +346,142 @@ function MapClickHandler({
         }
       }
 
-      const seq = draftWaypoints.length + 1;
-      addWaypoint({
-        sequence: seq,
-        latitude: e.latlng.lat,
-        longitude: e.latlng.lng,
-        altitude_m: 100,
-        altitude_ref: "AGL",
-        action: "none",
-        is_home: false,
-      });
+      setPending({ lat: e.latlng.lat, lng: e.latlng.lng });
     },
   });
-  return null;
+
+  const confirmPending = (altitude_m: number, speed_ms: number) => {
+    if (!pending) return;
+    addWaypoint({
+      sequence: draftWaypoints.length + 1,
+      latitude: pending.lat,
+      longitude: pending.lng,
+      altitude_m,
+      altitude_ref: "AGL",
+      speed_ms,
+      action: "none",
+      is_home: false,
+    });
+    lastValues.current = { altitude: altitude_m, speed: speed_ms };
+    setPending(null);
+  };
+
+  return pending
+    ? createPortal(
+        <WaypointParamsDialog
+          sequence={draftWaypoints.length + 1}
+          initialAltitude={lastValues.current.altitude}
+          initialSpeed={lastValues.current.speed}
+          onConfirm={confirmPending}
+          onCancel={() => setPending(null)}
+        />,
+        document.body,
+      )
+    : null;
+}
+
+function WaypointParamsDialog({
+  sequence,
+  initialAltitude,
+  initialSpeed,
+  onConfirm,
+  onCancel,
+}: {
+  sequence: number;
+  initialAltitude: number;
+  initialSpeed: number;
+  onConfirm: (altitude_m: number, speed_ms: number) => void;
+  onCancel: () => void;
+}) {
+  const [altitude, setAltitude] = useState(String(initialAltitude));
+  const [speed, setSpeed] = useState(String(initialSpeed));
+  const alt = Number(altitude);
+  const spd = Number(speed);
+  const valid =
+    altitude.trim() !== "" &&
+    speed.trim() !== "" &&
+    Number.isFinite(alt) &&
+    alt > 0 &&
+    Number.isFinite(spd) &&
+    spd > 0;
+
+  const submit = (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (valid) onConfirm(alt, spd);
+  };
+
+  const fieldStyle = {
+    width: "100%",
+    padding: "6px 8px",
+    marginTop: 4,
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.2)",
+    borderRadius: 4,
+    color: "inherit",
+  } as const;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 10000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.55)",
+      }}
+      onKeyDown={(ev) => ev.key === "Escape" && onCancel()}>
+      <form
+        onSubmit={submit}
+        role="dialog"
+        aria-label={`Waypoint ${sequence} parameters`}
+        style={{
+          width: 300,
+          padding: 16,
+          borderRadius: 8,
+          background: "#101826",
+          color: "#e5ecf5",
+          border: "1px solid rgba(255,255,255,0.15)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}>
+        <strong>Waypoint {sequence}</strong>
+        <label>
+          Altitude (m AGL)
+          <input
+            autoFocus
+            type="number"
+            min={1}
+            step="any"
+            value={altitude}
+            onChange={(ev) => setAltitude(ev.target.value)}
+            style={fieldStyle}
+          />
+        </label>
+        <label>
+          Speed (m/s)
+          <input
+            type="number"
+            min={0.1}
+            step="any"
+            value={speed}
+            onChange={(ev) => setSpeed(ev.target.value)}
+            style={fieldStyle}
+          />
+        </label>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button type="button" className="da-btn da-btn-ghost" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="submit" className="da-btn da-btn-primary" disabled={!valid}>
+            Add waypoint
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
 function GovernmentZonesToggleHandler({

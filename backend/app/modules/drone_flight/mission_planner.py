@@ -568,6 +568,7 @@ class MissionPlanner:
         # placeholder; ArduCopter records its actual RTL home when the operator
         # arms the aircraft. The target is still sent below as sequence 1.
         home = next((w for w in waypoints if w.is_home), waypoints[0])
+        home_alt = altitude_m if altitude_m is not None else getattr(home, "altitude_m", None)
         items.append({
             "seq":     0,
             "frame":   mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
@@ -575,9 +576,27 @@ class MissionPlanner:
             "current": 0,
             "lat":     int(home.latitude  * 1e7),
             "lon":     int(home.longitude * 1e7),
-            "alt":     home.altitude_m,
+            "alt":     home_alt if home_alt is not None else 0,
             "param1":  0, "param2": 0, "param3": 0, "param4": 0,
         })
+
+        # Item 1 — ArduCopter rejects an AUTO mission (MAV_MISSION_INVALID_SEQUENCE)
+        # that goes straight to a waypoint without a takeoff command first; a
+        # fixed-wing autopilot does not need this, but sending it is harmless
+        # since every target in this list is already treated as multirotor-style.
+        ordered = sorted((w for w in waypoints if not w.is_home), key=lambda w: w.sequence)
+        first_target = ordered[0] if ordered else None
+        if first_target is not None and first_target.action != "takeoff":
+            takeoff_alt = altitude_m if altitude_m is not None else getattr(first_target, "altitude_m", None)
+            items.append({
+                "seq":     len(items),
+                "frame":   mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT,
+                "command": mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+                "current": 0,
+                "lat": 0, "lon": 0,
+                "alt":     takeoff_alt if takeoff_alt is not None else 0,
+                "param1": 0, "param2": 0, "param3": 0, "param4": 0,
+            })
 
         # Remaining waypoints
         for wp in sorted(waypoints, key=lambda w: w.sequence):
@@ -615,7 +634,7 @@ class MissionPlanner:
                 "current": 0,
                 "lat":     int(wp.latitude  * 1e7),
                 "lon":     int(wp.longitude * 1e7),
-                "alt":     altitude_m if altitude_m is not None else wp.altitude_m,
+                "alt":     (altitude_m if altitude_m is not None else wp.altitude_m) or 0,
                 "param1":  p1, "param2": p2, "param3": p3, "param4": p4,
             })
 
@@ -675,6 +694,11 @@ class MissionPlanner:
                 if not msg:
                     continue
                 if msg.get_type() == "MISSION_ACK":
+                    # ArduPilot NAKs a duplicate/late item (common on slow radio links
+                    # where it re-requests before our copy arrives) with INVALID_SEQUENCE
+                    # but keeps the transfer open — only a final verdict is fatal.
+                    if msg.type == mavutil.mavlink.MAV_MISSION_INVALID_SEQUENCE:
+                        continue
                     if msg.type != mavutil.mavlink.MAV_MISSION_ACCEPTED:
                         raise RuntimeError(f"Mission rejected by drone (MAV_MISSION_RESULT {msg.type})")
                     missing = sorted(set(range(count)) - sent)

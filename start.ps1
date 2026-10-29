@@ -17,25 +17,31 @@
     USB-serial device found).
 
 .PARAMETER Baud
-    Baud rate for the serial port.  Default 115200 (USB direct Pixhawk).
-    Use 57600 for SiK telemetry radios.
+    Baud rate for the serial port.  Default 460800 (ELRS radio on USB).
+    Pass "auto" to detect the MAVLink rate (tries 460800, 115200, 57600,
+    921600, 230400), or a number such as 57600 for SiK radios.
 
 .PARAMETER Build
     Pass -Build to force a Docker image rebuild (same as --build flag).
 
 .EXAMPLE
-    .\start.ps1                   # auto port, 115200 baud, no rebuild
+    .\start.ps1                   # auto port, 460800 baud, no rebuild
     .\start.ps1 -Build            # auto port, force rebuild
     .\start.ps1 -ComPort COM4 -Baud 57600
 #>
 param(
     [string]$ComPort = "auto",
-    [int]$Baud       = 115200,
+    [string]$Baud    = "460800",
     [switch]$Build
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ($Baud -ne "auto" -and $Baud -notmatch '^\d+$') {
+    Write-Error "Baud must be 'auto' or a numeric rate such as 57600 or 115200."
+    exit 1
+}
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 

@@ -138,24 +138,24 @@ export default function MissionEditor() {
       return
     }
 
-    const altitude = Number(altitudeM)
-    const speed = Number(speedMs)
-    if (!altitudeM || !Number.isFinite(altitude) || altitude <= 0) {
-      setErr('Enter a mission altitude greater than 0 m')
+    const altitude = altitudeM ? Number(altitudeM) : undefined
+    const speed = speedMs ? Number(speedMs) : undefined
+    if (altitude != null && (!Number.isFinite(altitude) || altitude <= 0)) {
+      setErr('Mission altitude must be greater than 0 m')
       return
     }
-    if (!speedMs || !Number.isFinite(speed) || speed <= 0) {
-      setErr('Enter a mission speed greater than 0 m/s')
+    if (speed != null && (!Number.isFinite(speed) || speed <= 0)) {
+      setErr('Mission speed must be greater than 0 m/s')
       return
     }
 
     const drone = instances.find(instance => instance.id === droneId)
     const droneType = drone ? droneTypes.find(dt => dt.id === drone.drone_type_id) : undefined
-    if (droneType && altitude > droneType.max_altitude_m) {
+    if (droneType && altitude != null && altitude > droneType.max_altitude_m) {
       setErr(`Altitude exceeds this drone type's ${droneType.max_altitude_m} m maximum`)
       return
     }
-    if (droneType && speed > droneType.max_speed_ms) {
+    if (droneType && speed != null && speed > droneType.max_speed_ms) {
       setErr(`Speed exceeds this drone type's ${droneType.max_speed_ms} m/s maximum`)
       return
     }
@@ -264,20 +264,6 @@ export default function MissionEditor() {
                 onChange={event => setName(event.target.value)}
               />
             </label>
-
-            <div className="grid grid-cols-2 gap-3">
-              <label className="da-mission-field">
-                <span>Mission altitude (m AGL)</span>
-                <input className="da-input" type="number" min="1" step="1" placeholder="30" value={altitudeM}
-                  onChange={event => setAltitudeM(event.target.value)} />
-              </label>
-              <label className="da-mission-field">
-                <span>Mission speed (m/s)</span>
-                <input className="da-input" type="number" min="0.1" step="0.1" placeholder="5" value={speedMs}
-                  onChange={event => setSpeedMs(event.target.value)} />
-              </label>
-            </div>
-            <p>Applied to every route waypoint and uploaded with the mission.</p>
 
             <label className="da-mission-field">
               <span>Type</span>

@@ -301,6 +301,15 @@ async def autoconnect_drone(
                  transport=transport, host=host, port=port,
                  serial_port=serial_port, baud_rate=baud_rate)
 
+        # A Windows COM bridge can need several heartbeat periods after its
+        # serial baud scan and TCP client handoff. Give the detected bridge
+        # longer than the generic network/serial probes below.
+        is_windows_bridge = (
+            candidate["transport"] == "tcp"
+            and candidate["host"] == "host.docker.internal"
+            and bridge and bridge.get("connected")
+            and candidate["port"] == bridge.get("tcp_port", 5762)
+        )
         ok = await mavlink_manager.connect(
             drone_id=drone_instance_id,
             call_sign=drone.call_sign,
@@ -309,7 +318,7 @@ async def autoconnect_drone(
             port=port,
             serial_port=serial_port,
             baud_rate=baud_rate,
-            heartbeat_timeout=6.0,   # real hardware may take a moment after cable plug-in
+            heartbeat_timeout=20.0 if is_windows_bridge else 6.0,
         )
 
         if ok:
@@ -330,6 +339,18 @@ async def autoconnect_drone(
             }
 
     from app.modules.drone_control.auto_connector import _connect_drone
+    # If the detected Windows bridge was already probed above, don't open its
+    # single-client TCP endpoint a second time as part of the parallel fallback
+    # scan. Apart from producing a spurious "another client" log, that retry
+    # cannot improve the result and can race with the bridge's disconnect path.
+    if bridge and bridge.get("connected"):
+        bridge_tcp_port = bridge.get("tcp_port", 5762)
+        network_candidates = [
+            c for c in network_candidates
+            if not (c["transport"] == "tcp"
+                    and c["host"] == "host.docker.internal"
+                    and c["port"] == bridge_tcp_port)
+        ]
     for index, candidate in enumerate(network_candidates):
         candidate["label"] = f"manual-autoconnect:{candidate['transport']}:{candidate['host']}:{candidate['port']}:{index}"
 

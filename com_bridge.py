@@ -1,9 +1,9 @@
 """Forward a Windows serial MAVLink device to the Docker backend.
 
 Usage: python com_bridge.py [COM_PORT|auto] [BAUD|auto] [TCP_PORT]
-Default: auto, 115200, 5762
+Default: auto, auto, 5762
 BAUD "auto" tries 460800 (ELRS radio USB), 115200, 57600 (SiK), 921600, 230400 and
-keeps the first rate that carries a MAVLink heartbeat.
+retries the scan until a MAVLink heartbeat is detected.
 
 Security (the MAVLink stream carries no authentication of its own):
   BRIDGE_BIND_ADDR       interface to listen on (default 0.0.0.0 so the Docker
@@ -29,7 +29,7 @@ import serial.tools.list_ports
 
 
 REQUESTED_PORT = sys.argv[1] if len(sys.argv) > 1 else "auto"
-_BAUD_ARG = sys.argv[2] if len(sys.argv) > 2 else "115200"
+_BAUD_ARG = sys.argv[2] if len(sys.argv) > 2 else "auto"
 AUTO_BAUD = _BAUD_ARG.lower() == "auto"
 # ELRS radio USB = 460800; USB-CDC flight controllers ignore it; SiK radios = 57600.
 AUTO_BAUD_CANDIDATES = [460800, 115200, 57600, 921600, 230400]
@@ -76,9 +76,13 @@ def open_serial(device: str, baud: int):
 
 
 def open_serial_autobaud(device: str):
-    """Open `device` at whichever baud rate carries MAVLink. Returns (serial, baud).
-    If nothing is heard at any speed (e.g. radio not linked yet) the first candidate
-    stays open so data still flows once the link comes up."""
+    """Probe common rates, then leave the COM port open for the backend.
+
+    Some SiK/CP210x links only start forwarding vehicle data after a GCS has
+    connected and sent its own heartbeat. Requiring a vehicle heartbeat before
+    exposing TCP creates a deadlock, so when probing finds no heartbeat, retain
+    the port at the common SiK default and let the backend initiate the link.
+    """
     for baud in AUTO_BAUD_CANDIDATES:
         ser = open_serial(device, baud)
         heard = b""
@@ -86,11 +90,25 @@ def open_serial_autobaud(device: str):
         while time.monotonic() < deadline and len(heard) < 4096:
             heard += ser.read(512)
             if looks_like_mavlink(heard):
+                original_read = ser.read
+                pending = bytearray(heard)
+
+                def read(size=1, _original=original_read, _pending=pending):
+                    if _pending:
+                        count = min(size, len(_pending))
+                        data = bytes(_pending[:count])
+                        del _pending[:count]
+                        return data + (_original(size - count) if count < size else b"")
+                    return _original(size)
+
+                ser.read = read
+                print(f"[bridge] MAVLink detected on {device} at {baud} baud")
                 return ser, baud
         ser.close()
-    first = AUTO_BAUD_CANDIDATES[0]
-    print(f"[bridge] no MAVLink heard on {device}; holding {first} baud")
-    return open_serial(device, first), first
+
+    fallback_baud = 57600
+    print(f"[bridge] no MAVLink heard on {device}; opening at {fallback_baud} baud for GCS handshake")
+    return open_serial(device, fallback_baud), fallback_baud
 
 
 def client_allowed(host) -> bool:

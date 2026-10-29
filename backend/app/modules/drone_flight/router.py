@@ -15,7 +15,7 @@ from app.schemas.mission import (
 )
 from app.modules.drone_control.mavlink_manager import mavlink_manager
 from app.modules.drone_flight.geo_service import compute_mission_summary
-from app.modules.drone_flight.mission_planner import MissionPlanner
+from app.modules.drone_flight.mission_planner import MissionPlanner, MissionValidator
 from app.modules.drone_flight.airspace_service import validate_mission_airspace
 from app.modules.drone_flight.fleet_router import (
     AssignmentProblem, FleetAssignRequest,
@@ -81,7 +81,7 @@ async def _validate_mission_profile(db: AsyncSession, drone_id: int,
     drone_type = await db.get(DroneType, drone.drone_type_id) if drone else None
     if not drone_type:
         raise HTTPException(422, "Assigned drone type could not be found")
-    safe_ceiling = drone_type.max_altitude_m - MissionPlanner.ALTITUDE_MARGIN_M
+    safe_ceiling = drone_type.max_altitude_m - MissionValidator.ALTITUDE_MARGIN_M
     if altitude_m is not None and altitude_m > safe_ceiling:
         raise HTTPException(422, f"Mission altitude exceeds this drone type's safe ceiling of {safe_ceiling:g} m")
     if speed_ms is not None and speed_ms > drone_type.max_speed_ms:

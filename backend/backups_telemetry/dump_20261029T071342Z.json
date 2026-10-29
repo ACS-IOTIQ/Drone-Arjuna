@@ -33,38 +33,6 @@
       "current_waypoint": null
     },
     {
-      "drone_id": 1,
-      "recorded_at": "2026-10-13T12:25:39.353588+00:00",
-      "lat": 0.0,
-      "lon": 0.0,
-      "alt_msl": 0.0,
-      "alt_agl": 0.0,
-      "heading": 0.0,
-      "roll_deg": -1.821894477606133,
-      "pitch_deg": -0.34058546197198175,
-      "yaw_deg": 9.38273246191042,
-      "vx": 0.0,
-      "vy": 0.0,
-      "vz": 0.0,
-      "airspeed_ms": 0.0,
-      "groundspeed_ms": 0.0,
-      "climb_rate_ms": 0.0,
-      "throttle_pct": 0,
-      "battery_voltage_v": 0.0,
-      "battery_current_a": 0.0,
-      "battery_remaining_pct": -1,
-      "gps_fix_type": "No GPS",
-      "gps_satellites": 0,
-      "gps_hdop": 99.9,
-      "flight_mode": "UNKNOWN",
-      "is_armed": false,
-      "system_status": 0,
-      "rssi": 0,
-      "cpu_load_pct": 0.0,
-      "mission_id": null,
-      "current_waypoint": null
-    },
-    {
       "drone_id": 4,
       "recorded_at": "2026-10-13T12:25:53.203786+00:00",
       "lat": 0.0,
@@ -159,6 +127,38 @@
       "cpu_load_pct": 35.7,
       "mission_id": null,
       "current_waypoint": null
+    },
+    {
+      "drone_id": 1,
+      "recorded_at": "2026-10-29T07:12:54.275092+00:00",
+      "lat": 0.0,
+      "lon": 0.0,
+      "alt_msl": -0.1,
+      "alt_agl": 1.76,
+      "heading": 164.48,
+      "roll_deg": 0.23056058599446444,
+      "pitch_deg": 0.13943481676994596,
+      "yaw_deg": 164.50792019769514,
+      "vx": 0.0,
+      "vy": 0.0,
+      "vz": 0.01,
+      "airspeed_ms": 0.0,
+      "groundspeed_ms": 0.0049441722221672535,
+      "climb_rate_ms": -0.015116077847778797,
+      "throttle_pct": 0,
+      "battery_voltage_v": 23.041,
+      "battery_current_a": 0.08,
+      "battery_remaining_pct": 99,
+      "gps_fix_type": "No fix",
+      "gps_satellites": 0,
+      "gps_hdop": 99.99,
+      "flight_mode": "STABILIZE",
+      "is_armed": false,
+      "system_status": 3,
+      "rssi": 100,
+      "cpu_load_pct": 34.0,
+      "mission_id": null,
+      "current_waypoint": null
     }
   ],
   "telemetry_gauges": [
@@ -171,16 +171,6 @@
       "gps_satellites": 14,
       "rssi": 95,
       "cpu_load_pct": 12.0
-    },
-    {
-      "drone_id": 1,
-      "recorded_at": "2026-10-13T12:25:39.353588+00:00",
-      "battery_pct": -1,
-      "altitude_m": 0.0,
-      "ground_speed_ms": 0.0,
-      "gps_satellites": 0,
-      "rssi": 0,
-      "cpu_load_pct": 0.0
     },
     {
       "drone_id": 4,
@@ -211,7 +201,17 @@
       "gps_satellites": 0,
       "rssi": 100,
       "cpu_load_pct": 35.7
+    },
+    {
+      "drone_id": 1,
+      "recorded_at": "2026-10-29T07:12:54.275092+00:00",
+      "battery_pct": 99,
+      "altitude_m": 1.76,
+      "ground_speed_ms": 0.0049441722221672535,
+      "gps_satellites": 0,
+      "rssi": 100,
+      "cpu_load_pct": 34.0
     }
   ],
-  "__sig__": "4a856ab7adb0a77ea89f65d2e2bbd25acfc335b446a6214af4aaa3188ea8c623"
+  "__sig__": "5d107a018b85c8f65327830b26bf925bd93d690f1cd4e52f6d2947522d5d37c2"
 }
